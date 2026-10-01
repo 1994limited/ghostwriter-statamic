@@ -13,8 +13,8 @@ class Settings
 {
     public const ADDON = '1994/ghostwriter-statamic';
 
-    /** Ghostwriter's mark as a 1px stroke icon, on the brand's 14-grid geometry. */
-    public const ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 10h2.5L9 12.5Z"/><circle cx="5.4" cy="6.25" r=".75" fill="currentColor"/><circle cx="8.6" cy="6.25" r=".75" fill="currentColor"/></svg>';
+    /** Ghostwriter's mark as the pack's 14-grid stroke icon, in currentColor. */
+    public const ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0v4l-2.5 2.5Z" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"></path><path d="M11.5 10H9v2.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="5.4" cy="6.25" r=".75" fill="currentColor"></circle><circle cx="8.6" cy="6.25" r=".75" fill="currentColor"></circle></svg>';
 
     public function provider(): string
     {

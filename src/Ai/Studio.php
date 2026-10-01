@@ -224,8 +224,15 @@ class Studio
         ]);
 
         $response = $this->ask(new KindScout($instructions), "Section: {$collection->title()}\n\nEntries, newest first:\n".implode("\n", $lines));
-        $block = TaggedResponse::parse($response->text, 'kinds')->document
-            ?? throw new InvalidArgumentException('Ghostwriter did not come back with any kinds. Try again.');
+        $block = TaggedResponse::parse($response->text, 'kinds')->document;
+
+        // No block at all is the scout saying there is nothing to add, which
+        // is an answer, not a failure. What it did say is kept in the log.
+        if ($block === null) {
+            Log::info("Ghostwriter: no kinds suggested for {$collection->handle()}:\n{$response->text}");
+
+            return [];
+        }
 
         try {
             $found = (array) LenientYaml::parse($block);

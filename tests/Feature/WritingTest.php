@@ -122,6 +122,20 @@ class WritingTest extends TestCase
         $this->postJson($suggestion['learn_url'])->assertNotFound();
     }
 
+    public function test_a_scout_with_nothing_to_add_is_not_a_failure(): void
+    {
+        $this->makeType();
+        KindScout::fake(['Both entries are already covered by the Article kind, so there is nothing to suggest.']);
+
+        (new SuggestKinds(['articles']))->handle(app(Studio::class), app(TypeRepository::class), app(KindSuggestions::class));
+
+        $state = app(KindSuggestions::class)->get('articles');
+
+        $this->assertSame(KindSuggestions::IDLE, $state['status']);
+        $this->assertSame([], $state['suggestions']);
+        $this->assertNotNull($state['checked_at']);
+    }
+
     public function test_a_turned_down_kind_is_not_suggested_again_and_learn_all_queues_the_rest(): void
     {
         Bus::fake([AnalyseCollection::class]);

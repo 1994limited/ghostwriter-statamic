@@ -10,7 +10,7 @@ use Stringable;
 /**
  * Looks over a collection's entries and names the kinds of content in it.
  */
-#[MaxTokens(4000)]
+#[MaxTokens(8000)]
 class KindScout implements Agent
 {
     use Promptable;
