@@ -4,7 +4,6 @@ namespace NineteenNinetyFour\Ghostwriter\Images;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use Laravel\Ai\Files\Image as ImageFile;
@@ -12,6 +11,7 @@ use Laravel\Ai\Image;
 use Laravel\Ai\Responses\Data\GeneratedImage;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoPicker;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
@@ -47,7 +47,7 @@ class ImageStudio
     /** Entries looked through for references when none were picked. */
     private const SAMPLE = 12;
 
-    public function __construct(private Settings $settings, private SchemaReader $reader, private StockSearch $stock, private ImageryGuide $guide) {}
+    public function __construct(private Settings $settings, private SchemaReader $reader, private StockSearch $stock, private ImageryGuide $guide, private PromptLibrary $prompts) {}
 
     /**
      * The provider to make images with: the one chosen in settings, or the
@@ -815,10 +815,7 @@ class ImageStudio
 
     private function prompt(string $title, string $summary, string $label, string $direction, int $references, bool $hasSource, string $style = ''): string
     {
-        $published = resource_path('ghostwriter/prompts/image.md');
-        $template = trim((string) File::get(File::exists($published) ? $published : __DIR__.'/../../resources/prompts/image.md'));
-
-        return strtr($template, [
+        return strtr($this->prompts->get('image'), [
             '{{ field }}' => $label,
             '{{ title }}' => $title,
             '{{ summary }}' => $summary !== '' ? $summary : '(none)',

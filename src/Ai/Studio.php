@@ -3,7 +3,6 @@
 namespace NineteenNinetyFour\Ghostwriter\Ai;
 
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Laravel\Ai\Contracts\Agent;
@@ -23,6 +22,7 @@ use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Content\ProseExtractor;
+use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\LenientYaml;
 use NineteenNinetyFour\Ghostwriter\Core\Text\TaggedResponse;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
@@ -59,6 +59,7 @@ class Studio
         private SchemaDescriber $describer,
         private Settings $settings,
         private ProseExtractor $prose,
+        private PromptLibrary $prompts,
     ) {}
 
     /**
@@ -525,11 +526,12 @@ class Studio
         );
     }
 
+    /**
+     * A prompt, as published to the project when it has been, or as core
+     * ships it.
+     */
     private function promptFile(string $name): string
     {
-        // A project can override any prompt by publishing it.
-        $published = resource_path("ghostwriter/prompts/{$name}.md");
-
-        return trim((string) File::get(File::exists($published) ? $published : __DIR__."/../../resources/prompts/{$name}.md"));
+        return $this->prompts->get($name);
     }
 }

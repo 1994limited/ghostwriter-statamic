@@ -4,6 +4,8 @@ namespace NineteenNinetyFour\Ghostwriter;
 
 use Illuminate\Support\Facades\Event;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
+use NineteenNinetyFour\Ghostwriter\Core\Prompts\Vocabulary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardToMarkdown;
@@ -45,6 +47,13 @@ class ServiceProvider extends AddonServiceProvider
         // class, or bind the contract itself in a service provider.
         $this->app->bindIf(EntryWriter::class, fn ($app) => $app->make(config('ghostwriter.writer', SchemaEntryWriter::class)));
 
+        // The prompts are core's, in Statamic's words. A project overrides
+        // one by publishing it to resources/ghostwriter/prompts.
+        $this->app->singleton(PromptLibrary::class, fn () => new PromptLibrary(
+            Vocabulary::statamic(),
+            fn (string $name): ?string => is_file($path = resource_path("ghostwriter/prompts/{$name}.md")) ? (string) file_get_contents($path) : null,
+        ));
+
         // Core's text classes, set up the way Statamic stores entries: a
         // rewritten draft leaves out what it does not hold rather than
         // copying it back, grid rows keep their IDs, and Bard is node trees.
@@ -57,7 +66,7 @@ class ServiceProvider extends AddonServiceProvider
     public function bootAddon(): void
     {
         $this->publishes([
-            __DIR__.'/../resources/prompts' => resource_path('ghostwriter/prompts'),
+            PromptLibrary::directory() => resource_path('ghostwriter/prompts'),
         ], 'ghostwriter-prompts');
 
         Permission::group('ghostwriter', 'Ghostwriter', function (): void {
