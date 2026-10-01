@@ -175,4 +175,4 @@ vendor/bin/phpunit
 
 Tests fake every model call and HTTP request, so they need no API key. In a site using the addon, after a build: `php artisan vendor:publish --tag=ghostwriter-statamic --force`.
 
-Marketplace screenshots are taken from the real product with `php scripts/screenshots.php` (see the script for what it needs), then set in the brand frames.
+Marketplace screenshots are taken from the real product with `php scripts/screenshots.php` (see the script for what it needs), then set in the brand frames with `scripts/frame.php`. `scripts/promo.php` records a short promo video the same way; it needs `ffmpeg` to encode the result.

@@ -4,3 +4,4 @@ composer.lock
 .phpunit.cache
 .DS_Store
 /resources/dist/hot
+/docs/promo/frames
