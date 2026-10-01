@@ -3,7 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Voice;
 
 use Illuminate\Support\Facades\File;
-use NineteenNinetyFour\Ghostwriter\Ai\Text;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Utf8;
 
 /**
  * Working state for the voice guide screen: whether a scan or refinement is
@@ -38,7 +38,7 @@ class VoiceState
     public function update(array $changes): void
     {
         File::ensureDirectoryExists(dirname($this->path()));
-        File::put($this->path(), json_encode(Text::scrub(array_merge($this->get(), $changes)), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        File::put($this->path(), json_encode(Utf8::scrub(array_merge($this->get(), $changes)), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     public function addMessage(string $role, string $content): void

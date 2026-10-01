@@ -8,7 +8,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;

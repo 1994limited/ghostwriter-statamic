@@ -12,7 +12,7 @@ use Laravel\Ai\Image;
 use Laravel\Ai\Responses\Data\GeneratedImage;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoPicker;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
-use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Settings;

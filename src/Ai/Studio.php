@@ -23,6 +23,8 @@ use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Content\ProseExtractor;
+use NineteenNinetyFour\Ghostwriter\Core\Text\LenientYaml;
+use NineteenNinetyFour\Ghostwriter\Core\Text\TaggedResponse;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Settings;

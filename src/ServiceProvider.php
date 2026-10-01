@@ -4,6 +4,9 @@ namespace NineteenNinetyFour\Ghostwriter;
 
 use Illuminate\Support\Facades\Event;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
+use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
+use NineteenNinetyFour\Ghostwriter\Drafts\BardToMarkdown;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Events\AddonSettingsSaving;
@@ -41,6 +44,14 @@ class ServiceProvider extends AddonServiceProvider
         // Resolved late so a project can point `ghostwriter.writer` at its own
         // class, or bind the contract itself in a service provider.
         $this->app->bindIf(EntryWriter::class, fn ($app) => $app->make(config('ghostwriter.writer', SchemaEntryWriter::class)));
+
+        // Core's text classes, set up the way Statamic stores entries: a
+        // rewritten draft leaves out what it does not hold rather than
+        // copying it back, grid rows keep their IDs, and Bard is node trees.
+        $this->app->bind(EntryMerger::class, fn () => new EntryMerger(keepMissing: false, mergeRows: true));
+        $this->app->bind(EntrySimplifier::class, fn ($app) => new EntrySimplifier(
+            richText: fn (mixed $value) => is_array($value) ? $app->make(BardToMarkdown::class)->convert($value) : trim((string) $value),
+        ));
     }
 
     public function bootAddon(): void

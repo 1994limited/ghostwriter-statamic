@@ -5,7 +5,7 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
-use NineteenNinetyFour\Ghostwriter\Drafts\EntrySimplifier;
+use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
