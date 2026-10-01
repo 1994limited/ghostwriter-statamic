@@ -5,3 +5,4 @@ composer.lock
 .DS_Store
 /resources/dist/hot
 /docs/promo/frames
+/docs/promo/recording
