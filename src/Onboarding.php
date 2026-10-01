@@ -5,6 +5,8 @@ namespace NineteenNinetyFour\Ghostwriter;
 use Illuminate\Support\Facades\File;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\Credentials;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
@@ -28,8 +30,6 @@ use Statamic\Facades\User;
  */
 class Onboarding
 {
-    private const KEYS = ['anthropic' => 'ANTHROPIC_API_KEY', 'openai' => 'OPENAI_API_KEY', 'gemini' => 'GEMINI_API_KEY'];
-
     public function __construct(
         private Studio $studio,
         private Settings $settings,
@@ -43,6 +43,7 @@ class Onboarding
         private IdeaRepository $ideas,
         private PlanState $planState,
         private SessionRepository $sessions,
+        private Providers $providers,
     ) {}
 
     /**
@@ -73,7 +74,7 @@ class Onboarding
                 'optional' => false,
                 'detail' => $configured
                     ? 'Writing with '.$this->providerName($this->studio->provider()).'.'
-                    : 'Add '.(self::KEYS[$this->studio->provider()] ?? 'the API key').' to .env, then reload this page.',
+                    : $this->missingKey(),
                 'action' => $settingsLink,
             ],
             [
@@ -172,7 +173,7 @@ class Onboarding
             'can_change_settings' => (bool) User::current()?->can('edit '.Settings::ADDON.' settings'),
             'settings_url' => $this->settings->url(),
             'provider' => $this->providerName($this->studio->provider()),
-            'key_name' => self::KEYS[$this->studio->provider()] ?? null,
+            'key_name' => $this->keyName($this->studio->provider()),
             'collections' => Collections::all()->map(fn ($collection) => [
                 'handle' => $collection->handle(),
                 'title' => $collection->title(),
@@ -267,6 +268,34 @@ class Onboarding
     private function path(): string
     {
         return dirname((string) config('ghostwriter.sessions_path')).'/onboarding.json';
+    }
+
+    /**
+     * What to do when the chosen provider has no key: add it, or, when
+     * another provider's key is already there, choose that one instead.
+     */
+    private function missingKey(): string
+    {
+        $provider = $this->studio->provider();
+        $wanted = $this->keyName($provider);
+        $keys = $this->providers->keyStatus();
+        $others = array_values(array_filter(Providers::TEXT, fn (string $other) => $other !== $provider && ($keys[Credentials::ENV[$other]] ?? false)));
+
+        $advice = $wanted
+            ? "Add {$wanted} to .env, then reload this page."
+            : "\"{$provider}\" is not a provider Ghostwriter can write with. Choose Claude, ChatGPT or Gemini in the settings.";
+
+        return $others === []
+            ? $advice
+            : $advice.' '.Credentials::ENV[$others[0]].' is set already: choose '.$this->providerName($others[0]).' in the settings to write with it.';
+    }
+
+    /**
+     * The .env variable a provider's key is read from.
+     */
+    private function keyName(string $provider): ?string
+    {
+        return in_array($provider, Providers::TEXT, true) ? Credentials::ENV[$provider] : null;
     }
 
     private function providerName(string $provider): string

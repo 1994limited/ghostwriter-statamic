@@ -36,7 +36,7 @@ tabs:
               default: true
       -
         display: AI provider
-        instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file.'
+        instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY in your .env file.'
         fields:
           -
             handle: provider
@@ -70,7 +70,6 @@ tabs:
               options:
                 openai: 'ChatGPT (OpenAI)'
                 gemini: 'Gemini (Google)'
-                xai: 'Grok (xAI)'
               width: 50
           -
             handle: placeholder_images

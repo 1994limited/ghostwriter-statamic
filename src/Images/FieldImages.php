@@ -3,10 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Images;
 
 use InvalidArgumentException;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoScout;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
-use NineteenNinetyFour\Ghostwriter\Settings;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Support\Str;
@@ -19,7 +16,7 @@ use Statamic\Support\Str;
  */
 class FieldImages
 {
-    public function __construct(private ImageStudio $images, private StockSearch $stock, private ImageryGuide $guide, private Studio $studio, private Settings $settings, private PromptLibrary $prompts) {}
+    public function __construct(private ImageStudio $images, private StockSearch $stock, private ImageryGuide $guide, private Studio $studio) {}
 
     /**
      * Three searches for a photograph that suits the slot, chosen by the
@@ -39,7 +36,7 @@ class FieldImages
             ."The whole page:\n\n".($slot->pageText !== '' ? $slot->pageText : '(nothing written yet)')
             .($style !== '' ? "\n\nThe site's own description of its images in this section:\n\n{$style}" : '');
 
-        $answer = (new PhotoScout($this->prompts->get('photo-researcher')))->prompt($prompt, provider: $this->settings->provider(), model: $this->settings->model(), timeout: 60)->text;
+        $answer = $this->studio->ask('photo-researcher', $prompt, timeout: 60)->text;
 
         return self::terms($answer) ?: array_values(array_filter([mb_strtolower($slot->title)]));
     }
@@ -76,7 +73,7 @@ class FieldImages
     {
         $image = $this->images->make($slot->references(), $slot->title, '', $slot->label(), $direction, $source, $this->guide->for($slot->collection->title()));
 
-        return ['content' => $image->content(), 'mime' => $image->mime()];
+        return ['content' => $image->data, 'mime' => $image->mime];
     }
 
     /**

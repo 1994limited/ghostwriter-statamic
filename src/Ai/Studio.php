@@ -5,23 +5,17 @@ namespace NineteenNinetyFour\Ghostwriter\Ai;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Files\Image;
-use Laravel\Ai\Messages\Message;
-use Laravel\Ai\Responses\AgentResponse;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\BriefWriter;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\ImageryAnalyst;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\KindScout;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoResearcher;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\Planner;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\TypeAnalyst;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\VoiceAnalyst;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\VoiceEditor;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\Writer;
 use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Content\ProseExtractor;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\ProviderException;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\Truncated;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Message;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextResponse;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\LenientYaml;
 use NineteenNinetyFour\Ghostwriter\Core\Text\TaggedResponse;
@@ -41,12 +35,33 @@ use Throwable;
 
 /**
  * Every call the addon makes to a model goes through here: building the
- * instructions from the prompt files, choosing the provider and model from
- * config, and turning the answer back into something the rest of the addon
- * can use.
+ * instructions from the prompts, sending them through Ghostwriter Core's
+ * providers, and turning the answer back into something the rest of the
+ * addon can use.
  */
 class Studio
 {
+    /** The most a reply that ran out of room is given on its second try. */
+    private const MAX_TOKENS_CEILING = 32000;
+
+    /**
+     * Replies that are no use part-written: a draft or a guide cut off at
+     * the limit must not be saved as if it were finished. The rest (lists
+     * of ideas, kinds and photographs) are kept, as far as they got.
+     */
+    private const WHOLE = [
+        'writer' => 'The draft was longer than Ghostwriter allows and was cut off. Try asking for a shorter piece.',
+        'type-analyst' => 'The description of this kind of content was longer than Ghostwriter allows and was cut off. Try again.',
+        'voice-analyst' => 'The voice guide was longer than Ghostwriter allows and was cut off. Try again, or read fewer collections.',
+        'voice-editor' => 'The voice guide was longer than Ghostwriter allows and was cut off. Try asking for a shorter guide.',
+    ];
+
+    /**
+     * Search words for a draft's picture, which has no prompt file of its
+     * own in core: the field button's searches use photo-researcher.
+     */
+    private const PHOTO_QUERY = 'You choose search terms for stock photo libraries. Given a web page\'s title and summary, reply with two to four plain words naming a concrete, photographable subject that would suit the page: objects, places or scenes, never brand names, abstract ideas or the word "website". Reply with the words only, lower case, no punctuation.';
+
     /** Examples are trimmed to this many characters each. */
     private const EXAMPLE_LIMIT = 7000;
 
@@ -60,6 +75,7 @@ class Studio
         private Settings $settings,
         private ProseExtractor $prose,
         private PromptLibrary $prompts,
+        private Providers $providers,
     ) {}
 
     /**
@@ -67,9 +83,7 @@ class Studio
      */
     public function configured(): bool
     {
-        $key = config('ai.providers.'.$this->provider().'.key');
-
-        return is_string($key) && trim($key) !== '';
+        return $this->providers->configured();
     }
 
     public function provider(): string
@@ -92,9 +106,9 @@ class Studio
             ))->implode("\n\n")
             ."\n\nWrite the tone of voice guide.";
 
-        $response = $this->ask(new VoiceAnalyst($this->promptFile('voice-analyst')), $prompt);
+        $response = $this->ask('voice-analyst', $prompt);
 
-        return new TaggedResponse('', trim($response->text), $response->usage->inputTokens, $response->usage->outputTokens);
+        return new TaggedResponse('', trim($response->text), $response->usage->input, $response->usage->output);
     }
 
     /**
@@ -104,9 +118,9 @@ class Studio
     {
         $prompt = "<current_guide>\n{$guide}\n</current_guide>\n\nRequest: {$request}";
 
-        $response = $this->ask(new VoiceEditor($this->promptFile('voice-editor')), $prompt, $history);
+        $response = $this->ask('voice-editor', $prompt, $history);
 
-        return TaggedResponse::parse($response->text, 'document', $response->usage->inputTokens, $response->usage->outputTokens);
+        return TaggedResponse::parse($response->text, 'document', $response->usage->input, $response->usage->output);
     }
 
     /**
@@ -122,7 +136,7 @@ class Studio
 
         try {
             $summary = preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
-            $words = mb_strtolower(trim(preg_replace('/[^\p{L}\p{N} -]+/u', ' ', $this->ask(new PhotoResearcher, "Title: {$session->title()}\nSummary: {$summary}")->text) ?? ''));
+            $words = mb_strtolower(trim(preg_replace('/[^\p{L}\p{N} -]+/u', ' ', $this->ask('photo-scout', "Title: {$session->title()}\nSummary: {$summary}", instructions: self::PHOTO_QUERY)->text) ?? ''));
 
             return $words !== '' && str_word_count($words) <= 6 ? $words : $session->title();
         } catch (Throwable $exception) {
@@ -149,8 +163,7 @@ class Studio
             ."## Existing entries\n\n".$this->examples($pattern)."\n\n"
             .'Write the type.';
 
-        $analyst = new TypeAnalyst($this->promptFile('type-analyst'));
-        $response = $this->ask($analyst, $prompt);
+        $response = $this->ask('type-analyst', $prompt);
         [$data, $problem] = $this->readType($response->text);
 
         // An answer that cannot be read gets one more chance, told what was wrong.
@@ -158,7 +171,7 @@ class Studio
             Log::warning("Ghostwriter: the type analysis for {$collection->handle()} could not be read ({$problem}):\n{$response->text}");
 
             $response = $this->ask(
-                new TypeAnalyst($this->promptFile('type-analyst')),
+                'type-analyst',
                 "Your answer could not be read: {$problem}. Reply again with the whole type, as one YAML document inside a <type> block and nothing else.",
                 [['role' => 'user', 'content' => $prompt], ['role' => 'assistant', 'content' => $response->text]],
             );
@@ -226,7 +239,7 @@ class Studio
             '{{ dismissed }}' => $state['dismissed'] ? '- '.implode("\n- ", $state['dismissed']) : 'Nothing yet.',
         ]);
 
-        $response = $this->ask(new KindScout($instructions), "Section: {$collection->title()}\n\nEntries, newest first:\n".implode("\n", $lines));
+        $response = $this->ask('kind-finder', "Section: {$collection->title()}\n\nEntries, newest first:\n".implode("\n", $lines), instructions: $instructions);
         $block = TaggedResponse::parse($response->text, 'kinds')->document;
 
         // No block at all is the scout saying there is nothing to add, which
@@ -342,7 +355,7 @@ class Studio
             '{{ plan }}' => $planned ?: 'Nothing yet.',
         ]);
 
-        $response = $this->ask(new Planner($instructions), trim($steer) !== '' ? "What I am looking for this time: {$steer}" : 'Suggest what is missing.');
+        $response = $this->ask('planner', trim($steer) !== '' ? "What I am looking for this time: {$steer}" : 'Suggest what is missing.', instructions: $instructions);
         $block = TaggedResponse::parse($response->text, 'ideas')->document
             ?? throw new InvalidArgumentException('Ghostwriter did not come back with any ideas. Try again.');
 
@@ -380,13 +393,7 @@ class Studio
     {
         $list = collect($samples)->map(fn (array $sample, int $i) => ($i + 1).". {$sample['label']}, on \"{$sample['entry']}\"")->implode("\n");
 
-        $response = (new ImageryAnalyst($this->promptFile('imagery-analyst')))->prompt(
-            "Section: {$collectionTitle}\n\nThe attached images, in order:\n{$list}",
-            array_column($samples, 'image'),
-            provider: $this->provider(),
-            model: $this->settings->model(),
-            timeout: (int) config('ghostwriter.timeout', 180),
-        );
+        $response = $this->ask('imagery-analyst', "Section: {$collectionTitle}\n\nThe attached images, in order:\n{$list}", images: array_column($samples, 'image'));
 
         return (string) (TaggedResponse::parse($response->text, 'document')->document ?? trim($response->text));
     }
@@ -416,7 +423,7 @@ class Studio
             '{{ entries }}' => $entries !== '' ? $entries : 'None yet.',
         ]);
 
-        $response = $this->ask(new BriefWriter($instructions), "Working title: {$title}\n\nNotes:\n".(trim($notes) !== '' ? trim($notes) : '(none)'));
+        $response = $this->ask('brief-writer', "Working title: {$title}\n\nNotes:\n".(trim($notes) !== '' ? trim($notes) : '(none)'), instructions: $instructions);
         $block = TaggedResponse::parse($response->text, 'brief')->document
             ?? throw new InvalidArgumentException('Ghostwriter could not put a brief together from that. Try again, or fill it in by hand.');
 
@@ -443,9 +450,9 @@ class Studio
 
         $prompt = ($session->draft ? "<current_draft>\n{$session->draft}\n</current_draft>\n\n" : '').($latest['content'] ?? '');
 
-        $response = $this->ask(new Writer($this->writerInstructions($type, $voice)), $prompt, $messages);
+        $response = $this->ask('writer', $prompt, $messages, instructions: $this->writerInstructions($type, $voice));
 
-        return TaggedResponse::parse($response->text, 'draft', $response->usage->inputTokens, $response->usage->outputTokens);
+        return TaggedResponse::parse($response->text, 'draft', $response->usage->input, $response->usage->output);
     }
 
     /**
@@ -507,23 +514,49 @@ class Studio
     }
 
     /**
+     * Send one request to the model chosen in the settings.
+     *
+     * The agent is the prompt's name: it sets the instructions (unless they
+     * are given, filled in), the token limit and the effort. A reply that
+     * runs out of room is asked for once more with twice the room. If it
+     * still does not fit, a draft or a guide fails rather than being kept
+     * half-written, and anything else is kept as far as it got.
+     *
      * @param  array<int, array{role: string, content: string}>  $history
+     * @param  array<int, Image>  $images
+     *
+     * @throws ProviderException
      */
-    private function ask(Agent $agent, string $prompt, array $history = []): AgentResponse
+    public function ask(string $agent, string $prompt, array $history = [], array $images = [], ?string $instructions = null, ?int $timeout = null): TextResponse
     {
-        if ($history) {
-            $agent = $agent->withMessages(array_map(
-                fn (array $message) => new Message($message['role'], $message['content']),
-                $history,
-            ));
+        $request = new TextRequest($agent, $instructions ?? $this->promptFile($agent), $prompt, Message::list($history), $images, timeout: $timeout);
+        $provider = $this->providers->text();
+        $response = $provider->text($request);
+
+        if (! $response->truncated()) {
+            return $response;
         }
 
-        return $agent->prompt(
-            $prompt,
-            provider: $this->provider(),
-            model: $this->settings->model(),
-            timeout: (int) config('ghostwriter.timeout', 180),
-        );
+        $limit = $request->resolvedMaxTokens();
+        $more = min(self::MAX_TOKENS_CEILING, $limit * 2);
+
+        if ($more > $limit) {
+            Log::warning("Ghostwriter: the {$agent} reply ran out of room at {$limit} tokens; asking again with {$more}.", ['provider' => $response->provider, 'model' => $response->model]);
+
+            $response = $provider->text(new TextRequest($request->agent, $request->instructions, $request->prompt, $request->history, $request->images, $more, $request->model, $request->timeout, $request->effort));
+
+            if (! $response->truncated()) {
+                return $response;
+            }
+        }
+
+        if (isset(self::WHOLE[$agent])) {
+            throw new Truncated(self::WHOLE[$agent], $response->provider);
+        }
+
+        Log::warning("Ghostwriter: the {$agent} reply ran out of room at {$more} tokens; keeping what came back.", ['provider' => $response->provider, 'model' => $response->model]);
+
+        return $response;
     }
 
     /**

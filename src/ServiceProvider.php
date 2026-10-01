@@ -3,7 +3,13 @@
 namespace NineteenNinetyFour\Ghostwriter;
 
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
+use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
+use NineteenNinetyFour\Ghostwriter\Ai\ConfigProviderSettings;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Http\GuzzleHttpClients;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\Vocabulary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
@@ -46,6 +52,17 @@ class ServiceProvider extends AddonServiceProvider
         // Resolved late so a project can point `ghostwriter.writer` at its own
         // class, or bind the contract itself in a service provider.
         $this->app->bindIf(EntryWriter::class, fn ($app) => $app->make(config('ghostwriter.writer', SchemaEntryWriter::class)));
+
+        // One connection to the models for the whole request or worker, from
+        // Ghostwriter Core. Keys and settings are read on every call. A
+        // project can bind its own HttpClients, to go through a proxy, say.
+        $this->app->bindIf(HttpClients::class, GuzzleHttpClients::class);
+        $this->app->singleton(Providers::class, fn ($app) => new Providers(
+            new ConfigCredentials,
+            $app->make(HttpClients::class),
+            new ConfigProviderSettings($app->make(Settings::class)),
+            Log::channel(config('ghostwriter.log_channel')),
+        ));
 
         // The prompts are core's, in Statamic's words. A project overrides
         // one by publishing it to resources/ghostwriter/prompts.

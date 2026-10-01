@@ -4,11 +4,11 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Bus;
 use NineteenNinetyFour\Ghostwriter\Actions\WriteWithGhostwriter;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\BriefWriter;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\KindScout;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\TypeAnalyst;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\Writer;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\StopReason;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextResponse;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
@@ -46,7 +46,7 @@ class WritingTest extends TestCase
 
     public function test_learning_a_collection_saves_a_content_type(): void
     {
-        TypeAnalyst::fake(["<type>\ntitle: Project article\ndescription: A write-up of one project.\nquestions:\n  - handle: what\n    label: What was built?\n    type: textarea\n    required: true\n  - handle: avoid\n    label: What must not appear?\nguidance: |\n  Open on the reader.\nchecklist:\n  - Facts come from the brief.\n</type>"]);
+        $this->ai->respond('type-analyst', "<type>\ntitle: Project article\ndescription: A write-up of one project.\nquestions:\n  - handle: what\n    label: What was built?\n    type: textarea\n    required: true\n  - handle: avoid\n    label: What must not appear?\nguidance: |\n  Open on the reader.\nchecklist:\n  - Facts come from the brief.\n</type>");
 
         (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
 
@@ -58,13 +58,13 @@ class WritingTest extends TestCase
         $this->assertSame(TypeState::IDLE, app(TypeState::class)->get('articles')['status']);
 
         // The analyst was shown the fields, the pattern and a real entry.
-        TypeAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'in this order: hero, long_form, cards, related')
+        $this->ai->assertSent('type-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'in this order: hero, long_form, cards, related')
             && str_contains($prompt->prompt, 'A paragraph about'));
     }
 
     public function test_an_unreadable_analysis_is_asked_for_again_then_fails_without_saving_anything(): void
     {
-        TypeAnalyst::fake(['Sorry, I cannot help with that.', 'Still no.']);
+        $this->ai->respond('type-analyst', 'Sorry, I cannot help with that.', 'Still no.');
 
         (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
 
@@ -72,20 +72,20 @@ class WritingTest extends TestCase
         $this->assertSame(TypeState::FAILED, app(TypeState::class)->get('articles')['status']);
 
         // The second ask said what was wrong with the first answer.
-        TypeAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'could not be read: there was no <type> block'));
+        $this->ai->assertSent('type-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'could not be read: there was no <type> block'));
     }
 
     public function test_a_type_in_a_code_fence_or_fixed_on_the_second_try_is_read(): void
     {
-        TypeAnalyst::fake([
+        $this->ai->respond('type-analyst',
             "<type>\n```yaml\ntitle: Fenced\nquestions: not a list\n```\n</type>",
             "<type>\n```yaml\ntitle: Fenced\nquestions:\n  - handle: what\n    label: What?\n```\n</type>",
-        ]);
+        );
 
         (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
 
         $this->assertSame('Fenced', app(TypeRepository::class)->find('articles')->title);
-        TypeAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'could not be read: it had no questions'));
+        $this->ai->assertSent('type-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'could not be read: it had no questions'));
     }
 
     public function test_kinds_of_content_are_suggested_and_can_be_learned_or_turned_down(): void
@@ -96,7 +96,7 @@ class WritingTest extends TestCase
 
         $ids = Entry::query()->where('collection', 'articles')->get()->keyBy->slug()->map->id();
 
-        KindScout::fake(["<kinds>\n- title: Project write-up\n  description: One project told start to finish.\n  why: Three entries share the hero, long form and cards.\n  examples: [\"{$ids['one']}\", \"{$ids['two']}\", \"nowhere\"]\n- title: Article\n  description: Already taught, so left out.\n  examples: [\"{$ids['one']}\", \"{$ids['two']}\"]\n- title: Lonely\n  description: Only one example.\n  examples: [\"{$ids['three']}\"]\n</kinds>"]);
+        $this->ai->respond('kind-finder', "<kinds>\n- title: Project write-up\n  description: One project told start to finish.\n  why: Three entries share the hero, long form and cards.\n  examples: [\"{$ids['one']}\", \"{$ids['two']}\", \"nowhere\"]\n- title: Article\n  description: Already taught, so left out.\n  examples: [\"{$ids['one']}\", \"{$ids['two']}\"]\n- title: Lonely\n  description: Only one example.\n  examples: [\"{$ids['three']}\"]\n</kinds>");
 
         (new SuggestKinds(['articles', 'nowhere']))->handle(app(Studio::class), app(TypeRepository::class), app(KindSuggestions::class));
 
@@ -109,7 +109,7 @@ class WritingTest extends TestCase
         $this->assertSame('article', $state['suggestions'][0]['blueprint']);
 
         // The scout was shown each entry: its title, how it is built and how it opens.
-        KindScout::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'built as: hero, long_form, cards, related') && str_contains($prompt->prompt, 'opens: "A summary line about One'));
+        $this->ai->assertSent('kind-finder', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'built as: hero, long_form, cards, related') && str_contains($prompt->prompt, 'opens: "A summary line about One'));
 
         $kinds = $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))->assertOk()->json('kinds');
         $suggestion = $kinds['suggestions'][0];
@@ -127,7 +127,7 @@ class WritingTest extends TestCase
     public function test_a_scout_with_nothing_to_add_is_not_a_failure(): void
     {
         $this->makeType();
-        KindScout::fake(['Both entries are already covered by the Article kind, so there is nothing to suggest.']);
+        $this->ai->respond('kind-finder', 'Both entries are already covered by the Article kind, so there is nothing to suggest.');
 
         (new SuggestKinds(['articles']))->handle(app(Studio::class), app(TypeRepository::class), app(KindSuggestions::class));
 
@@ -156,9 +156,9 @@ class WritingTest extends TestCase
         $this->assertSame(['Press release'], $suggestions->get('articles')['dismissed']);
 
         // Next time the scout looks, it is told what was turned down.
-        KindScout::fake(["<kinds>\n- title: Press release\n  examples: [\"x\", \"y\"]\n</kinds>"]);
+        $this->ai->respond('kind-finder', "<kinds>\n- title: Press release\n  examples: [\"x\", \"y\"]\n</kinds>");
         app(Studio::class)->suggestKinds(Collection::findByHandle('articles'), app(TypeRepository::class), $suggestions);
-        KindScout::assertPrompted(fn ($prompt) => true);
+        $this->ai->assertSent('kind-finder');
 
         $this->postJson(cp_route('ghostwriter.kinds.learn_all', 'articles'))->assertOk()->assertJsonPath('kinds.suggestions', []);
 
@@ -167,11 +167,11 @@ class WritingTest extends TestCase
 
     public function test_learning_several_kinds_carries_on_past_one_that_fails(): void
     {
-        TypeAnalyst::fake([
+        $this->ai->respond('type-analyst',
             "<type>\ntitle: Event\ndescription: An event.\nquestions:\n  - handle: when\n    label: When?\n</type>",
             'Nonsense.',
             'Nonsense again.',
-        ]);
+        );
 
         (new AnalyseCollection('articles', kinds: [['title' => 'Event', 'examples' => []], ['title' => 'Award', 'examples' => []]]))
             ->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
@@ -349,7 +349,7 @@ class WritingTest extends TestCase
         // Entries from another collection are dropped.
         Bus::assertDispatchedAfterResponse(AnalyseCollection::class, fn ($job) => $job->title === 'Landing page' && $job->examples === [$landing]);
 
-        TypeAnalyst::fake(["<type>\ntitle: Ignored\ndescription: A landing page.\nquestions:\n  - handle: what\n    label: What is it for?\nguidance: Short.\n</type>"]);
+        $this->ai->respond('type-analyst', "<type>\ntitle: Ignored\ndescription: A landing page.\nquestions:\n  - handle: what\n    label: What is it for?\nguidance: Short.\n</type>");
 
         (new AnalyseCollection('articles', 'Landing page', [$landing]))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
 
@@ -364,7 +364,7 @@ class WritingTest extends TestCase
         $this->assertStringContainsString('in this order: hero, gallery', $instructions);
         $this->assertStringContainsString('We build things', $instructions);
 
-        TypeAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'chosen by an editor') && str_contains($prompt->prompt, '"Landing page"'));
+        $this->ai->assertSent('type-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'chosen by an editor') && str_contains($prompt->prompt, '"Landing page"'));
     }
 
     public function test_a_type_is_edited_on_a_publish_form_and_can_be_deleted(): void
@@ -420,7 +420,7 @@ class WritingTest extends TestCase
         $this->signIn();
         $this->makeType();
 
-        BriefWriter::fake(["<brief>\nwhat: |\n  A search that narrows 400 products by what the customer needs.\n  [Add: the client and what changed after launch]\navoid: Client names.\nmade_up: ignored\n</brief>"]);
+        $this->ai->respond('brief-writer', "<brief>\nwhat: |\n  A search that narrows 400 products by what the customer needs.\n  [Add: the client and what changed after launch]\navoid: Client names.\nmade_up: ignored\n</brief>");
 
         $this->postJson(cp_route('ghostwriter.types.brief', 'articles'), ['notes' => 'No title.'])->assertStatus(422);
 
@@ -432,12 +432,14 @@ class WritingTest extends TestCase
             ]]);
 
         // It was given the title, the notes, the questions and what is already there.
-        BriefWriter::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Working title: Faceted search') && str_contains($prompt->prompt, 'For a kitchen appliance maker.'));
+        $this->ai->assertSent('brief-writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Working title: Faceted search') && str_contains($prompt->prompt, 'For a kitchen appliance maker.'));
 
         // Nothing has been started.
         $this->assertCount(0, app(SessionRepository::class)->all());
 
-        BriefWriter::fake(['I would rather chat about it.']);
+        // A fresh fake, so this answer is the next one given.
+        $this->ai = app(Providers::class)->fake();
+        $this->ai->respond('brief-writer', 'I would rather chat about it.');
 
         $this->postJson(cp_route('ghostwriter.types.brief', 'articles'), ['title' => 'Faceted search'])->assertStatus(422);
     }
@@ -482,10 +484,10 @@ class WritingTest extends TestCase
         $type = $this->makeType();
         $session = $this->startedSession();
 
-        Writer::fake([
+        $this->ai->respond('writer',
             '<reply>1. Which projects can I cite?</reply>',
             "<reply>Here is the draft.</reply>\n<draft>\n".self::DRAFT."\n</draft>",
-        ]);
+        );
 
         $this->runTurn($session);
 
@@ -521,7 +523,7 @@ class WritingTest extends TestCase
             $this->assertStringContainsString($expected, $instructions);
         }
 
-        Writer::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'The pub and the fitness app.'));
+        $this->ai->assertSent('writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'The pub and the fitness app.'));
     }
 
     public function test_a_revision_is_sent_the_current_draft(): void
@@ -533,13 +535,13 @@ class WritingTest extends TestCase
         $session->addMessage('user', 'Shorten the opening.');
         app(SessionRepository::class)->save($session);
 
-        Writer::fake(['<reply>Shortened.</reply><draft>'.str_replace('Because they are for **different** websites.', 'Different websites.', self::DRAFT).'</draft>']);
+        $this->ai->respond('writer', '<reply>Shortened.</reply><draft>'.str_replace('Because they are for **different** websites.', 'Different websites.', self::DRAFT).'</draft>');
 
         $this->runTurn($session);
 
         $this->assertStringContainsString('Different websites.', app(SessionRepository::class)->find($session->id)->draft);
 
-        Writer::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, '<current_draft>') && str_contains($prompt->prompt, 'Shorten the opening.'));
+        $this->ai->assertSent('writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, '<current_draft>') && str_contains($prompt->prompt, 'Shorten the opening.'));
     }
 
     public function test_a_failed_call_marks_the_session_failed_and_keeps_the_draft(): void
@@ -549,7 +551,7 @@ class WritingTest extends TestCase
         $session->draft = self::DRAFT;
         app(SessionRepository::class)->save($session);
 
-        Writer::fake(fn () => throw new \RuntimeException('The provider is overloaded.'));
+        $this->ai->respond('writer', fn () => throw new \RuntimeException('The provider is overloaded.'));
 
         $this->runTurn($session);
 
@@ -557,6 +559,43 @@ class WritingTest extends TestCase
         $this->assertSame(Session::FAILED, $session->status);
         $this->assertSame('The provider is overloaded.', $session->error);
         $this->assertSame(self::DRAFT, $session->draft);
+    }
+
+    public function test_a_draft_cut_off_twice_is_not_kept(): void
+    {
+        $this->makeType();
+        $session = $this->startedSession();
+        $session->draft = self::DRAFT;
+        app(SessionRepository::class)->save($session);
+
+        $this->ai->respond('writer', new TextResponse("<reply>Here.</reply>\n<draft>\ntitle: Half", StopReason::MaxTokens));
+
+        $this->runTurn($session);
+
+        // Asked once at the writer's limit, then once with twice the room.
+        $this->assertSame([16000, 32000], array_map(fn (TextRequest $request) => $request->resolvedMaxTokens(), $this->ai->prompted('writer')));
+
+        $session = app(SessionRepository::class)->find($session->id);
+        $this->assertSame(Session::FAILED, $session->status);
+        $this->assertStringContainsString('was cut off', $session->error);
+        $this->assertSame(self::DRAFT, $session->draft);
+    }
+
+    public function test_a_draft_cut_off_once_is_asked_for_again_with_more_room(): void
+    {
+        $this->makeType();
+        $session = $this->startedSession();
+
+        $this->ai->respond('writer',
+            new TextResponse("<reply>Here.</reply>\n<draft>\ntitle: Half", StopReason::MaxTokens),
+            "<reply>Here is the draft.</reply>\n<draft>\n".self::DRAFT."\n</draft>",
+        );
+
+        $this->runTurn($session);
+
+        $this->assertCount(2, $this->ai->prompted('writer'));
+        $this->assertSame(Session::IDLE, app(SessionRepository::class)->find($session->id)->status);
+        $this->assertStringContainsString('Because they are for **different** websites.', app(SessionRepository::class)->find($session->id)->draft);
     }
 
     public function test_a_message_cannot_be_sent_while_the_last_one_is_being_answered(): void
@@ -876,13 +915,13 @@ class WritingTest extends TestCase
         // It is not offered on the create screen as something to carry on with.
         $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonPath('sessions', []);
 
-        Writer::fake(["<reply>Done.</reply>\n<draft>\ntitle: Existing Piece\nsummary: The new summary.\npage_builder:\n  - type: long_form\n    content: New words.\n  - type: hero\n    heading: New heading\n  - type: cards\n    heading: Uses\n    items:\n      - text: First, reworded\n      - text: Second\n      - text: Third\n</draft>"]);
+        $this->ai->respond('writer', "<reply>Done.</reply>\n<draft>\ntitle: Existing Piece\nsummary: The new summary.\npage_builder:\n  - type: long_form\n    content: New words.\n  - type: hero\n    heading: New heading\n  - type: cards\n    heading: Uses\n    items:\n      - text: First, reworded\n      - text: Second\n      - text: Third\n</draft>");
 
         $this->postJson(cp_route('ghostwriter.sessions.message', $detail['id']), ['message' => 'New heading and summary, move the prose first.'])->assertOk();
         $this->runTurn(app(SessionRepository::class)->find($detail['id']));
 
         // The writer was shown the entry as the current draft.
-        Writer::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, '<current_draft>') && str_contains($prompt->prompt, 'Old heading'));
+        $this->ai->assertSent('writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, '<current_draft>') && str_contains($prompt->prompt, 'Old heading'));
 
         $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']))->assertOk()->json('values');
         $blocks = collect($values['page_builder'])->keyBy('type');

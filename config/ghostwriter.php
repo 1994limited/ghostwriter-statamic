@@ -9,9 +9,8 @@ return [
     | AI provider and model
     |--------------------------------------------------------------------------
     |
-    | Any provider configured in config/ai.php: "anthropic", "openai", and so
-    | on. The API key lives there (ANTHROPIC_API_KEY / OPENAI_API_KEY in .env),
-    | never here. Leave the model null to use the provider's default.
+    | "anthropic" (Claude), "openai" (ChatGPT) or "gemini". Leave the model
+    | null to use the provider's default.
     |
     | These, and the collection lists below, are defaults. Whatever is chosen
     | on the addon's settings screen in the Control Panel takes precedence.
@@ -22,17 +21,62 @@ return [
 
     'model' => env('GHOSTWRITER_MODEL'),
 
-    // Seconds to wait for one response. Long drafts take a while.
+    // Seconds to wait for one response. Long drafts take a while. A call
+    // that finds the provider busy is tried up to three times, so queued
+    // jobs are given three times this, plus a minute.
     'timeout' => (int) env('GHOSTWRITER_TIMEOUT', 180),
+
+    /*
+    |--------------------------------------------------------------------------
+    | API keys
+    |--------------------------------------------------------------------------
+    |
+    | Read from .env each time one is needed, and never stored or shown. A key
+    | still set in config/ai.php, from when Ghostwriter used the Laravel AI
+    | SDK, is used when the one here is empty.
+    |
+    */
+
+    'keys' => [
+        'anthropic' => env('ANTHROPIC_API_KEY'),
+        'openai' => env('OPENAI_API_KEY'),
+        'gemini' => env('GEMINI_API_KEY'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gateways
+    |--------------------------------------------------------------------------
+    |
+    | To send a provider's requests through a gateway that speaks the same
+    | API, set its address here, such as "https://gateway.example.com/v1" for
+    | OpenAI. It must be https://, except on localhost. Null uses the
+    | provider's own.
+    |
+    */
+
+    'base_urls' => [
+        'anthropic' => env('GHOSTWRITER_ANTHROPIC_BASE_URL'),
+        'openai' => env('GHOSTWRITER_OPENAI_BASE_URL'),
+        'gemini' => env('GHOSTWRITER_GEMINI_BASE_URL'),
+    ],
+
+    // Whether a request Claude declines is passed to the model Anthropic
+    // recommends instead, on the models that support it.
+    'anthropic_fallbacks' => (bool) env('GHOSTWRITER_ANTHROPIC_FALLBACKS', true),
+
+    // The log channel calls are recorded on: provider, model, tokens and
+    // time, never the words sent or received. Null uses the default.
+    'log_channel' => env('GHOSTWRITER_LOG_CHANNEL'),
 
     /*
     |--------------------------------------------------------------------------
     | Images
     |--------------------------------------------------------------------------
     |
-    | Images need a provider that makes them: "openai", "gemini" or "xai".
-    | Claude does not. Leave the provider null to use whichever of those has
-    | an API key in config/ai.php (OPENAI_API_KEY / GEMINI_API_KEY in .env).
+    | Images need a provider that makes them: "openai" or "gemini". Claude
+    | does not. Leave the provider null to use whichever of those has an API
+    | key (OPENAI_API_KEY / GEMINI_API_KEY in .env).
     | With no such key, images cannot be made, but photographs can still be
     | found: on Unsplash, Pexels and Pixabay with a free API key for each, and on
     | Openverse (public-domain and CC0 work only) with no key at all.

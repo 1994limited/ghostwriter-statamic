@@ -6,14 +6,11 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Ai\Image;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\ImageryAnalyst;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoPicker;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoResearcher;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\Writer;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
 use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
@@ -43,7 +40,7 @@ class ImageTest extends TestCase
     {
         parent::setUp();
 
-        config(['ai.providers.openai.key' => 'test-key', 'filesystems.disks.assets' => ['driver' => 'local', 'root' => $this->workspace.'/assets', 'url' => '/assets']]);
+        config(['ghostwriter.keys.openai' => 'test-key', 'filesystems.disks.assets' => ['driver' => 'local', 'root' => $this->workspace.'/assets', 'url' => '/assets']]);
 
         Storage::fake('assets');
         AssetContainer::make('assets')->disk('assets')->save();
@@ -113,7 +110,7 @@ class ImageTest extends TestCase
 
     public function test_no_image_controls_without_a_provider_that_makes_images(): void
     {
-        config(['ai.providers.openai.key' => null]);
+        $this->withoutKeys('openai');
         $this->signIn();
 
         $session = $this->draftSession();
@@ -260,7 +257,7 @@ class ImageTest extends TestCase
             ]]]),
         ]);
 
-        PhotoResearcher::fake(['Lighthouse at dusk.']);
+        $this->ai->respond('photo-scout', 'Lighthouse at dusk.');
 
         $this->signIn();
 
@@ -351,7 +348,6 @@ class ImageTest extends TestCase
 
     public function test_an_image_is_made_from_the_sites_own_and_saved_beside_them(): void
     {
-        Image::fake();
 
         $session = $this->draftSession();
 
@@ -364,15 +360,15 @@ class ImageTest extends TestCase
         Storage::disk('assets')->assertExists($image['path']);
 
         // The two existing banner pictures went along as the style to match.
-        Image::assertGenerated(fn ($prompt) => str_contains($prompt->prompt, 'A lighthouse at dusk')
+        $this->assertImageMade(fn (ImageRequest $prompt) => str_contains($prompt->prompt, 'A lighthouse at dusk')
             && str_contains($prompt->prompt, 'Banner: Picture')
             && str_contains($prompt->prompt, 'The first 2 attached image(s)')
-            && count($prompt->attachments) === 2);
+            && count($prompt->references) === 2);
     }
 
     public function test_a_failed_image_is_reported_and_costs_nothing_else(): void
     {
-        Image::fake(fn () => throw new \RuntimeException('The provider said no.'));
+        $this->ai->respondWithImage(fn () => throw new \RuntimeException('The provider said no.'));
 
         $session = $this->draftSession();
 
@@ -423,7 +419,7 @@ class ImageTest extends TestCase
         $this->assertStringNotContainsString('aside', $instructions);
 
         // With no image model, making is not on offer.
-        config(['ai.providers.openai.key' => null]);
+        $this->withoutKeys('openai');
 
         $this->assertStringContainsString('cannot make new images', app(Studio::class)->writerInstructions(app(TypeRepository::class)->find('any:stories'), ''));
     }
@@ -445,7 +441,7 @@ class ImageTest extends TestCase
             'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
         ]);
 
-        Writer::fake([
+        $this->ai->respond('writer',
             '<reply>Here is the draft, with photographs to choose from.</reply>
 <draft>
 '.self::DRAFT.'
@@ -459,11 +455,11 @@ blocks:text:0:aside | find | nobody uses this
 <images>
 cover | fill | lighthouse at dusk; harbour boats; stormy sea
 </images>',
-        ]);
+        );
 
         // Shown the site's covers and the five candidates, the judge likes
         // the fourth, the first and the fifth, in that order.
-        PhotoPicker::fake(['4, 1, 5', '4, 1, 5']);
+        $this->ai->respond('photo-picker', '4, 1, 5', '4, 1, 5');
 
         $session = Session::start('any:stories', ['subject' => 'A new story.']);
         $session->addMessage('user', 'The brief.');
@@ -484,7 +480,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $this->assertSame('harbour boats', $session->images['cover']['options'][0]['term']);
 
         // The judge saw the two existing covers, then the five candidates.
-        PhotoPicker::assertPrompted(fn ($prompt) => count($prompt->attachments) === 7 && str_contains($prompt->prompt, '4. from the search "harbour boats"'));
+        $this->ai->assertSent('photo-picker', fn (TextRequest $prompt) => count($prompt->images) === 7 && str_contains($prompt->prompt, '4. from the search "harbour boats"'));
 
         // Two results is too few to need a judge: they are offered as found.
         $this->assertSame(['harbour1', 'harbour2'], array_column($session->images['blocks:banner:0:picture']['options'], 'id'));
@@ -570,7 +566,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         Storage::disk('assets')->put('stories/three.png', $this->png());
         Entry::make()->collection('stories')->slug('three')->published(true)->data(['title' => 'Three', 'cover' => 'stories/three.png'])->save();
 
-        ImageryAnalyst::fake(['<document>**What they are.** Bright photographs of finished things.</document>']);
+        $this->ai->respond('imagery-analyst', '<document>**What they are.** Bright photographs of finished things.</document>');
 
         (new GenerateImageryGuide(['stories', 'nowhere']))->handle(app(ImageStudio::class), app(Studio::class), app(ImageryGuide::class), app(ImageryState::class));
 
@@ -582,7 +578,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $this->assertSame(ImageryState::IDLE, app(ImageryState::class)->get()['status']);
 
         // The analyst was shown the images, labelled by field and entry.
-        ImageryAnalyst::assertPrompted(fn ($prompt) => count($prompt->attachments) === 5
+        $this->ai->assertSent('imagery-analyst', fn (TextRequest $prompt) => count($prompt->images) === 5
             && str_contains($prompt->prompt, 'Section: Stories')
             && str_contains($prompt->prompt, 'Banner: Picture, on "One"'));
 
@@ -624,7 +620,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
             'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
         ]);
 
-        PhotoPicker::fake(['none: mended pottery gold; restored classic car', '2, 1, 3']);
+        $this->ai->respond('photo-picker', 'none: mended pottery gold; restored classic car', '2, 1, 3');
 
         $session = $this->draftSession();
         $type = app(TypeRepository::class)->find('any:stories');

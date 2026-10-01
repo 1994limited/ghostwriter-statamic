@@ -3,7 +3,11 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests;
 
 use Illuminate\Support\Facades\File;
-use Laravel\Ai\AiServiceProvider;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\FakeProvider;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\MockHttpClient;
 use NineteenNinetyFour\Ghostwriter\ServiceProvider;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
@@ -23,6 +27,12 @@ abstract class TestCase extends AddonTestCase
 
     protected string $workspace;
 
+    /** Stands in for every model: queue answers on it, and check what was sent. */
+    protected FakeProvider $ai;
+
+    /** Where a model call would go if one got past the fake. None should. */
+    protected MockHttpClient $http;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,20 +48,47 @@ abstract class TestCase extends AddonTestCase
             'ghostwriter.types_path' => $this->workspace.'/types',
             'ghostwriter.collections' => [],
             'ghostwriter.provider' => 'anthropic',
-            'ai.providers.anthropic.key' => 'test-key',
+            // Only the test's own keys, whatever is in the environment.
+            'ghostwriter.keys' => ['anthropic' => 'test-key', 'openai' => null, 'gemini' => null],
+            'ai.providers' => [],
         ]);
+
+        $this->http = new MockHttpClient;
+        $this->app->instance(HttpClients::class, $this->http);
+        $this->app->forgetInstance(Providers::class);
+
+        $this->ai = $this->app->make(Providers::class)->fake();
+        $this->app->instance(FakeProvider::class, $this->ai);
+    }
+
+    /**
+     * Take providers' keys away. A faked model answers whatever the keys
+     * say, so the fake is set aside too; it still shows nothing was sent.
+     */
+    protected function withoutKeys(string ...$providers): void
+    {
+        foreach ($providers as $provider) {
+            config(["ghostwriter.keys.{$provider}" => null]);
+        }
+
+        $this->app->make(Providers::class)->unfake();
+    }
+
+    /**
+     * @param  callable(ImageRequest): bool  $check
+     */
+    protected function assertImageMade(callable $check): void
+    {
+        $this->assertNotEmpty(array_filter($this->ai->imageRequests, $check), 'No image like that was asked for.');
     }
 
     protected function tearDown(): void
     {
+        $this->assertSame([], $this->http->requests, 'A request reached the network layer.');
+
         File::deleteDirectory($this->workspace);
 
         parent::tearDown();
-    }
-
-    protected function getPackageProviders($app)
-    {
-        return [...parent::getPackageProviders($app), AiServiceProvider::class];
     }
 
     /**

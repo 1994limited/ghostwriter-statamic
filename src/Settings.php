@@ -16,6 +16,9 @@ class Settings
     /** Ghostwriter's mark as the pack's 14-grid stroke icon, in currentColor. */
     public const ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0v4l-2.5 2.5Z" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"></path><path d="M11.5 10H9v2.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="5.4" cy="6.25" r=".75" fill="currentColor"></circle><circle cx="8.6" cy="6.25" r=".75" fill="currentColor"></circle></svg>';
 
+    /** Providers Ghostwriter makes images with. */
+    public const IMAGE_PROVIDERS = ['openai', 'gemini'];
+
     public function provider(): string
     {
         return (string) ($this->saved('provider') ?: config('ghostwriter.provider', 'anthropic'));
@@ -27,16 +30,37 @@ class Settings
     }
 
     /**
-     * The provider images are made with. Null means "whichever has a key".
+     * The provider images are made with: openai or gemini. Null means
+     * "whichever has a key", which is also what a provider that no longer
+     * makes images for Ghostwriter (xai) falls back to.
      */
     public function imageProvider(): ?string
     {
-        return ($this->saved('image_provider') ?: config('ghostwriter.images.provider')) ?: null;
+        $provider = ($this->saved('image_provider') ?: config('ghostwriter.images.provider')) ?: null;
+
+        return in_array($provider, self::IMAGE_PROVIDERS, true) ? $provider : null;
     }
 
     public function imageModel(): ?string
     {
         return ($this->saved('image_model') ?: config('ghostwriter.images.model')) ?: null;
+    }
+
+    /**
+     * Seconds one call to a model may take.
+     */
+    public function timeout(): int
+    {
+        return (int) config('ghostwriter.timeout', 180);
+    }
+
+    /**
+     * Seconds a queued job may run: three attempts at one call, as busy and
+     * rate-limited calls are retried, and a minute to spare.
+     */
+    public function jobTimeout(): int
+    {
+        return $this->timeout() * 3 + 60;
     }
 
     /**

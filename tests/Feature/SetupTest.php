@@ -56,7 +56,7 @@ class SetupTest extends TestCase
         $this->assertSame('imagery', $after['progress']['next']['key']);
 
         // Without a key, the first step says which to add.
-        config(['ai.providers.anthropic.key' => null]);
+        $this->withoutKeys('anthropic');
         $first = $this->getJson(cp_route('ghostwriter.setup.status'))->json('steps.0');
         $this->assertFalse($first['done']);
         $this->assertStringContainsString('ANTHROPIC_API_KEY', $first['detail']);
