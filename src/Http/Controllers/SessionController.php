@@ -16,6 +16,7 @@ use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
 use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
 use NineteenNinetyFour\Ghostwriter\Drafts\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
+use NineteenNinetyFour\Ghostwriter\Drafts\HtmlToMarkdown;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
@@ -29,6 +30,7 @@ use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
+use Symfony\Component\Yaml\Yaml;
 
 class SessionController
 {
@@ -223,6 +225,54 @@ class SessionController
         $this->sessions->save($session);
 
         GenerateImage::start($session->id, $validated['key'], (string) ($validated['direction'] ?? ''), $source);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * One piece of writing in the draft, changed where it is shown, without
+     * opening the YAML. Rich text comes back as HTML and is turned into the
+     * markdown the draft is written in.
+     */
+    public function editField(Request $request, string $session, HtmlToMarkdown $html): JsonResponse
+    {
+        $session = $this->session($session);
+
+        abort_if($session->status === Session::WORKING, 409, 'Ghostwriter is still working on the draft. Try again when it has finished.');
+
+        $draft = $this->parsedDraft($session);
+
+        $validated = $request->validate([
+            'path' => ['required', 'array', 'min:1'],
+            'path.*' => ['string', 'max:100'],
+            'value' => ['present', 'string', 'max:60000'],
+            'format' => ['nullable', Rule::in(['text', 'html'])],
+        ]);
+
+        $value = ($validated['format'] ?? 'text') === 'html' ? $html->convert($validated['value']) : trim(str_replace("\r", '', $validated['value']));
+
+        $data = $draft->data;
+        $node = &$data;
+
+        foreach ($validated['path'] as $step) {
+            $step = is_numeric($step) && is_array($node) && array_is_list($node) ? (int) $step : $step;
+
+            if (! is_array($node) || ! array_key_exists($step, $node)) {
+                abort(422, 'That part of the draft could not be found.');
+            }
+
+            $node = &$node[$step];
+        }
+
+        // Only writing is edited here; a block or a list is changed in YAML.
+        abort_if(! is_scalar($node) && $node !== null, 422, 'Only text can be edited here.');
+
+        $node = $value;
+        unset($node);
+
+        $session->draft = trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
+
+        $this->sessions->save($session);
 
         return response()->json($this->presenter->detail($session));
     }

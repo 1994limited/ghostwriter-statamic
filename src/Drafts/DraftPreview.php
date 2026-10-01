@@ -19,7 +19,13 @@ class DraftPreview
      * @param  array<int, array<string, mixed>>  $schema
      * @return array<int, array<string, mixed>>
      */
-    public function render(array $data, array $schema): array
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<int, array<string, mixed>>  $schema
+     * @param  array<int, string|int>  $path  Where this part of the draft sits, so a piece of writing can be edited in place.
+     * @return array<int, array<string, mixed>>
+     */
+    public function render(array $data, array $schema, array $path = []): array
     {
         $nodes = [];
 
@@ -34,7 +40,11 @@ class DraftPreview
                 continue;
             }
 
-            $nodes[] = ['handle' => $spec['handle'], 'label' => $spec['display'] ?: $spec['handle']] + $this->node($value, $spec);
+            $here = [...$path, $spec['handle']];
+
+            $nodes[] = ['handle' => $spec['handle'], 'label' => $spec['display'] ?: $spec['handle'], 'path' => $here]
+                + $this->node($value, $spec, $here)
+                + ['editable' => in_array($spec['kind'], ['text', 'longtext', 'richtext'], true) && is_scalar($value)];
         }
 
         return $nodes;
@@ -42,13 +52,14 @@ class DraftPreview
 
     /**
      * @param  array<string, mixed>  $spec
+     * @param  array<int, string|int>  $path
      * @return array<string, mixed>
      */
-    private function node(mixed $value, array $spec): array
+    private function node(mixed $value, array $spec, array $path = []): array
     {
         return match ($spec['kind']) {
-            'richtext' => ['kind' => 'html', 'html' => $this->html((string) $value)],
-            'blocks' => ['kind' => 'blocks', 'items' => array_values(array_map(function ($block) use ($spec) {
+            'richtext' => ['kind' => 'html', 'html' => $this->html((string) $value), 'multiline' => true],
+            'blocks' => ['kind' => 'blocks', 'items' => array_values(array_map(function ($block, $i) use ($spec, $path) {
                 $type = is_array($block) ? (string) ($block['type'] ?? '') : '';
                 $set = $spec['sets'][$type] ?? null;
 
@@ -56,16 +67,18 @@ class DraftPreview
                     'type' => $type,
                     'label' => $set['display'] ?? $type,
                     'known' => $set !== null,
-                    'fields' => $set ? $this->render((array) $block, $set['fields']) : [],
+                    'fields' => $set ? $this->render((array) $block, $set['fields'], [...$path, $i]) : [],
                 ];
-            }, (array) $value))],
+            }, array_values((array) $value), array_keys(array_values((array) $value))))],
             'rows' => ['kind' => 'rows', 'items' => array_values(array_map(
-                fn ($row) => $this->render((array) $row, $spec['fields'] ?? []),
-                (array) $value,
+                fn ($row, $i) => $this->render((array) $row, $spec['fields'] ?? [], [...$path, $i]),
+                array_values((array) $value),
+                array_keys(array_values((array) $value)),
             ))],
-            'group' => ['kind' => 'group', 'fields' => $this->render((array) $value, $spec['fields'] ?? [])],
+            'group' => ['kind' => 'group', 'fields' => $this->render((array) $value, $spec['fields'] ?? [], $path)],
             'list', 'choices' => ['kind' => 'list', 'items' => array_values(array_map('strval', array_filter((array) $value, 'is_scalar')))],
             'toggle' => ['kind' => 'text', 'text' => filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'Yes' : 'No'],
+            'longtext' => ['kind' => 'text', 'text' => is_scalar($value) ? (string) $value : '', 'multiline' => true],
             default => ['kind' => 'text', 'text' => is_scalar($value) ? (string) $value : json_encode($value)],
         };
     }

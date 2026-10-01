@@ -114,7 +114,7 @@ export default {
         </div>
 
         <Stack v-model:open="open" :title="__('Ghostwriter')" :icon="ghost" size="full">
-            <Panel v-if="open" :collection="collection" :blueprint="blueprint" :base-url="baseUrl" :resume="resume" :idea="idea" @apply="apply" />
+            <Panel v-if="open" :collection="collection" :blueprint="blueprint" :base-url="baseUrl" :resume="resume" :idea="idea" :entry="entry" @apply="apply" />
         </Stack>
     </div>
 </template>

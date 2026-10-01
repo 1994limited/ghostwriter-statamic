@@ -25,6 +25,8 @@ export default {
         blueprint: { type: String, default: null },
         baseUrl: { type: String, required: true },
         resume: { type: String, default: null },
+        // The entry being edited, for starting again from it.
+        entry: { type: String, default: null },
         // An idea from the content plan to open on.
         idea: { type: String, default: null },
     },
@@ -53,6 +55,14 @@ export default {
             busy: false,
             adding: false,
             showBrief: false,
+            // How the draft is shown: in its blocks, or as plain reading text.
+            view: (() => {
+                try {
+                    return localStorage.getItem('ghostwriter.draft-view') === 'text' ? 'text' : 'blocks';
+                } catch (error) {
+                    return 'blocks';
+                }
+            })(),
             timer: null,
         };
     },
@@ -383,6 +393,42 @@ export default {
             }
         },
 
+        setView(view) {
+            this.view = view;
+
+            try {
+                localStorage.setItem('ghostwriter.draft-view', view);
+            } catch (error) {
+                // Private windows and the like: the choice just is not remembered.
+            }
+        },
+
+        // One piece of writing changed where it is shown.
+        async editField({ path, value, format }) {
+            try {
+                const { data } = await this.$axios.patch(this.url(`sessions/${this.session.id}/field`), { path: path.map(String), value, format });
+
+                this.receive(data);
+            } catch (error) {
+                this.fail(error);
+                this.receive(this.session);
+            }
+        },
+
+        // Editing an entry: throw the conversation's changes away and start
+        // from the entry as it is saved now.
+        async startAgain() {
+            if (!this.entry || !confirm(this.__('Start again from the entry as saved? Changes asked for in this conversation but not yet put into the entry are dropped.'))) return;
+
+            try {
+                const { data } = await this.$axios.post(`${this.baseUrl}/entries/${this.entry}/session`, { fresh: true });
+
+                this.receive(data);
+            } catch (error) {
+                this.fail(error);
+            }
+        },
+
         async saveDraft() {
             this.busy = true;
 
@@ -607,7 +653,7 @@ export default {
             <div v-else class="grid h-full gap-6 lg:grid-cols-5">
                 <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-2 dark:border-gray-700">
                     <div ref="chat" class="flex-1 space-y-3 overflow-y-auto p-4">
-                        <div class="rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800">
+                        <div v-if="!session.editing" class="rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800">
                             <button type="button" class="font-medium underline" @click="showBrief = !showBrief">
                                 {{ showBrief ? __('Hide the brief') : __('Show the brief') }}
                             </button>
@@ -660,7 +706,7 @@ export default {
                         />
                         <div class="flex items-center justify-between">
                             <Button v-if="!session.editing" size="sm" variant="ghost" :text="__('Start over')" @click="startOver" />
-                            <span v-else class="text-sm text-gray-500">{{ __('Working from the entry as last saved.') }}</span>
+                            <Button v-else size="sm" variant="ghost" :text="__('Start again from the entry')" :disabled="working" @click="startAgain" />
                             <Button :text="working ? __('Working…') : __('Send')" :loading="working" :disabled="working || !message.trim()" @click="send" />
                         </div>
                     </div>
@@ -668,8 +714,12 @@ export default {
 
                 <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-3 dark:border-gray-700">
                     <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2.5 dark:border-gray-700">
-                        <div class="text-sm text-gray-500">
-                            {{ session.draft ? __(':count words', { count: session.words }) : __('Draft') }}
+                        <div class="flex items-center gap-3 text-sm text-gray-500">
+                            <span>{{ session.draft ? __(':count words', { count: session.words }) : __('Draft') }}</span>
+                            <div v-if="session.draft && !editing" class="flex rounded-md border border-gray-200 text-xs dark:border-gray-700" role="group" :aria-label="__('Draft view')">
+                                <button type="button" class="px-2 py-0.5" :class="view === 'blocks' ? 'bg-gray-100 font-medium dark:bg-gray-800' : ''" @click="setView('blocks')">{{ __('Blocks') }}</button>
+                                <button type="button" class="px-2 py-0.5" :class="view === 'text' ? 'bg-gray-100 font-medium dark:bg-gray-800' : ''" @click="setView('text')">{{ __('Text') }}</button>
+                            </div>
                         </div>
                         <div v-if="session.draft" class="flex gap-2">
                             <template v-if="editing">
@@ -712,7 +762,7 @@ export default {
 
                             <Textarea v-if="editing || session.draft_problem" v-model="raw" elastic :rows="24" class="font-mono text-sm" @focus="editing = true" />
 
-                            <DraftPreview v-else :nodes="session.preview" />
+                            <DraftPreview v-else :nodes="session.preview" :view="view" :editable="!working" @edit="editField" />
 
                             <ImageSlots
                                 v-if="session.images?.length && !session.draft_problem"

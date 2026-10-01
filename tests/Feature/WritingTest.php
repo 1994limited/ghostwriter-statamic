@@ -673,6 +673,76 @@ class WritingTest extends TestCase
         $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonPath('sessions', []);
     }
 
+    public function test_writing_can_be_changed_where_it_is_shown(): void
+    {
+        $this->signIn();
+        $this->makeType();
+
+        $session = $this->sessionWithDraft(self::DRAFT);
+        $preview = $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))->json('preview');
+
+        // Each piece of writing knows where it sits in the draft.
+        $this->assertSame(['title'], $preview[0]['path']);
+        $this->assertTrue($preview[0]['editable']);
+        $long = $preview[2]['items'][1]['fields'][0];
+        $this->assertSame(['page_builder', 1, 'content'], $long['path']);
+        $this->assertSame('html', $long['kind']);
+        $this->assertTrue($long['multiline']);
+
+        $this->patchJson(cp_route('ghostwriter.sessions.field', $session->id), ['path' => ['title'], 'value' => " What Does a Site Cost?\r\n", 'format' => 'text'])
+            ->assertOk()
+            ->assertJsonPath('title', 'What Does a Site Cost?');
+
+        // Rich text comes back as HTML and goes in as markdown.
+        $this->patchJson(cp_route('ghostwriter.sessions.field', $session->id), ['path' => ['page_builder', '1', 'content'], 'value' => '<h2>Why so far apart?</h2><p>Because they are for <em>different</em> sites.</p>', 'format' => 'html'])
+            ->assertOk();
+
+        $draft = app(SessionRepository::class)->find($session->id)->draft;
+
+        $this->assertStringContainsString('## Why so far apart?', $draft);
+        $this->assertStringContainsString('Because they are for *different* sites.', $draft);
+        $this->assertStringNotContainsString('<em>', $draft);
+        $this->assertStringContainsString('type: related', $draft);
+
+        // Only writing: a block is edited in YAML, and a path that is not there is refused.
+        $this->patchJson(cp_route('ghostwriter.sessions.field', $session->id), ['path' => ['page_builder', '1'], 'value' => 'x'])->assertStatus(422);
+        $this->patchJson(cp_route('ghostwriter.sessions.field', $session->id), ['path' => ['nowhere'], 'value' => 'x'])->assertStatus(422);
+    }
+
+    public function test_an_edited_entry_keeps_pending_changes_until_asked_to_start_again(): void
+    {
+        $this->signIn();
+
+        Entry::make()->collection('articles')->slug('existing')->published(true)->data(['title' => 'Existing Piece', 'summary' => 'The old summary.'])->save();
+        $entry = Entry::query()->where('slug', 'existing')->first();
+
+        $id = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertOk()->json('id');
+
+        // A change asked for and written, but not yet put into the entry.
+        $session = app(SessionRepository::class)->find($id);
+        $session->addMessage('user', 'Shorten the summary.');
+        $session->addMessage('assistant', 'Done.');
+        $session->draft = "title: Existing Piece\nsummary: Shorter.";
+        app(SessionRepository::class)->save($session);
+
+        // Reopened: the changes are still there.
+        $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertJsonPath('id', $id)->assertJsonPath('draft', "title: Existing Piece\nsummary: Shorter.");
+
+        // Started again: back to the entry as saved, in the same conversation.
+        $detail = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()), ['fresh' => true])->assertJsonPath('id', $id)->json();
+
+        $this->assertStringContainsString('The old summary.', $detail['draft']);
+        $this->assertStringContainsString('Start again from the entry', end($detail['messages'])['content'] === 'I have the entry as it stands. Tell me what to change.' ? $detail['messages'][count($detail['messages']) - 2]['content'] : '');
+
+        // Once the changes have been put into the entry, reopening starts afresh too.
+        $session = app(SessionRepository::class)->find($id);
+        $session->draft = "title: Existing Piece\nsummary: Shorter still.";
+        $session->appliedAt = now()->toIso8601String();
+        app(SessionRepository::class)->save($session);
+
+        $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertJsonPath('id', $id)->assertJsonPath('draft', fn ($draft) => str_contains($draft, 'The old summary.'));
+    }
+
     public function test_a_draft_that_does_not_parse_is_reported_not_applied(): void
     {
         $this->signIn();
