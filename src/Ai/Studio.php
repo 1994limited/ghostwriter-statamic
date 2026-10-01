@@ -12,6 +12,7 @@ use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Responses\AgentResponse;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\BriefWriter;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\ImageryAnalyst;
+use NineteenNinetyFour\Ghostwriter\Ai\Agents\KindScout;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoResearcher;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\Planner;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\TypeAnalyst;
@@ -21,10 +22,12 @@ use NineteenNinetyFour\Ghostwriter\Ai\Agents\Writer;
 use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Content\ProseExtractor;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
+use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Collection as EntryCollection;
 use Statamic\Facades\Collection as Collections;
@@ -45,11 +48,15 @@ class Studio
     /** Examples are trimmed to this many characters each. */
     private const EXAMPLE_LIMIT = 7000;
 
+    /** Entries looked at when working out the kinds a collection holds. */
+    private const KIND_SAMPLE = 60;
+
     public function __construct(
         private SchemaReader $reader,
         private PatternFinder $patterns,
         private SchemaDescriber $describer,
         private Settings $settings,
+        private ProseExtractor $prose,
     ) {}
 
     /**
@@ -161,7 +168,7 @@ class Studio
             throw new InvalidArgumentException('The analysis came back in a form that could not be read. Try again.');
         }
 
-        $handle = $title ? Str::slug($title) : $collection->handle();
+        $handle = app(TypeRepository::class)->handleFor($title ?: '', $collection->handle());
 
         return ContentType::fromArray($handle, array_filter([
             'collection' => $collection->handle(),
@@ -169,6 +176,93 @@ class Studio
             'examples' => $examples,
             'title' => $title,
         ]) + $data);
+    }
+
+    /**
+     * The kinds of content a collection seems to hold, each with the entries
+     * that show it, for a person to look over and have taught.
+     *
+     * @return array<int, array{title: string, description: string, why: string, examples: array<int, string>, blueprint: ?string}>
+     */
+    public function suggestKinds(EntryCollection $collection, TypeRepository $types, KindSuggestions $kinds): array
+    {
+        $state = $kinds->get($collection->handle());
+        $taught = $types->forCollection($collection->handle());
+        $entries = Entries::query()->where('collection', $collection->handle())->where('published', true)->get()
+            ->sortByDesc(fn ($entry) => $entry->date()?->timestamp ?? $entry->lastModified()?->timestamp ?? 0)
+            ->take(self::KIND_SAMPLE)
+            ->values();
+
+        if ($entries->count() < 2) {
+            return [];
+        }
+
+        $several = $collection->entryBlueprints()->count() > 1;
+        $lines = [];
+
+        foreach ($entries as $entry) {
+            $schema = $this->reader->read($entry->blueprint());
+            $builder = collect($schema)->firstWhere('kind', 'blocks');
+            $built = $builder ? collect((array) $entry->get($builder['handle']))->filter(fn ($block) => is_array($block) && ($block['enabled'] ?? true) !== false)->pluck('type')->unique()->values()->all() : [];
+            $opening = trim((string) preg_replace('/\s+/u', ' ', mb_substr($this->prose->fromEntry($entry), 0, 220)));
+
+            $lines[] = sprintf(
+                '- id "%s" · "%s"%s%s%s%s',
+                $entry->id(),
+                $entry->get('title'),
+                $several ? ' · blueprint: '.$entry->blueprint()->title() : '',
+                ($parent = $entry->parent()) ? ' · under: '.$parent->title() : '',
+                $built ? ' · built as: '.implode(', ', $built) : '',
+                $opening !== '' ? ' · opens: "'.$opening.'"' : '',
+            );
+        }
+
+        $instructions = strtr($this->promptFile('kind-finder'), [
+            '{{ count }}' => '5',
+            '{{ taught }}' => $taught->isNotEmpty() ? $taught->map(fn (ContentType $type) => "- {$type->title}: {$type->description}")->implode("\n") : 'Nothing yet.',
+            '{{ dismissed }}' => $state['dismissed'] ? '- '.implode("\n- ", $state['dismissed']) : 'Nothing yet.',
+        ]);
+
+        $response = $this->ask(new KindScout($instructions), "Section: {$collection->title()}\n\nEntries, newest first:\n".implode("\n", $lines));
+        $block = TaggedResponse::parse($response->text, 'kinds')->document
+            ?? throw new InvalidArgumentException('Ghostwriter did not come back with any kinds. Try again.');
+
+        try {
+            $found = (array) LenientYaml::parse($block);
+        } catch (Throwable $exception) {
+            report(new InvalidArgumentException("The kinds for {$collection->handle()} could not be read ({$exception->getMessage()}):\n{$block}"));
+
+            throw new InvalidArgumentException('Ghostwriter did not come back with kinds it could read. Try again.');
+        }
+
+        $byId = $entries->keyBy(fn ($entry) => (string) $entry->id());
+        $known = array_map('mb_strtolower', [...$taught->map(fn (ContentType $type) => $type->title)->all(), ...$state['dismissed']]);
+        $out = [];
+
+        foreach ($found as $kind) {
+            if (! is_array($kind) || trim((string) ($kind['title'] ?? '')) === '' || in_array(mb_strtolower(trim((string) $kind['title'])), $known, true)) {
+                continue;
+            }
+
+            // Only entries really in this collection, and at least two of them.
+            $examples = array_values(array_unique(array_filter(array_map('strval', (array) ($kind['examples'] ?? [])), fn (string $id) => $byId->has($id))));
+
+            if (count($examples) < 2) {
+                continue;
+            }
+
+            $blueprints = array_unique(array_map(fn (string $id) => $byId[$id]->blueprint()->handle(), $examples));
+
+            $out[] = [
+                'title' => mb_substr(trim((string) $kind['title']), 0, 60),
+                'description' => trim((string) ($kind['description'] ?? '')),
+                'why' => trim((string) ($kind['why'] ?? '')),
+                'examples' => array_slice($examples, 0, 6),
+                'blueprint' => count($blueprints) === 1 ? reset($blueprints) : null,
+            ];
+        }
+
+        return $out;
     }
 
     /**

@@ -28,28 +28,37 @@ class AnalyseCollection implements ShouldQueue
 
     /**
      * @param  array<int, string>  $examples
+     * @param  array<int, array{title: ?string, examples: array<int, string>}>  $kinds  Several kinds to learn one after another, as "Learn all" asks. Empty learns the one above.
      */
-    public function __construct(public string $collection, public ?string $title = null, public array $examples = []) {}
+    public function __construct(public string $collection, public ?string $title = null, public array $examples = [], public array $kinds = []) {}
 
     public function handle(Studio $studio, TypeRepository $types, TypeState $state): void
     {
         $this->allowTimeToFinish();
 
-        try {
-            $collection = Collection::findByHandle($this->collection)
-                ?? throw new InvalidArgumentException("The collection \"{$this->collection}\" does not exist.");
+        $kinds = $this->kinds ?: [['title' => $this->title, 'examples' => $this->examples]];
+        $failed = [];
 
-            // A type modelled on chosen entries uses their blueprint, which
-            // matters on a collection with more than one.
-            $blueprint = ($this->examples ? Entry::find($this->examples[0])?->blueprint() : null) ?? $collection->entryBlueprint();
+        foreach ($kinds as $kind) {
+            try {
+                $collection = Collection::findByHandle($this->collection)
+                    ?? throw new InvalidArgumentException("The collection \"{$this->collection}\" does not exist.");
 
-            $types->save($studio->analyseCollection($collection, $blueprint, $this->title, $this->examples));
+                $examples = array_values(array_filter((array) ($kind['examples'] ?? [])));
 
-            $state->set($this->collection, TypeState::IDLE);
-        } catch (Throwable $exception) {
-            report($exception);
+                // A type modelled on chosen entries uses their blueprint, which
+                // matters on a collection with more than one.
+                $blueprint = ($examples ? Entry::find($examples[0])?->blueprint() : null) ?? $collection->entryBlueprint();
 
-            $state->set($this->collection, TypeState::FAILED, $exception->getMessage());
+                $types->save($studio->analyseCollection($collection, $blueprint, $kind['title'] ?? null, $examples));
+            } catch (Throwable $exception) {
+                report($exception);
+
+                // One kind going wrong does not stop the rest.
+                $failed[] = (($kind['title'] ?? null) ? "{$kind['title']}: " : '').$exception->getMessage();
+            }
         }
+
+        $state->set($this->collection, $failed ? TypeState::FAILED : TypeState::IDLE, $failed ? implode(' ', $failed) : null);
     }
 }

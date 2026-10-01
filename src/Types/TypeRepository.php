@@ -4,6 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter\Types;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use Statamic\Facades\Collection as Collections;
 use Statamic\Facades\YAML;
@@ -69,6 +70,23 @@ class TypeRepository
     public function forCollection(string $collection): Collection
     {
         return $this->all()->filter(fn (ContentType $type) => $type->collection === $collection);
+    }
+
+    /**
+     * A handle for a new type from its title, kept apart from any type
+     * already saved: a second "Guide" becomes guide-2.
+     */
+    public function handleFor(string $title, string $fallback): string
+    {
+        $base = Str::slug($title) ?: $fallback;
+        $handle = $base;
+        $n = 2;
+
+        while ($this->all()->has($handle)) {
+            $handle = $base.'-'.$n++;
+        }
+
+        return $handle;
     }
 
     public function save(ContentType $type): ContentType

@@ -7,11 +7,12 @@
 import ghost from '../icon.js';
 import { Head, Link, router } from '@statamic/cms/inertia';
 import { Alert, Badge, Button, Header, Heading, Modal, Panel, Subheading } from '@statamic/cms/ui';
+import KindSuggestions from '../components/KindSuggestions.vue';
 import LearnForm from '../components/LearnForm.vue';
 import SetupAlert from '../components/SetupAlert.vue';
 
 export default {
-    components: { Alert, Badge, Button, Head, Header, Heading, LearnForm, Link, Modal, Panel, SetupAlert, Subheading },
+    components: { Alert, Badge, Button, Head, Header, Heading, KindSuggestions, LearnForm, Link, Modal, Panel, SetupAlert, Subheading },
 
     props: {
         configured: { type: Boolean, required: true },
@@ -22,6 +23,7 @@ export default {
         plan: { type: Object, required: true },
         collections: { type: Array, required: true },
         sessions: { type: Array, required: true },
+        auto_kinds: { type: Boolean, default: true },
     },
 
     data() {
@@ -91,6 +93,20 @@ export default {
 
                 this.info = data;
                 this.timer = setTimeout(() => this.refresh(), 2500);
+            } catch (error) {
+                this.$toast.error(error.response?.data?.message ?? this.__('Something went wrong.'));
+            }
+        },
+
+        reload() {
+            router.reload();
+        },
+
+        // Ask for kinds now, rather than waiting for the automatic check.
+        async suggest(collection) {
+            try {
+                const { data } = await this.$axios.post(collection.suggest_url);
+                this.$refs[`kinds-${collection.handle}`]?.[0]?.apply(data) ?? this.$refs[`kinds-${collection.handle}`]?.apply(data);
             } catch (error) {
                 this.$toast.error(error.response?.data?.message ?? this.__('Something went wrong.'));
             }
@@ -167,10 +183,13 @@ export default {
                             <Subheading :text="__(':count entries', { count: collection.entries })" />
                         </div>
                         <div class="flex gap-2">
+                            <Button size="sm" variant="ghost" :text="__('Suggest kinds')" :disabled="!configured || collection.suggested.status === 'working'" @click="suggest(collection)" />
                             <Button size="sm" :text="__('Teach it a kind')" @click="add(collection)" />
                             <Button size="sm" variant="primary" :icon="ghost" :href="collection.url" :text="__('Write')" />
                         </div>
                     </div>
+
+                    <KindSuggestions :ref="`kinds-${collection.handle}`" :collection="collection" :configured="configured" @learned="reload" />
 
                     <ul v-if="collection.types.length" class="mt-3 space-y-1.5">
                         <li v-for="type in collection.types" :key="type.edit_url">

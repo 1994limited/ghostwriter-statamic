@@ -40,6 +40,18 @@ class Settings
     }
 
     /**
+     * Whether collections are checked for kinds of content by themselves.
+     */
+    public function suggestsKinds(): bool
+    {
+        // The settings screen fills in its own default, so only a value
+        // actually saved there overrides the config.
+        $raw = Addon::get(self::ADDON)?->settings()->raw() ?? [];
+
+        return array_key_exists('suggest_kinds', $raw) ? (bool) $raw['suggest_kinds'] : (bool) config('ghostwriter.suggest_kinds', true);
+    }
+
+    /**
      * Collections Ghostwriter writes for. Empty means all of them.
      *
      * @return array<int, string>

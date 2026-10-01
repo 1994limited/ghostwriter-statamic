@@ -87,6 +87,10 @@ return [
 
     'types_path' => resource_path('ghostwriter/types'),
 
+    // Whether each collection is looked over for kinds of content worth
+    // teaching, the first time it is seen and again as entries are published.
+    'suggest_kinds' => (bool) env('GHOSTWRITER_SUGGEST_KINDS', true),
+
     /*
     |--------------------------------------------------------------------------
     | Content plan

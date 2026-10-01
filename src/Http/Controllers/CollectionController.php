@@ -9,9 +9,11 @@ use NineteenNinetyFour\Ghostwriter\Blueprints\KindFinder;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
+use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
 use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
+use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\Types\TypeState;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
@@ -35,6 +37,7 @@ class CollectionController
         private Presenter $presenter,
         private KindFinder $kinds,
         private SchemaReader $reader,
+        private KindSuggestions $suggestions,
     ) {}
 
     public function show(Request $request, string $collection): JsonResponse
@@ -72,6 +75,116 @@ class CollectionController
     }
 
     /**
+     * What has been suggested for a collection, and whether a check is running.
+     */
+    public function kinds(string $collection): JsonResponse
+    {
+        $this->ensureEnabled($collection);
+
+        return response()->json(['kinds' => $this->kindState($collection)]);
+    }
+
+    /**
+     * Look over a collection for kinds of content worth teaching.
+     */
+    public function suggestKinds(string $collection): JsonResponse
+    {
+        $this->ensureEnabled($collection);
+
+        abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
+
+        if ($this->suggestions->get($collection)['status'] !== KindSuggestions::WORKING) {
+            $this->suggestions->update($collection, ['status' => KindSuggestions::WORKING, 'error' => null]);
+
+            SuggestKinds::start([$collection]);
+        }
+
+        return response()->json(['kinds' => $this->kindState($collection)]);
+    }
+
+    /**
+     * Learn a suggested kind: its name and the entries that show it go to
+     * the same job as teaching one by hand.
+     */
+    public function learnKind(string $collection, string $id): JsonResponse
+    {
+        $this->ensureEnabled($collection);
+
+        $suggestion = $this->suggestions->find($collection, $id) ?? abort(404, 'That suggestion has gone.');
+
+        abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
+        abort_if($this->state->get($collection)['status'] === TypeState::WORKING, 409, 'Ghostwriter is already learning a kind in this collection. Try again in a minute.');
+
+        $this->state->set($collection, TypeState::WORKING);
+
+        AnalyseCollection::start($collection, $suggestion['title'], $suggestion['examples']);
+
+        $this->suggestions->remove($collection, $id);
+
+        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->state->get($collection)]);
+    }
+
+    /**
+     * Learn every kind suggested for a collection, one after another.
+     */
+    public function learnAllKinds(string $collection): JsonResponse
+    {
+        $this->ensureEnabled($collection);
+
+        $suggestions = $this->suggestions->get($collection)['suggestions'];
+
+        abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
+        abort_if($suggestions === [], 422, 'There is nothing suggested to learn.');
+        abort_if($this->state->get($collection)['status'] === TypeState::WORKING, 409, 'Ghostwriter is already learning a kind in this collection. Try again in a minute.');
+
+        $this->state->set($collection, TypeState::WORKING);
+
+        AnalyseCollection::start($collection, null, [], array_map(fn (array $suggestion) => ['title' => $suggestion['title'], 'examples' => $suggestion['examples']], $suggestions));
+
+        foreach ($suggestions as $suggestion) {
+            $this->suggestions->remove($collection, $suggestion['id']);
+        }
+
+        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->state->get($collection)]);
+    }
+
+    /**
+     * Turn a suggestion down. It is remembered, so it is not suggested again.
+     */
+    public function dismissKind(string $collection, string $id): JsonResponse
+    {
+        $this->ensureEnabled($collection);
+
+        $this->suggestions->remove($collection, $id, dismissed: true);
+
+        return response()->json(['kinds' => $this->kindState($collection)]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function kindState(string $collection): array
+    {
+        $state = $this->suggestions->get($collection);
+
+        return [
+            'status' => $state['status'],
+            'error' => $state['error'],
+            'checked_at' => $state['checked_at'],
+            'suggestions' => array_map(fn (array $suggestion) => $suggestion + [
+                'titles' => array_values(array_filter(array_map(fn (string $id) => Entries::find($id)?->get('title'), $suggestion['examples']))),
+                'learn_url' => cp_route('ghostwriter.kinds.learn', [$collection, $suggestion['id']]),
+                'dismiss_url' => cp_route('ghostwriter.kinds.dismiss', [$collection, $suggestion['id']]),
+            ], $state['suggestions']),
+            'urls' => [
+                'status' => cp_route('ghostwriter.kinds.show', $collection),
+                'suggest' => cp_route('ghostwriter.kinds.suggest', $collection),
+                'learn_all' => cp_route('ghostwriter.kinds.learn_all', $collection),
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function payload(string $handle, ?string $blueprint = null): array
@@ -88,6 +201,7 @@ class CollectionController
             'voice_url' => cp_route('ghostwriter.voice.show'),
             'collection' => ['handle' => $handle, 'title' => $collection->title()],
             'state' => $this->state->get($handle),
+            'kinds_suggested' => $this->kindState($handle),
             // On a form for one blueprint, only the types written for it.
             'types' => $types
                 ->filter(fn (ContentType $type) => ! $blueprint || ! $type->blueprint || $type->blueprint === $blueprint)

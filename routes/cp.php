@@ -36,6 +36,11 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
 
     // Used by the panel that opens on an entry's publish form.
     Route::get('collections/{collection}', [CollectionController::class, 'show'])->name('collections.show');
+    Route::get('collections/{collection}/kinds', [CollectionController::class, 'kinds'])->name('kinds.show');
+    Route::post('collections/{collection}/kinds/suggest', [CollectionController::class, 'suggestKinds'])->name('kinds.suggest');
+    Route::post('collections/{collection}/kinds/learn-all', [CollectionController::class, 'learnAllKinds'])->name('kinds.learn_all');
+    Route::post('collections/{collection}/kinds/{id}/learn', [CollectionController::class, 'learnKind'])->name('kinds.learn');
+    Route::post('collections/{collection}/kinds/{id}/dismiss', [CollectionController::class, 'dismissKind'])->name('kinds.dismiss');
     Route::post('collections/{collection}/analyse', [CollectionController::class, 'analyse'])->name('collections.analyse');
 
     Route::get('types/{type}', [TypeController::class, 'edit'])->name('types.edit');

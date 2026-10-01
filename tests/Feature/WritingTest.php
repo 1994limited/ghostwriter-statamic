@@ -5,15 +5,18 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 use Illuminate\Support\Facades\Bus;
 use NineteenNinetyFour\Ghostwriter\Actions\WriteWithGhostwriter;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\BriefWriter;
+use NineteenNinetyFour\Ghostwriter\Ai\Agents\KindScout;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\TypeAnalyst;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\Writer;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
+use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
+use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\Types\TypeState;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
@@ -81,6 +84,119 @@ class WritingTest extends TestCase
 
         $this->assertSame('Fenced', app(TypeRepository::class)->find('articles')->title);
         TypeAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'could not be read: it had no questions'));
+    }
+
+    public function test_kinds_of_content_are_suggested_and_can_be_learned_or_turned_down(): void
+    {
+        Bus::fake([AnalyseCollection::class]);
+        $this->signIn();
+        $this->makeType();
+
+        $ids = Entry::query()->where('collection', 'articles')->get()->keyBy->slug()->map->id();
+
+        KindScout::fake(["<kinds>\n- title: Project write-up\n  description: One project told start to finish.\n  why: Three entries share the hero, long form and cards.\n  examples: [\"{$ids['one']}\", \"{$ids['two']}\", \"nowhere\"]\n- title: Article\n  description: Already taught, so left out.\n  examples: [\"{$ids['one']}\", \"{$ids['two']}\"]\n- title: Lonely\n  description: Only one example.\n  examples: [\"{$ids['three']}\"]\n</kinds>"]);
+
+        (new SuggestKinds(['articles', 'nowhere']))->handle(app(Studio::class), app(TypeRepository::class), app(KindSuggestions::class));
+
+        $state = app(KindSuggestions::class)->get('articles');
+
+        $this->assertSame(KindSuggestions::IDLE, $state['status']);
+        $this->assertSame(3, $state['entries']);
+        $this->assertSame(['Project write-up'], array_column($state['suggestions'], 'title'));
+        $this->assertSame([$ids['one'], $ids['two']], $state['suggestions'][0]['examples']);
+        $this->assertSame('article', $state['suggestions'][0]['blueprint']);
+
+        // The scout was shown each entry: its title, how it is built and how it opens.
+        KindScout::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'built as: hero, long_form, cards, related') && str_contains($prompt->prompt, 'opens: "A summary line about One'));
+
+        $kinds = $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))->assertOk()->json('kinds');
+        $suggestion = $kinds['suggestions'][0];
+
+        $this->assertSame(['One', 'Two'], $suggestion['titles']);
+
+        // Learned: the same job as teaching by hand, with the kind's name and entries.
+        $this->postJson($suggestion['learn_url'])->assertOk()->assertJsonPath('state.status', TypeState::WORKING)->assertJsonPath('kinds.suggestions', []);
+
+        Bus::assertDispatchedAfterResponse(AnalyseCollection::class, fn ($job) => $job->title === 'Project write-up' && $job->examples === [$ids['one'], $ids['two']]);
+
+        $this->postJson($suggestion['learn_url'])->assertNotFound();
+    }
+
+    public function test_a_turned_down_kind_is_not_suggested_again_and_learn_all_queues_the_rest(): void
+    {
+        Bus::fake([AnalyseCollection::class]);
+        $this->signIn();
+
+        $suggestions = app(KindSuggestions::class);
+        $suggestions->store('articles', [
+            ['title' => 'Press release', 'description' => '', 'why' => '', 'examples' => ['a', 'b'], 'blueprint' => null],
+            ['title' => 'Event', 'description' => '', 'why' => '', 'examples' => ['c', 'd'], 'blueprint' => null],
+            ['title' => 'Award', 'description' => '', 'why' => '', 'examples' => ['e', 'f'], 'blueprint' => null],
+        ], 3);
+
+        $first = $suggestions->get('articles')['suggestions'][0];
+
+        $this->postJson(cp_route('ghostwriter.kinds.dismiss', ['articles', $first['id']]))->assertOk()->assertJsonCount(2, 'kinds.suggestions');
+        $this->assertSame(['Press release'], $suggestions->get('articles')['dismissed']);
+
+        // Next time the scout looks, it is told what was turned down.
+        KindScout::fake(["<kinds>\n- title: Press release\n  examples: [\"x\", \"y\"]\n</kinds>"]);
+        app(Studio::class)->suggestKinds(Collection::findByHandle('articles'), app(TypeRepository::class), $suggestions);
+        KindScout::assertPrompted(fn ($prompt) => true);
+
+        $this->postJson(cp_route('ghostwriter.kinds.learn_all', 'articles'))->assertOk()->assertJsonPath('kinds.suggestions', []);
+
+        Bus::assertDispatchedAfterResponse(AnalyseCollection::class, fn ($job) => array_column($job->kinds, 'title') === ['Event', 'Award']);
+    }
+
+    public function test_learning_several_kinds_carries_on_past_one_that_fails(): void
+    {
+        TypeAnalyst::fake([
+            "<type>\ntitle: Event\ndescription: An event.\nquestions:\n  - handle: when\n    label: When?\n</type>",
+            'Nonsense.',
+            'Nonsense again.',
+        ]);
+
+        (new AnalyseCollection('articles', kinds: [['title' => 'Event', 'examples' => []], ['title' => 'Award', 'examples' => []]]))
+            ->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+
+        $this->assertSame('Event', app(TypeRepository::class)->find('event')->title);
+        $this->assertNull(app(TypeRepository::class)->find('award'));
+        $this->assertSame(TypeState::FAILED, app(TypeState::class)->get('articles')['status']);
+        $this->assertStringStartsWith('Award: ', app(TypeState::class)->get('articles')['error']);
+
+        // A second type with the same title gets its own handle.
+        $this->assertSame('event-2', app(TypeRepository::class)->handleFor('Event', 'articles'));
+    }
+
+    public function test_the_dashboard_checks_a_collection_for_kinds_the_first_time_and_after_ten_more_entries(): void
+    {
+        Bus::fake([SuggestKinds::class]);
+        $this->signIn();
+
+        $this->get(cp_route('ghostwriter.index'))->assertOk();
+        Bus::assertDispatchedAfterResponse(SuggestKinds::class, fn ($job) => $job->collections === ['articles']);
+        $this->assertSame(KindSuggestions::WORKING, app(KindSuggestions::class)->get('articles')['status']);
+
+        // Checked, with three entries: not again until ten more are published.
+        app(KindSuggestions::class)->store('articles', [], 3);
+        Bus::fake([SuggestKinds::class]);
+        $this->get(cp_route('ghostwriter.index'))->assertOk();
+        Bus::assertNotDispatchedAfterResponse(SuggestKinds::class);
+
+        foreach (range(4, 13) as $n) {
+            $this->makeArticle("more-{$n}", "More {$n}", 'Another paragraph long enough to be read as a sample of writing.');
+        }
+
+        $this->get(cp_route('ghostwriter.index'))->assertOk();
+        Bus::assertDispatchedAfterResponse(SuggestKinds::class);
+
+        // Switched off, nothing happens by itself.
+        config(['ghostwriter.suggest_kinds' => false]);
+        app(KindSuggestions::class)->update('articles', ['status' => KindSuggestions::IDLE, 'checked_at' => null]);
+        Bus::fake([SuggestKinds::class]);
+        $this->get(cp_route('ghostwriter.index'))->assertOk();
+        Bus::assertNotDispatchedAfterResponse(SuggestKinds::class);
     }
 
     public function test_the_panel_is_told_about_its_collection(): void

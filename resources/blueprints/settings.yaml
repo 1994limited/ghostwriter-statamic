@@ -20,6 +20,13 @@ tabs:
               display: Learn the voice from these collections
               instructions: Read when the tone of voice guide is generated. Leave empty to read every collection.
               mode: select
+          -
+            handle: suggest_kinds
+            field:
+              type: toggle
+              display: Suggest kinds of content
+              instructions: 'Look over each collection for kinds of content worth teaching, the first time it is seen and again once ten more entries have been published. Off, kinds are only suggested when asked.'
+              default: true
       -
         display: AI provider
         instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file.'
