@@ -62,9 +62,11 @@ $port = 9222 + random_int(1, 500);
 $profile = sys_get_temp_dir().'/ghostwriter-shots-'.getmypid();
 $process = proc_open(
     [$chrome, '--headless=new', "--remote-debugging-port={$port}", "--user-data-dir={$profile}", '--window-size=1600,900', '--hide-scrollbars', '--force-device-scale-factor=1', '--ignore-certificate-errors', 'about:blank'],
-    [0 => ['pipe', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']],
+    [0 => ['file', '/dev/null', 'r'], 1 => ['file', "{$profile}.log", 'a'], 2 => ['file', "{$profile}.log", 'a']],
     $pipes,
 );
+
+echo "Chrome log: {$profile}.log\n";
 
 register_shutdown_function(function () use ($process, $profile): void {
     if (is_resource($process)) {
@@ -73,6 +75,7 @@ register_shutdown_function(function () use ($process, $profile): void {
     }
 
     exec('rm -rf '.escapeshellarg($profile));
+    @unlink("{$profile}.log");
 });
 
 // Wait for Chrome to listen.
@@ -88,12 +91,24 @@ if ($version === null) {
     exit(1);
 }
 
-$context = stream_context_create(['http' => ['method' => 'PUT']]);
-$target = json_decode((string) file_get_contents("http://127.0.0.1:{$port}/json/new?about:blank", false, $context), true);
+usleep(500000);
+
+// The blank tab Chrome opened with is the one driven.
+$targets = (array) json_decode((string) file_get_contents("http://127.0.0.1:{$port}/json/list"), true);
+$target = current(array_filter($targets, fn (array $candidate) => ($candidate['type'] ?? null) === 'page'));
+
+if (! $target) {
+    fwrite(STDERR, "Chrome opened no page to drive.\n");
+    exit(1);
+}
+
 $ws = new DevToolsSocket($target['webSocketDebuggerUrl']);
 
 $ws->send('Page.enable');
 $ws->send('Runtime.enable');
+
+// Store images are taken in light mode, whatever the machine prefers.
+$ws->send('Emulation.setEmulatedMedia', ['features' => [['name' => 'prefers-color-scheme', 'value' => 'light']]]);
 $ws->send('Emulation.setDeviceMetricsOverride', ['width' => 1600, 'height' => 900, 'deviceScaleFactor' => 1, 'mobile' => false]);
 
 // Sign in. The form is Vue, so values go in through the native setter and an
@@ -120,6 +135,10 @@ foreach ($shots as $name => $shot) {
 
     $ws->navigate($shot['url']());
     usleep((int) (($shot['wait'] ?? 1) * 1000000));
+
+    // A trial-mode site greets each fresh browser with a licensing notice.
+    $ws->evaluate("[...document.querySelectorAll('button')].find(b => /snooze/i.test(b.textContent))?.click()");
+    usleep(400000);
 
     if (! empty($shot['after'])) {
         $ws->evaluate($shot['after']);
