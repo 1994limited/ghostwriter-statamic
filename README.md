@@ -32,6 +32,8 @@ It works on any collection because it takes its instructions from the collection
 
 The writer is told to use only facts from the brief and the conversation. It does not invent figures, quotes, client names or results; what it does not know it asks for, or writes around.
 
+Full documentation is in [docs/](docs/README.md): [installation](docs/installation.md), [API keys](docs/api-keys.md), [getting started](docs/getting-started.md), [writing](docs/writing.md), [editing](docs/editing.md), [kinds](docs/kinds.md), [guides](docs/guides.md), [images](docs/images.md), [the content plan](docs/content-plan.md), [the dashboard](docs/dashboard.md), [configuration](docs/configuration.md), [fields](docs/fields.md), [privacy](docs/privacy.md) and [troubleshooting](docs/troubleshooting.md).
+
 ## Requirements
 
 - Statamic 6
