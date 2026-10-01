@@ -15,6 +15,7 @@ use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
 use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
 use NineteenNinetyFour\Ghostwriter\Drafts\EntryMerger;
+use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
@@ -139,7 +140,7 @@ class SessionController
      * The draft as values for the publish form the panel is open on. Nothing
      * is saved: the person reviews the filled-in form and saves it themselves.
      */
-    public function apply(Request $request, string $session, SchemaReader $reader, PatternFinder $patterns, EntryBuilder $builder, ImageStudio $images, EntryMerger $merger): JsonResponse
+    public function apply(Request $request, string $session, SchemaReader $reader, PatternFinder $patterns, EntryBuilder $builder, ImageStudio $images, EntryMerger $merger, HouseFinish $finish): JsonResponse
     {
         $session = $this->session($session);
         $type = $this->type($session->type)->forSession($session);
@@ -161,7 +162,15 @@ class SessionController
             $built = $builder->build($draft->data, $schema);
             $built['data'] = $merger->merge($built['data'], $original->data()->all(), $schema);
         } else {
-            $built = $builder->build($draft->data, $schema, $patterns->find($type->collection, $schema, $type->blueprint, $type->where, $type->examples), $type->defaults);
+            $pattern = $patterns->find($type->collection, $schema, $type->blueprint, $type->where, $type->examples);
+            $built = $builder->build($draft->data, $schema, $pattern, $type->defaults);
+
+            // What the model entries agree on place by place, and a striped
+            // placeholder where an image is still to come. The entry has no
+            // ID yet, so links to itself wait.
+            $finished = $finish->finish($built['data'], $schema, $pattern, null, $draft->title());
+            $built['data'] = $finished['data'];
+            $built['notes'] = [...$built['notes'], ...$finished['notes']];
         }
 
         $data = $images->place(['title' => $draft->title()] + $built['data'], $session, $schema);

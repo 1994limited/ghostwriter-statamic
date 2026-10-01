@@ -66,6 +66,14 @@ tabs:
                 xai: 'Grok (xAI)'
               width: 50
           -
+            handle: placeholder_images
+            field:
+              type: toggle
+              display: Striped placeholders
+              instructions: 'When a draft is put into a new entry, image fields it should have but left empty get a shared striped placeholder image, so the layout shows and nothing is missed.'
+              default: true
+              width: 50
+          -
             handle: image_model
             field:
               type: text

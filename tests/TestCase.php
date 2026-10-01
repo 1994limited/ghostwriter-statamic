@@ -149,7 +149,7 @@ abstract class TestCase extends AddonTestCase
 
     protected function signIn(bool $permitted = true): \Statamic\Contracts\Auth\User
     {
-        $this->setTestRoles(['writer' => ['access cp', 'access ghostwriter', 'view articles entries', 'edit articles entries', 'edit other authors articles entries'], 'visitor' => ['access cp']]);
+        $this->setTestRoles(['writer' => ['access cp', 'access ghostwriter', 'view articles entries', 'edit articles entries', 'edit other authors articles entries', 'view pages entries', 'edit pages entries', 'create pages entries'], 'visitor' => ['access cp']]);
 
         $user = User::make()->email('writer@example.com')->assignRole($permitted ? 'writer' : 'visitor');
         $user->save();

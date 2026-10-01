@@ -88,7 +88,63 @@ class PatternFinder
             'blocks' => $blocks,
             'fixed' => $this->fixedValues($data->all(), array_merge(['title', 'slug', 'date', 'id', 'blueprint', 'published', 'updated_at', 'updated_by'], array_keys($blocks), array_column(array_filter($schema, [SchemaReader::class, 'writable']), 'handle'))),
             'examples' => $simplified->take(2)->map(fn (array $example) => $this->withoutDefaults($example, $schema, $blocks))->values()->all(),
+            'filled' => $this->fillRates($data->all(), $schema),
+            'house' => (new HouseStyle)->learn($data->values()->all(), $schema, $entries->map(fn (Entry $entry) => (string) $entry->id())->values()->all()),
         ];
+    }
+
+    /**
+     * How often each field holds something: on the entry, keyed by handle,
+     * and on blocks, keyed "blockType.handle", at any depth. It is how an
+     * image that every page has is told from a background few pages use.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<int, array<string, mixed>>  $schema
+     * @return array<string, float>
+     */
+    private function fillRates(array $items, array $schema): array
+    {
+        $counts = [];
+        $totals = [];
+
+        $walk = function (array $items, array $specs, string $prefix) use (&$walk, &$counts, &$totals): void {
+            foreach ($items as $item) {
+                if (! is_array($item) || ($item['enabled'] ?? true) === false) {
+                    continue;
+                }
+
+                foreach ($specs as $spec) {
+                    $key = $prefix.$spec['handle'];
+                    $value = $item[$spec['handle']] ?? null;
+
+                    $totals[$key] = ($totals[$key] ?? 0) + 1;
+
+                    if ($value !== null && $value !== '' && $value !== []) {
+                        $counts[$key] = ($counts[$key] ?? 0) + 1;
+                    }
+
+                    if ($spec['kind'] === 'blocks' && is_array($value)) {
+                        foreach ($value as $block) {
+                            $set = is_array($block) ? ($spec['sets'][$block['type'] ?? ''] ?? null) : null;
+
+                            if ($set) {
+                                $walk([$block], $set['fields'], $block['type'].'.');
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        $walk($items, $schema, '');
+
+        $rates = [];
+
+        foreach ($totals as $key => $total) {
+            $rates[$key] = round(($counts[$key] ?? 0) / $total, 2);
+        }
+
+        return $rates;
     }
 
     /**

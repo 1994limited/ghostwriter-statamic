@@ -23,6 +23,7 @@ class SchemaEntryWriter implements EntryWriter
         private SchemaReader $reader,
         private PatternFinder $patterns,
         private EntryBuilder $builder,
+        private HouseFinish $finish,
     ) {}
 
     public function write(Draft $draft, ContentType $type, ?User $user = null): Entry
@@ -33,9 +34,10 @@ class SchemaEntryWriter implements EntryWriter
         $blueprint = $type->statamicBlueprint();
         $schema = $this->reader->read($blueprint);
 
-        $built = $this->builder->build($draft->data, $schema, $this->patterns->find($collection->handle(), $schema, $type->blueprint, $type->where, $type->examples), $type->defaults);
+        $pattern = $this->patterns->find($collection->handle(), $schema, $type->blueprint, $type->where, $type->examples);
+        $built = $this->builder->build($draft->data, $schema, $pattern, $type->defaults);
 
-        $data = $built['data'];
+        $data = $this->finish->finish($built['data'], $schema, $pattern, null, $draft->title())['data'];
         $data['title'] = $draft->title();
 
         // A single-author field is set to whoever asked for the piece.
@@ -57,6 +59,13 @@ class SchemaEntryWriter implements EntryWriter
         }
 
         $entry->save();
+
+        // Now it has an ID, the links the house style makes to the page itself.
+        $linked = $this->finish->linkToSelf($entry->data()->all(), $schema, $pattern, (string) $entry->id(), $draft->title());
+
+        if ($linked !== $entry->data()->all()) {
+            $entry->data($linked)->save();
+        }
 
         return $entry;
     }

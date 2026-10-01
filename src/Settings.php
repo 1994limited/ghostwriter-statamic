@@ -40,6 +40,16 @@ class Settings
     }
 
     /**
+     * Whether a new entry's empty image fields get a striped placeholder.
+     */
+    public function placeholderImages(): bool
+    {
+        $raw = Addon::get(self::ADDON)?->settings()->raw() ?? [];
+
+        return array_key_exists('placeholder_images', $raw) ? (bool) $raw['placeholder_images'] : (bool) config('ghostwriter.images.placeholders', true);
+    }
+
+    /**
      * Whether collections are checked for kinds of content by themselves.
      */
     public function suggestsKinds(): bool

@@ -50,6 +50,10 @@ return [
         // The image style guide: what the site's pictures look like, in words.
         'guide_path' => resource_path('ghostwriter/imagery.md'),
         'guide_samples' => 10,
+
+        // Put a striped placeholder in each image field a new entry should
+        // have but the draft left empty, so the layout shows as it will be.
+        'placeholders' => (bool) env('GHOSTWRITER_PLACEHOLDER_IMAGES', true),
     ],
 
     /*

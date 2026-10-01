@@ -126,7 +126,9 @@ class SchemaReader
         // Where a generated image for this field would be stored.
         if ($type === 'assets') {
             $spec['container'] = (string) $field->get('container', '');
+            $spec['folder'] = trim((string) $field->get('folder', ''), '/');
             $spec['max_files'] = $field->get('max_files');
+            $spec['images'] = $this->acceptsImages($field);
         }
 
         if ($depth >= self::MAX_DEPTH) {
@@ -146,6 +148,28 @@ class SchemaReader
         }
 
         return $spec;
+    }
+
+    /**
+     * Whether pictures may go in an assets field. Statamic limits a field
+     * only through its validation, so a rule such as `mimes:pdf` is what
+     * says a field is for documents.
+     */
+    private function acceptsImages(Field $field): bool
+    {
+        foreach ((array) $field->get('validate', []) as $rule) {
+            if (! is_string($rule) || ! preg_match('/^(mimes|extensions|mimetypes):(.*)$/i', $rule, $m)) {
+                continue;
+            }
+
+            $allowed = array_map('strtolower', array_map('trim', explode(',', $m[2])));
+
+            if (array_intersect($allowed, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml', 'image/*']) === []) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
