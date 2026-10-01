@@ -198,7 +198,7 @@ export default {
         <Modal v-model:open="reviewing" :title="__('Ghostwriter suggests')" :icon="ghost">
             <div class="space-y-3 p-1">
                 <Subheading :text="__('Tick the ones worth writing. Unticked ones are kept as dismissed, so they are not suggested again.')" />
-                <div v-for="(idea, i) in current.pending" :key="i" class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                <div v-for="(idea, i) in current.pending" :key="i" class="rounded-lg border border-gray-200 p-3 dark:border-gray-700!">
                     <Checkbox :model-value="chosen.includes(i)" :label="idea.title" @update:model-value="(on) => tick(i, on)" />
                     <div class="ms-6 mt-1 text-xs text-gray-500">{{ idea.collection_title }}<template v-if="idea.type_title"> · {{ idea.type_title }}</template></div>
                     <p v-if="idea.why" class="ms-6 mt-1 text-sm">{{ idea.why }}</p>
@@ -214,7 +214,7 @@ export default {
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="space-y-6 lg:col-span-2">
                 <Panel v-if="started.length" :heading="__('In progress')" :subheading="__('Started, and not yet saved as an entry.')">
-                    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <div class="divide-y divide-gray-200 dark:divide-gray-700!">
                         <div v-for="idea in started" :key="idea.id" class="flex items-center gap-4 p-4">
                             <div class="min-w-0 flex-1">
                                 <Heading :text="idea.title" />
@@ -233,7 +233,7 @@ export default {
                 </Panel>
 
                 <Panel v-for="group in groups" :key="group.handle" :heading="__(group.title)" :subheading="__(':count to write', { count: group.ideas.length })">
-                    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <div class="divide-y divide-gray-200 dark:divide-gray-700!">
                         <div v-for="idea in group.ideas" :key="idea.id" class="flex items-start gap-4 p-4">
                             <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-2">
@@ -256,7 +256,7 @@ export default {
                     <Button size="sm" variant="ghost" :text="showDone ? __('Hide finished and dismissed') : __('Show :count finished and dismissed', { count: done.length })" @click="showDone = !showDone" />
 
                     <Panel v-if="showDone" class="mt-3">
-                        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <div class="divide-y divide-gray-200 dark:divide-gray-700!">
                             <div v-for="idea in done" :key="idea.id" class="flex items-center gap-4 px-4 py-3">
                                 <div class="min-w-0 flex-1">
                                     <span :class="{ 'line-through': idea.status === 'dismissed' }">{{ idea.title }}</span>

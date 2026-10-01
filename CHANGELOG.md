@@ -15,6 +15,7 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Each call is logged on `log_channel` with the provider, model, tokens and time, never the words.
 - Get started says when another provider's key is set but not chosen.
 - Prompts ship with Ghostwriter Core. `php artisan vendor:publish --tag=ghostwriter-prompts` still publishes them to `resources/ghostwriter/prompts/`, where an edited copy still takes precedence. The photo picker's prompt is now a file too, `photo-picker.md`.
+- **Dark mode.** The "Ghostwriter needs your answer" card was a light amber with near-white text, and a few hover borders didn't change. Statamic's own utilities outranked the addon's dark and hover styles; they now win.
 - For developers: `NineteenNinetyFour\Ghostwriter\Drafts\Draft` is now `NineteenNinetyFour\Ghostwriter\Core\Text\Draft`. The old name still works, so a custom `EntryWriter` keeps working; it goes in 2.0. The `Ai\Agents` classes are gone.
 
 ## 1.0.1 — 2026-10-01

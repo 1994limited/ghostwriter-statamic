@@ -177,7 +177,7 @@ export default {
                 <div class="min-w-0">
                     <Heading :text="__('Get started') + ' · ' + __(':done of :total', { done: setup.done, total: setup.total })" />
                     <Subheading v-if="setup.next" :text="__('Next: :title', { title: setup.next.title }) + (setup.next.optional ? ' (' + __('optional') + ')' : '')" />
-                    <div class="mt-2 h-1 w-64 max-w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div class="mt-2 h-1 w-64 max-w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700!">
                         <div class="h-full rounded-full" style="background: var(--gw-accent, #2b3a64)" :style="{ width: `${Math.round((setup.done / setup.total) * 100)}%` }"></div>
                     </div>
                 </div>
@@ -190,22 +190,22 @@ export default {
 
         <!-- Four tiles: where things stand -->
         <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Link :href="voice.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
+            <Link :href="voice.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Voice guide') }}</div>
                 <div class="mt-1 font-medium">{{ voice.exists ? __('In place') : __('Not written yet') }}</div>
                 <div class="text-sm text-gray-500">{{ voice.exists ? __('Updated :when', { when: voice.updated_at }) : __('Everything written follows it') }}</div>
             </Link>
-            <Link :href="imagery.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
+            <Link :href="imagery.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Image style') }}</div>
                 <div class="mt-1 font-medium">{{ imagery.exists ? __('In place') : __('Not written yet') }}</div>
                 <div class="text-sm text-gray-500">{{ __('How your pictures look, in words') }}</div>
             </Link>
-            <Link :href="plan.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
+            <Link :href="plan.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content plan') }}</div>
                 <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.ideas }}</span> {{ __('ideas waiting') }}</div>
                 <div class="text-sm text-gray-500">{{ __('What the site is missing') }}</div>
             </Link>
-            <a href="#in-progress" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
+            <a href="#in-progress" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('In progress') }}</div>
                 <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.in_progress }}</span> {{ __('pieces') }}</div>
                 <div class="text-sm text-gray-500">{{ __('Drafts and edits under way') }}</div>
@@ -214,7 +214,7 @@ export default {
 
         <!-- Collections, as one list -->
         <Panel :heading="__('Collections')" class="mb-6">
-            <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            <div class="divide-y divide-gray-200 dark:divide-gray-700!">
                 <div v-for="collection in collections" :key="collection.handle" class="p-4">
                     <div class="flex items-center justify-between gap-4">
                         <div class="min-w-0">
@@ -223,7 +223,7 @@ export default {
                                 <span class="text-sm text-gray-500">{{ __(':count entries', { count: collection.entries }) }} · {{ collection.types.length === 1 ? __('1 kind') : __(':count kinds', { count: collection.types.length }) }}</span>
                             </div>
                             <div v-if="collection.types.length" class="mt-1.5 flex flex-wrap gap-1.5">
-                                <Link v-for="type in collection.types" :key="type.edit_url" :href="type.edit_url" :title="type.description" class="rounded-md border border-gray-200 px-2 py-0.5 text-xs hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">{{ type.title }}</Link>
+                                <Link v-for="type in collection.types" :key="type.edit_url" :href="type.edit_url" :title="type.description" class="rounded-md border border-gray-200 px-2 py-0.5 text-xs hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">{{ type.title }}</Link>
                             </div>
                         </div>
                         <div class="flex shrink-0 gap-2">
@@ -244,7 +244,7 @@ export default {
                     <button
                         v-if="suggestionsOf(collection) && !openKinds[collection.handle]"
                         type="button"
-                        class="mt-2 text-sm font-medium hover:underline"
+                        class="mt-2 text-sm font-medium hover:underline!"
                         style="color: var(--gw-accent, #2b3a64)"
                         @click="openKinds[collection.handle] = true"
                     >{{ __(':count suggested kinds to review', { count: suggestionsOf(collection) }) }} →</button>
@@ -263,8 +263,8 @@ export default {
 
         <div id="in-progress"></div>
         <Panel v-if="inProgress.length" :heading="__('In progress')" :subheading="__('A piece leaves this list once its entry has been saved.')">
-            <ul class="divide-y divide-gray-200 dark:divide-gray-700">
-                <li v-for="session in inProgress" :key="session.id" class="flex items-center gap-2 pe-3 hover:bg-gray-50 dark:hover:bg-gray-800">
+            <ul class="divide-y divide-gray-200 dark:divide-gray-700!">
+                <li v-for="session in inProgress" :key="session.id" class="flex items-center gap-2 pe-3 hover:bg-gray-50! dark:hover:bg-gray-800!">
                     <component :is="session.url ? 'Link' : 'div'" :href="session.url" class="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3">
                         <div class="min-w-0">
                             <div class="truncate font-medium">{{ session.title }}</div>
@@ -281,7 +281,7 @@ export default {
             <Button size="sm" variant="ghost" :text="showFinished ? __('Hide finished') : __('Show :count finished', { count: finished.length })" @click="showFinished = !showFinished" />
 
             <Panel v-if="showFinished" class="mt-3">
-                <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+                <ul class="divide-y divide-gray-200 dark:divide-gray-700!">
                     <li v-for="session in finished" :key="session.id" class="flex items-center gap-2 pe-3">
                         <component :is="session.entry_url ? 'Link' : 'div'" :href="session.entry_url" class="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3">
                             <div class="min-w-0">
@@ -297,7 +297,7 @@ export default {
         </div>
 
         <p v-if="hiddenSetup" class="mt-8 text-center text-sm text-gray-500">
-            <button type="button" class="hover:underline" @click="toggleSetup(false)">{{ __('Show Get started') }}</button>
+            <button type="button" class="hover:underline!" @click="toggleSetup(false)">{{ __('Show Get started') }}</button>
         </p>
 
         <Modal v-model:open="open" :title="learning ? __('A kind of content in :collection', { collection: learning.title }) : ''" :icon="ghost">

@@ -239,13 +239,13 @@ export default {
 <template>
     <Modal v-model:open="open" :title="field ? __('An image for :field', { field: field.label }) : __('Ghostwriter')" :icon="ghost">
         <div v-if="field" class="p-1">
-            <div v-if="tabs.length > 1" class="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-700">
+            <div v-if="tabs.length > 1" class="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-700!">
                 <button
                     v-for="item in tabs"
                     :key="item.key"
                     type="button"
                     class="-mb-px border-b-2 px-3 py-2 text-sm"
-                    :class="tab === item.key ? 'border-gray-900 font-medium dark:border-white' : 'border-transparent text-gray-500'"
+                    :class="tab === item.key ? 'border-gray-900 font-medium dark:border-white!' : 'border-transparent text-gray-500'"
                     @click="(tab = item.key), (request = null)"
                 >{{ item.label }}</button>
             </div>
@@ -269,7 +269,7 @@ export default {
                             v-for="photo in shown"
                             :key="photo.source + photo.id"
                             type="button"
-                            class="relative overflow-hidden rounded-md border border-gray-200 text-start hover:border-gray-500 disabled:opacity-50 dark:border-gray-700"
+                            class="relative overflow-hidden rounded-md border border-gray-200 text-start hover:border-gray-500! disabled:opacity-50! dark:border-gray-700!"
                             :disabled="busy"
                             :title="`${photo.credit} · ${photo.licence}`"
                             @click="use(photo)"
@@ -294,7 +294,7 @@ export default {
                 </label>
                 <Alert v-if="request?.status === 'failed'" variant="error" :text="request.error" />
                 <div v-if="request?.status === 'done' && request.mode === 'make'" class="space-y-2">
-                    <img :src="request.preview_url" alt="" class="block h-auto w-full rounded-md border border-gray-200 dark:border-gray-700" />
+                    <img :src="request.preview_url" alt="" class="block h-auto w-full rounded-md border border-gray-200 dark:border-gray-700!" />
                     <div class="flex justify-end gap-2">
                         <Button :text="__('Make another')" :disabled="busy" @click="start('make')" />
                         <Button variant="primary" :text="__('Use this')" :loading="busy" :disabled="busy" @click="use()" />

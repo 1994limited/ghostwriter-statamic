@@ -104,7 +104,7 @@ export default {
                 <Button v-if="current.suggestions.length > 1" size="sm" variant="ghost" :text="__('Learn all :count', { count: current.suggestions.length })" :disabled="!configured || learning || !!busy" @click="learnAll" />
             </div>
             <div class="space-y-2">
-                <div v-for="suggestion in current.suggestions" :key="suggestion.id" class="flex items-start gap-4 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700">
+                <div v-for="suggestion in current.suggestions" :key="suggestion.id" class="flex items-start gap-4 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700!">
                     <div class="min-w-0 flex-1">
                         <Heading :text="suggestion.title" />
                         <p class="text-sm">{{ suggestion.description }}</p>

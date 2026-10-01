@@ -220,7 +220,7 @@ export default {
                                 v-for="(entry, index) in current.messages"
                                 :key="index"
                                 class="rounded-lg px-3 py-2 text-sm whitespace-pre-wrap"
-                                :class="entry.role === 'user' ? 'ms-6 bg-gray-100 dark:bg-gray-800' : 'me-6 border border-gray-200 dark:border-gray-700'"
+                                :class="entry.role === 'user' ? 'ms-6 bg-gray-100 dark:bg-gray-800!' : 'me-6 border border-gray-200 dark:border-gray-700!'"
                             >{{ entry.content }}</div>
                         </div>
                         <Textarea v-model="message" :rows="3" :disabled="working" :placeholder="__('e.g. We never say “solutions”. Add that.')" />

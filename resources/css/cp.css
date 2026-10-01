@@ -3,6 +3,17 @@
 @source '../**/*.vue';
 
 /*
+    Statamic declares `@layer addon-theme, addon-utilities` before its own
+    layers, so its `utilities` layer always outranks ours. When the CMS's CSS
+    also has the base utility on an element (say `bg-amber-50`), it beats our
+    `dark:bg-amber-950/40` however specific ours is. So every `dark:`, `hover:`
+    and `disabled:` utility in the templates carries Tailwind's important
+    modifier (`dark:bg-amber-950/40!`): an important declaration in a lower
+    layer beats a normal one in a higher layer, and it still only applies in
+    that state. Keep doing this for new ones.
+*/
+
+/*
     Brand tokens. Ink is the accent: progress, the current step, "Best match",
     counts. In dark mode a lighter ink keeps the contrast. No web fonts in the
     Control Panel; it uses the CMS's own.

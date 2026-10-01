@@ -90,7 +90,7 @@ export default {
 </script>
 
 <template>
-    <div class="border-t border-gray-200 pt-6 dark:border-gray-700" data-gw-images>
+    <div class="border-t border-gray-200 pt-6 dark:border-gray-700!" data-gw-images>
         <Heading :text="__('Images')" />
         <Subheading
             class="mb-4"
@@ -101,9 +101,9 @@ export default {
             "
         />
 
-        <div v-for="image in images" :key="image.key" class="mb-4 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+        <div v-for="image in images" :key="image.key" class="mb-4 rounded-lg border border-gray-200 p-3 dark:border-gray-700!">
             <div class="flex gap-4">
-                <div class="flex min-h-28 w-44 shrink-0 items-center justify-center self-start overflow-hidden rounded-md border border-dashed border-gray-300 text-center text-xs text-gray-500 dark:border-gray-600">
+                <div class="flex min-h-28 w-44 shrink-0 items-center justify-center self-start overflow-hidden rounded-md border border-dashed border-gray-300 text-center text-xs text-gray-500 dark:border-gray-600!">
                     <img v-if="image.url && image.status !== 'working'" :src="image.url" :alt="image.label" class="block h-auto w-full" />
                     <span v-else-if="image.status === 'working'" class="animate-pulse">{{ __('Making the image…') }}</span>
                     <span v-else>{{ __('No image yet') }}</span>
@@ -158,7 +158,7 @@ export default {
                 </div>
             </div>
 
-            <div v-if="offered(image) || otherSets(image).length" class="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+            <div v-if="offered(image) || otherSets(image).length" class="mt-3 border-t border-gray-200 pt-3 dark:border-gray-700!">
                 <div v-if="otherSets(image).length" class="mb-2 flex flex-wrap items-center gap-2 text-sm text-gray-500">
                     {{ __('Choose from the photos for') }}
                     <Button size="sm" :variant="pool(image).key === image.key ? 'default' : 'ghost'" :text="__('This field')" @click="pools[image.key] = image.key" />
@@ -182,7 +182,7 @@ export default {
                         v-for="photo in shown(image)"
                         :key="photo.source + photo.id"
                         type="button"
-                        class="group relative overflow-hidden rounded-md border border-gray-200 text-start hover:border-gray-500 dark:border-gray-700"
+                        class="group relative overflow-hidden rounded-md border border-gray-200 text-start hover:border-gray-500! dark:border-gray-700!"
                         :class="{ 'animate-pulse': choosing === photo.id }"
                         :disabled="choosing !== null"
                         :title="`${photo.credit} · ${photo.licence}`"

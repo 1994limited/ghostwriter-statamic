@@ -48,7 +48,7 @@ export default {
 <template>
     <div>
         <Input v-if="entries.length > 8" v-model="search" :placeholder="__('Filter…')" class="mb-2" />
-        <div class="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+        <div class="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-gray-200 p-3 dark:border-gray-700!">
             <div
                 v-for="entry in visible"
                 :key="entry.id"

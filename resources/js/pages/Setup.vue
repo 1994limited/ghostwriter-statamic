@@ -154,12 +154,12 @@ export default {
         <div class="grid gap-6 lg:grid-cols-3">
             <!-- The step list -->
             <Panel>
-                <div class="border-b border-gray-200 p-4 dark:border-gray-700">
+                <div class="border-b border-gray-200 p-4 dark:border-gray-700!">
                     <div class="mb-1.5 flex justify-between text-sm">
                         <span class="font-medium">{{ __(':done of :total done', { done: current.progress.done, total: current.progress.total }) }}</span>
                         <span class="text-gray-500">{{ percent }}%</span>
                     </div>
-                    <div class="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div class="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700!">
                         <div class="h-full rounded-full transition-all" style="background: var(--gw-accent, #2b3a64)" :style="{ width: `${percent}%` }"></div>
                     </div>
                 </div>
@@ -167,18 +167,18 @@ export default {
                     <li v-for="(item, i) in current.steps" :key="item.key">
                         <button
                             type="button"
-                            class="flex w-full items-center gap-3 px-4 py-3 text-start hover:bg-gray-50 dark:hover:bg-gray-800"
-                            :class="{ 'bg-gray-50 dark:bg-gray-800': i === index }"
+                            class="flex w-full items-center gap-3 px-4 py-3 text-start hover:bg-gray-50! dark:hover:bg-gray-800!"
+                            :class="{ 'bg-gray-50 dark:bg-gray-800!': i === index }"
                             :aria-current="i === index ? 'step' : null"
                             @click="index = i"
                         >
                             <span
                                 class="flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium"
-                                :class="item.done ? 'text-white' : 'border border-gray-300 text-gray-500 dark:border-gray-600'"
+                                :class="item.done ? 'text-white' : 'border border-gray-300 text-gray-500 dark:border-gray-600!'"
                                 :style="item.done ? 'background: var(--gw-accent, #2b3a64)' : null"
                             >{{ item.done ? '✓' : i + 1 }}</span>
                             <span class="min-w-0 flex-1 truncate text-sm" :class="{ 'font-medium': i === index }">{{ item.title }}</span>
-                            <span class="shrink-0 text-xs" :class="{ 'text-green-700 dark:text-green-400': item.done, 'text-blue-700 dark:text-blue-400': item.working, 'text-gray-500': !item.done && !item.working }">{{ status(item).text }}</span>
+                            <span class="shrink-0 text-xs" :class="{ 'text-green-700 dark:text-green-400!': item.done, 'text-blue-700 dark:text-blue-400!': item.working, 'text-gray-500': !item.done && !item.working }">{{ status(item).text }}</span>
                         </button>
                     </li>
                 </ol>
@@ -195,14 +195,14 @@ export default {
                     <SetupAlert v-if="step.action?.needs_key && !configured" :provider="provider" class="mt-4" />
 
                     <!-- Step 1: the key -->
-                    <div v-if="step.key === 'key'" class="mt-4 rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700">
+                    <div v-if="step.key === 'key'" class="mt-4 rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700!">
                         <p>{{ __('Provider') }}: <strong>{{ current.details.provider }}</strong><span v-if="current.details.key_name"> · {{ __('key') }}: <code>{{ current.details.key_name }}</code></span></p>
                         <p class="mt-1 text-gray-500">{{ __('Change the provider in the settings. Keys only ever live in .env.') }}</p>
                     </div>
 
                     <!-- Step 2: collections -->
                     <div v-if="step.key === 'collections'" class="mt-4 space-y-1.5">
-                        <div v-for="collection in current.details.collections" :key="collection.handle" class="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                        <div v-for="collection in current.details.collections" :key="collection.handle" class="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-gray-700!">
                             <span>{{ collection.title }} <span class="text-gray-500">· {{ __(':count published', { count: collection.entries }) }}</span></span>
                             <span class="text-xs text-gray-500">
                                 <span v-if="collection.write_for">{{ __('Writes here') }}</span><span v-else>{{ __('Not writing here') }}</span>
@@ -214,13 +214,13 @@ export default {
 
                     <!-- Steps 3 and 5: the guides -->
                     <div v-if="step.key === 'voice' || step.key === 'imagery'" class="mt-4">
-                        <div v-if="current.details[step.key].exists" class="gw-prose rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700" v-html="current.details[step.key].excerpt" />
+                        <div v-if="current.details[step.key].exists" class="gw-prose rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700!" v-html="current.details[step.key].excerpt" />
                         <p v-if="current.details[step.key].scanned" class="mt-2 text-xs text-gray-500">{{ __('Written from :count samples.', { count: current.details[step.key].scanned }) }}</p>
                     </div>
 
                     <!-- Step 4: kinds, with the suggestions inline -->
                     <div v-if="step.key === 'kinds'" class="mt-4 space-y-4">
-                        <div v-for="collection in kinds" :key="collection.handle" class="rounded-md border border-gray-200 p-3 dark:border-gray-700">
+                        <div v-for="collection in kinds" :key="collection.handle" class="rounded-md border border-gray-200 p-3 dark:border-gray-700!">
                             <div class="flex items-center justify-between">
                                 <Heading :text="collection.title" />
                                 <div class="flex gap-2">
@@ -232,9 +232,9 @@ export default {
                             <p v-if="collection.state === 'working'" class="mt-2 text-sm text-gray-500"><span class="animate-pulse">{{ __('Looking over the entries…') }}</span></p>
                             <p v-else-if="collection.learning.status === 'working'" class="mt-2 text-sm text-gray-500"><span class="animate-pulse">{{ __('Learning… about a minute per kind.') }}</span></p>
                             <div v-if="collection.types.length" class="mt-2 flex flex-wrap gap-1.5">
-                                <a v-for="type in collection.types" :key="type.url" :href="type.url" class="rounded-md border border-gray-200 px-2 py-0.5 text-xs hover:border-gray-400 dark:border-gray-700">{{ type.title }}</a>
+                                <a v-for="type in collection.types" :key="type.url" :href="type.url" class="rounded-md border border-gray-200 px-2 py-0.5 text-xs hover:border-gray-400! dark:border-gray-700!">{{ type.title }}</a>
                             </div>
-                            <div v-for="suggestion in collection.suggestions" :key="suggestion.id" class="mt-2 flex items-start gap-3 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800">
+                            <div v-for="suggestion in collection.suggestions" :key="suggestion.id" class="mt-2 flex items-start gap-3 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800!">
                                 <div class="min-w-0 flex-1">
                                     <div class="font-medium">{{ suggestion.title }}</div>
                                     <p class="text-sm">{{ suggestion.description }}</p>
@@ -258,7 +258,7 @@ export default {
                         <Button v-for="option in step.action.options" :key="option.url" :href="option.url" :icon="ghost" :text="option.label" />
                     </div>
 
-                    <div class="mt-6 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-700">
+                    <div class="mt-6 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-700!">
                         <Button variant="ghost" :text="__('Back')" :disabled="index === 0" @click="back" />
                         <div class="flex gap-2">
                             <Button
