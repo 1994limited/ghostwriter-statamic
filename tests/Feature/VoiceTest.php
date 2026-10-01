@@ -1,0 +1,136 @@
+<?php
+
+namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
+
+use Illuminate\Support\Facades\Bus;
+use NineteenNinetyFour\Ghostwriter\Ai\Agents\VoiceAnalyst;
+use NineteenNinetyFour\Ghostwriter\Ai\Agents\VoiceEditor;
+use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Content\ContentScanner;
+use NineteenNinetyFour\Ghostwriter\Jobs\GenerateVoiceGuide;
+use NineteenNinetyFour\Ghostwriter\Jobs\RefineVoiceGuide;
+use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
+use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
+use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
+
+class VoiceTest extends TestCase
+{
+    private const PARAGRAPH = 'When on-site search is done right, not only will it help your customers find the items they need but it will also give them that gentle nudge when making product decisions. This is a win all round when it comes to sales. However, offer up a complex product range and your customers will likely be left feeling overwhelmed and less likely to round up their journey. Those high end sales? Vanished. Challenge accepted.';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->makeArticlesCollection();
+        $this->makeArticle('faceted-search', 'Intuitive Faceted Search', self::PARAGRAPH);
+        $this->makeArticle('dealer-finder', 'Dealer Finder', str_replace('search', 'finder', self::PARAGRAPH));
+    }
+
+    public function test_the_scanner_reads_prose_and_leaves_the_plumbing(): void
+    {
+        $samples = app(ContentScanner::class)->samples();
+
+        $this->assertCount(2, $samples);
+
+        $text = $samples->firstWhere('title', 'Intuitive Faceted Search')['text'];
+
+        $this->assertStringContainsString('## The Problem', $text);
+        $this->assertStringContainsString('Those high end sales? Vanished.', $text);
+        $this->assertStringContainsString('Property searches', $text);
+        $this->assertStringContainsString('A summary line about Intuitive Faceted Search', $text);
+        $this->assertStringNotContainsString('articles/faceted-search.jpg', $text);
+    }
+
+    public function test_generating_writes_the_guide_from_the_samples(): void
+    {
+        VoiceAnalyst::fake(["# Tone of voice\n\n## Who is talking, to whom\n\nWe, to you."]);
+
+        (new GenerateVoiceGuide)->handle(app(ContentScanner::class), app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
+
+        $this->assertStringContainsString('We, to you.', app(VoiceGuide::class)->get());
+        $this->assertSame(VoiceState::IDLE, app(VoiceState::class)->get()['status']);
+        $this->assertCount(2, app(VoiceState::class)->get()['scanned']);
+
+        VoiceAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Those high end sales? Vanished.'));
+    }
+
+    public function test_generating_with_nothing_to_read_fails_with_a_reason(): void
+    {
+        VoiceAnalyst::fake();
+
+        (new GenerateVoiceGuide(['no-such-collection']))->handle(app(ContentScanner::class), app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
+
+        $this->assertSame(VoiceState::FAILED, app(VoiceState::class)->get()['status']);
+        $this->assertFalse(app(VoiceGuide::class)->exists());
+        VoiceAnalyst::assertNeverPrompted();
+    }
+
+    public function test_refining_applies_the_change_and_records_the_reply(): void
+    {
+        app(VoiceGuide::class)->save("# Tone of voice\n\nOriginal.");
+        app(VoiceState::class)->addMessage('user', 'Ban the word synergy.');
+
+        VoiceEditor::fake(["<reply>Added it.</reply>\n<document>\n# Tone of voice\n\nNever say synergy.\n</document>"]);
+
+        (new RefineVoiceGuide)->handle(app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
+
+        $this->assertStringContainsString('Never say synergy.', app(VoiceGuide::class)->get());
+        $this->assertSame('Added it.', app(VoiceState::class)->get()['messages'][1]['content']);
+
+        VoiceEditor::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Original.') && str_contains($prompt->prompt, 'Ban the word synergy.'));
+    }
+
+    public function test_a_refinement_that_only_asks_a_question_leaves_the_guide_alone(): void
+    {
+        app(VoiceGuide::class)->save("# Tone of voice\n\nOriginal.");
+        app(VoiceState::class)->addMessage('user', 'Make it better.');
+
+        VoiceEditor::fake(['<reply>Better in what way?</reply>']);
+
+        (new RefineVoiceGuide)->handle(app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
+
+        $this->assertStringContainsString('Original.', app(VoiceGuide::class)->get());
+    }
+
+    public function test_the_scan_endpoint_starts_the_job_and_reports_working(): void
+    {
+        Bus::fake([GenerateVoiceGuide::class]);
+        $this->signIn();
+
+        $this->postJson(cp_route('ghostwriter.voice.scan'), ['collections' => ['articles']])
+            ->assertOk()
+            ->assertJsonPath('status', VoiceState::WORKING);
+
+        Bus::assertDispatchedAfterResponse(GenerateVoiceGuide::class, fn ($job) => $job->collections === ['articles']);
+    }
+
+    public function test_nothing_is_sent_without_an_api_key(): void
+    {
+        Bus::fake([GenerateVoiceGuide::class]);
+        config(['ai.providers.anthropic.key' => null]);
+        $this->signIn();
+
+        $this->postJson(cp_route('ghostwriter.voice.scan'))->assertStatus(422);
+
+        Bus::assertNotDispatchedAfterResponse(GenerateVoiceGuide::class);
+    }
+
+    public function test_the_guide_can_be_saved_by_hand(): void
+    {
+        $this->signIn();
+
+        $this->patchJson(cp_route('ghostwriter.voice.update'), ['document' => "# Ours\n\nEdited by hand."])
+            ->assertOk()
+            ->assertJsonPath('exists', true);
+
+        $this->assertStringContainsString('Edited by hand.', app(VoiceGuide::class)->get());
+    }
+
+    public function test_users_without_the_permission_are_turned_away(): void
+    {
+        $this->signIn(permitted: false);
+
+        $this->get(cp_route('ghostwriter.index'))->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.voice.scan'))->assertForbidden();
+    }
+}

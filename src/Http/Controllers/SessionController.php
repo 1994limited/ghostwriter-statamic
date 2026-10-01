@@ -1,0 +1,416 @@
+<?php
+
+namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
+
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use InvalidArgumentException;
+use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
+use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
+use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
+use NineteenNinetyFour\Ghostwriter\Drafts\EntryMerger;
+use NineteenNinetyFour\Ghostwriter\Http\Presenter;
+use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
+use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
+use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
+use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
+use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
+use NineteenNinetyFour\Ghostwriter\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
+use NineteenNinetyFour\Ghostwriter\Types\ContentType;
+use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use Statamic\Facades\Entry;
+use Statamic\Facades\User;
+
+class SessionController
+{
+    public function __construct(
+        private SessionRepository $sessions,
+        private TypeRepository $types,
+        private Studio $studio,
+        private Presenter $presenter,
+    ) {}
+
+    public function store(Request $request, string $type): JsonResponse
+    {
+        $type = $this->type($type);
+
+        $this->ensureConfigured();
+
+        $validated = $request->validate($type->rules() + [
+            'examples' => ['nullable', 'array', 'max:6'],
+            'examples.*' => ['string'],
+            'idea' => ['nullable', 'string', 'max:40'],
+        ]);
+
+        $answers = array_map('strval', array_filter((array) ($validated['answers'] ?? []), fn ($answer) => $answer !== null));
+
+        // Entries to model this one piece on; only ones from its own collection.
+        $examples = collect($validated['examples'] ?? [])
+            ->filter(fn (string $id) => Entry::find($id)?->collectionHandle() === $type->collection)
+            ->values()
+            ->all();
+
+        $session = Session::start($type->handle, $answers, User::current()?->id(), $examples);
+        $session->addMessage('user', $this->studio->brief($type, $session));
+        $session->status = Session::WORKING;
+
+        $this->sessions->save($session);
+
+        // Started from the content plan: that idea is now in hand.
+        if (! empty($validated['idea'])) {
+            app(IdeaRepository::class)->update($validated['idea'], ['status' => IdeaRepository::DRAFTED, 'session' => $session->id]);
+        }
+
+        RunSessionTurn::start($session->id);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * A first attempt at the questionnaire from a title and a few notes. It
+     * only fills in the form; nothing is started until the person says so.
+     */
+    public function brief(Request $request, string $type): JsonResponse
+    {
+        $type = $this->type($type);
+
+        $this->ensureConfigured();
+
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:200'],
+            'notes' => ['nullable', 'string', 'max:20000'],
+        ]);
+
+        try {
+            return response()->json(['answers' => $this->studio->draftBrief($type, $validated['title'], (string) ($validated['notes'] ?? ''))]);
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+    }
+
+    public function show(string $session): JsonResponse
+    {
+        return response()->json($this->presenter->detail($this->session($session)));
+    }
+
+    public function message(Request $request, string $session): JsonResponse
+    {
+        $session = $this->session($session);
+
+        $this->ensureConfigured();
+
+        abort_if($session->status === Session::WORKING, 409, 'Ghostwriter is still working on the last message.');
+
+        $validated = $request->validate(['message' => ['required', 'string', 'max:50000']]);
+
+        $session->addMessage('user', $validated['message']);
+        $session->status = Session::WORKING;
+        $session->error = null;
+
+        $this->sessions->save($session);
+
+        RunSessionTurn::start($session->id);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    public function draft(Request $request, string $session): JsonResponse
+    {
+        $session = $this->session($session);
+
+        $validated = $request->validate(['draft' => ['required', 'string', 'max:120000']]);
+
+        $session->draft = $validated['draft'];
+
+        $this->sessions->save($session);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * The draft as values for the publish form the panel is open on. Nothing
+     * is saved: the person reviews the filled-in form and saves it themselves.
+     */
+    public function apply(Request $request, string $session, SchemaReader $reader, PatternFinder $patterns, EntryBuilder $builder, ImageStudio $images, EntryMerger $merger): JsonResponse
+    {
+        $session = $this->session($session);
+        $type = $this->type($session->type)->forSession($session);
+        $draft = $this->parsedDraft($session);
+
+        // The form being filled decides the blueprint; the type's own is the
+        // fallback for a collection with only one.
+        $blueprint = ($request->input('blueprint') ? $type->statamicCollection()?->entryBlueprint($request->input('blueprint')) : null)
+            ?? $type->statamicBlueprint()
+            ?? abort(422, 'The collection this was written for no longer exists.');
+        $schema = $reader->read($blueprint);
+
+        $original = $session->source ? Entry::find($session->source) : null;
+
+        if ($original) {
+            // Editing an entry: only the writing changes. Its images, links,
+            // settings and block IDs come from the entry, not from what this
+            // kind of entry usually has.
+            $built = $builder->build($draft->data, $schema);
+            $built['data'] = $merger->merge($built['data'], $original->data()->all(), $schema);
+        } else {
+            $built = $builder->build($draft->data, $schema, $patterns->find($type->collection, $schema, $type->blueprint, $type->where, $type->examples), $type->defaults);
+        }
+
+        $data = $images->place(['title' => $draft->title()] + $built['data'], $session, $schema);
+
+        // Run the data through each fieldtype's own pre-processing, so the
+        // form receives exactly what it would have loaded from a saved entry.
+        $fields = $blueprint->fields()->addValues($data)->preProcess();
+
+        // Noted so the session can be shown as handed over, not still in progress.
+        $session->appliedAt = now()->toIso8601String();
+        $this->sessions->save($session);
+
+        return response()->json([
+            'values' => $fields->values()->only(array_keys($data))->all(),
+            'meta' => $fields->meta()->only(array_keys($data))->all(),
+            'notes' => $built['notes'],
+        ]);
+    }
+
+    /**
+     * Make an image for one of the draft's image fields. `source` is an
+     * image of the editor's own, such as a logo, to build the picture around.
+     */
+    public function image(Request $request, string $session, ImageStudio $images): JsonResponse
+    {
+        $session = $this->session($session);
+        $type = $this->type($session->type)->forSession($session);
+
+        abort_unless($images->configured(), 422, 'No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
+            'direction' => ['nullable', 'string', 'max:2000'],
+            'source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
+        ]);
+
+        abort_if(($session->images[$validated['key']]['status'] ?? null) === 'working', 409, 'That image is already being made.');
+
+        $source = null;
+
+        if ($upload = $request->file('source')) {
+            $directory = storage_path('ghostwriter/uploads');
+            File::ensureDirectoryExists($directory);
+
+            $source = $upload->move($directory, Str::ulid().'.'.$upload->extension())->getPathname();
+        }
+
+        $session->images[$validated['key']] = ['status' => 'working', 'error' => null] + ($session->images[$validated['key']] ?? []);
+
+        $this->sessions->save($session);
+
+        GenerateImage::start($session->id, $validated['key'], (string) ($validated['direction'] ?? ''), $source);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * Free-to-use photographs that might suit one of the draft's image fields.
+     */
+    public function photos(Request $request, string $session, ImageStudio $images): JsonResponse
+    {
+        $session = $this->session($session);
+        $type = $this->type($session->type)->forSession($session);
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
+            'query' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $query = trim((string) ($validated['query'] ?? '')) ?: $this->studio->photoQuery($session);
+
+        return response()->json([
+            'query' => $query,
+            // The three that best match the site's own images come first.
+            'photos' => $images->shortlist($session, $type, $validated['key'], $query),
+        ]);
+    }
+
+    /**
+     * Bring a chosen photograph into the asset container as a field's image.
+     */
+    public function photo(Request $request, string $session, ImageStudio $images, StockSearch $stock): JsonResponse
+    {
+        $session = $this->session($session);
+        $type = $this->type($session->type)->forSession($session);
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
+            'source' => ['required', 'string', Rule::in($stock->sources())],
+            'id' => ['required', 'string', 'max:64'],
+        ]);
+
+        try {
+            $photo = $stock->fetch($validated['source'], $validated['id']);
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        $asset = $images->keep($session, $type, $validated['key'], $photo['content'], $photo['extension'], [
+            'credit' => $photo['credit'],
+            'credit_url' => $photo['credit_url'],
+            'licence' => $photo['licence'],
+        ]);
+
+        $session->images[$validated['key']] = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $photo['credit']]
+            + array_intersect_key($session->images[$validated['key']] ?? [], ['query' => 1, 'options' => 1]);
+
+        $this->sessions->save($session);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * Use the image already chosen for one field in another as well, as
+     * sites often do with a hero image and a thumbnail.
+     */
+    public function copyImage(Request $request, string $session, ImageStudio $images): JsonResponse
+    {
+        $session = $this->session($session);
+        $slots = $images->slots($session, $this->type($session->type)->forSession($session));
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', Rule::in(array_keys($slots))],
+            'from' => ['required', 'string', 'different:key', Rule::in(array_keys($slots))],
+        ]);
+
+        $source = $session->images[$validated['from']] ?? [];
+
+        abort_unless(($source['status'] ?? null) === 'done' && ! empty($source['path']), 422, 'That field has no image yet.');
+        abort_unless($slots[$validated['key']]['container'] === $slots[$validated['from']]['container'], 422, 'Those two fields keep their images in different places.');
+
+        // The field keeps the photographs it was offered, in case of a change of mind.
+        $session->images[$validated['key']] = ['status' => 'done', 'error' => null]
+            + array_intersect_key($source, ['path' => 1, 'url' => 1, 'credit' => 1])
+            + array_intersect_key($session->images[$validated['key']] ?? [], ['query' => 1, 'options' => 1]);
+
+        $this->sessions->save($session);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * Compose a logo on a coloured ground as a field's image, at the size
+     * that field's images already are.
+     */
+    public function logoCard(Request $request, string $session, ImageStudio $images, LogoCard $card): JsonResponse
+    {
+        $session = $this->session($session);
+        $type = $this->type($session->type)->forSession($session);
+        $slots = $images->slots($session, $type);
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', Rule::in(array_keys($slots))],
+            'logo' => ['required', 'file', 'max:5120'],
+            'colour' => ['nullable', 'string', 'max:7'],
+            'colour_to' => ['nullable', 'string', 'max:7'],
+            'white' => ['nullable', 'boolean'],
+            'everywhere' => ['nullable', 'boolean'],
+        ]);
+
+        [$width, $height] = $images->sizeFor($session, $type, $validated['key']);
+
+        try {
+            $made = $card->compose(
+                (string) file_get_contents($request->file('logo')->getRealPath()),
+                $width,
+                $height,
+                $validated['colour'] ?? null,
+                $validated['colour_to'] ?? null,
+                (bool) ($validated['white'] ?? true),
+            );
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        $asset = $images->keep($session, $type, $validated['key'], $made['content'], 'jpg');
+        $record = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => null, 'colour' => $made['colour']];
+
+        // Sites often use the one card in several places: a hero and a thumbnail.
+        foreach (($validated['everywhere'] ?? false) ? $slots : [$slots[$validated['key']]] as $slot) {
+            if ($slot['container'] === $slots[$validated['key']]['container']) {
+                $session->images[$slot['key']] = $record;
+            }
+        }
+
+        $this->sessions->save($session);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * Save the draft straight to an unpublished entry, for use away from a
+     * publish form.
+     */
+    public function entry(string $session, EntryWriter $writer, SchemaReader $reader, ImageStudio $images): JsonResponse
+    {
+        $session = $this->session($session);
+
+        try {
+            $entry = $writer->write($this->parsedDraft($session), $this->type($session->type)->forSession($session), User::current());
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        if ($session->images && ($blueprint = $entry->blueprint())) {
+            $entry->data($images->place($entry->data()->all(), $session, $reader->read($blueprint)))->save();
+        }
+
+        $session->entryId = $entry->id();
+
+        $this->sessions->save($session);
+
+        return response()->json(['entry_url' => $entry->editUrl()] + $this->presenter->detail($session));
+    }
+
+    public function destroy(string $session): JsonResponse
+    {
+        $this->sessions->delete($this->session($session));
+
+        return response()->json(['deleted' => true]);
+    }
+
+    private function parsedDraft(Session $session): Draft
+    {
+        abort_if($session->draft === null, 422, 'There is no draft yet.');
+
+        try {
+            return Draft::parse($session->draft);
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+    }
+
+    private function type(string $handle): ContentType
+    {
+        $type = $this->types->find($handle);
+
+        abort_unless($type && $this->types->enabled($type->collection), 404);
+
+        return $type;
+    }
+
+    private function session(string $id): Session
+    {
+        return $this->sessions->find($id) ?? abort(404);
+    }
+
+    private function ensureConfigured(): void
+    {
+        abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
+    }
+}

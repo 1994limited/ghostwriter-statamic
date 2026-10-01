@@ -1,0 +1,67 @@
+tabs:
+  main:
+    display: Settings
+    sections:
+      -
+        display: Collections
+        instructions: Where Ghostwriter offers to write, and what it reads to learn your voice.
+        fields:
+          -
+            handle: collections
+            field:
+              type: collections
+              display: Write for these collections
+              instructions: 'A "Write with Ghostwriter" button appears on the create screen of each one. Leave empty to offer every collection.'
+              mode: select
+          -
+            handle: voice_collections
+            field:
+              type: collections
+              display: Learn the voice from these collections
+              instructions: Read when the tone of voice guide is generated. Leave empty to read every collection.
+              mode: select
+      -
+        display: AI provider
+        instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file.'
+        fields:
+          -
+            handle: provider
+            field:
+              type: select
+              display: Provider
+              options:
+                anthropic: 'Claude (Anthropic)'
+                openai: 'ChatGPT (OpenAI)'
+                gemini: 'Gemini (Google)'
+              default: anthropic
+              width: 50
+          -
+            handle: model
+            field:
+              type: text
+              display: Model
+              instructions: "Leave blank to use the provider's default model."
+              width: 50
+      -
+        display: Images
+        instructions: 'Images are made by ChatGPT or Gemini; Claude cannot make them. Set OPENAI_API_KEY or GEMINI_API_KEY in your .env file. Each image is modelled on the ones already used in the same field on your other entries. Without a key, free photographs can still be searched for: Openverse needs no key, and UNSPLASH_ACCESS_KEY, PIXABAY_API_KEY or PEXELS_API_KEY add those libraries.'
+        fields:
+          -
+            handle: image_provider
+            field:
+              type: select
+              display: Image provider
+              instructions: Leave blank to use whichever has an API key.
+              clearable: true
+              options:
+                openai: 'ChatGPT (OpenAI)'
+                gemini: 'Gemini (Google)'
+                xai: 'Grok (xAI)'
+              width: 50
+          -
+            handle: image_model
+            field:
+              type: text
+              display: Image model
+              instructions: "Leave blank to use the provider's default model."
+              width: 50

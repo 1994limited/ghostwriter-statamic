@@ -1,0 +1,15 @@
+{
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build"
+    },
+    "devDependencies": {
+        "@statamic/cms": "file:./vendor/statamic/cms/resources/dist-package",
+        "@tailwindcss/vite": "^4.0.6",
+        "laravel-vite-plugin": "^3.1",
+        "tailwindcss": "^4.0.6",
+        "vite": "^8.0.0"
+    }
+}

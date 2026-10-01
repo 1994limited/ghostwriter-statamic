@@ -1,0 +1,16 @@
+@import "@statamic/cms/tailwind.css";
+
+@source '../**/*.vue';
+
+/* The draft preview is rendered markdown, so it needs its own prose styles. */
+.gw-prose h2 { @apply mt-8 mb-3 text-xl font-semibold first:mt-0; }
+.gw-prose h3 { @apply mt-6 mb-2 text-lg font-semibold; }
+.gw-prose p { @apply my-3 leading-relaxed; }
+.gw-prose ul { @apply my-3 list-disc ps-6; }
+.gw-prose ol { @apply my-3 list-decimal ps-6; }
+.gw-prose li { @apply my-1; }
+.gw-prose a { @apply underline; }
+.gw-prose blockquote { @apply my-4 border-s-2 border-gray-300 ps-4 italic dark:border-gray-600; }
+.gw-prose table { @apply my-4 w-full text-start text-sm; }
+.gw-prose th { @apply border-b border-gray-300 py-2 pe-3 text-start font-semibold dark:border-gray-600; }
+.gw-prose td { @apply border-b border-gray-200 py-2 pe-3 align-top dark:border-gray-700; }
