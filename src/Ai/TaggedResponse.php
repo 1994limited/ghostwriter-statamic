@@ -25,7 +25,7 @@ class TaggedResponse
         // A model that ignores the format still said something; show it
         // rather than lose it.
         if ($reply === null) {
-            $reply = trim((string) preg_replace('/<('.$documentTag.'|images)>.*?(<\/\1>|\z)/s', '', $text));
+            $reply = trim((string) preg_replace('/<('.$documentTag.'|images)>.*?(<\/\1>|\z)/su', '', $text));
         }
 
         // The writer's requests for images, where it made any.
@@ -36,7 +36,7 @@ class TaggedResponse
     {
         // The closing tag is optional so a response cut off at the token
         // limit still yields what was written.
-        if (! preg_match('/<'.$tag.'>(.*?)(?:<\/'.$tag.'>|\z)/s', $text, $m)) {
+        if (! preg_match('/<'.$tag.'>(.*?)(?:<\/'.$tag.'>|\z)/su', $text, $m)) {
             return null;
         }
 

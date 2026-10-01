@@ -95,7 +95,7 @@ class Session
      */
     public function title(): string
     {
-        if ($this->draft && preg_match('/^title:\s*(.+)$/m', $this->draft, $m)) {
+        if ($this->draft && preg_match('/^title:\s*(.+)$/mu', $this->draft, $m)) {
             return trim($m[1], " \t\"'");
         }
 

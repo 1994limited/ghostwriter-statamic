@@ -425,7 +425,7 @@ class ImageStudio
                 timeout: 60,
             )->text;
 
-            if ($canRetry && preg_match('/^\s*none\b[:\s]*(.*)$/is', $answer, $none)) {
+            if ($canRetry && preg_match('/^\s*none\b[:\s]*(.*)$/isu', $answer, $none)) {
                 $retry = array_slice(array_values(array_filter(array_map(fn (string $term) => trim($term, " \t\n\r`.\"'"), explode(';', $none[1])))), 0, self::SHORTLIST) ?: null;
 
                 return null;
@@ -753,7 +753,7 @@ class ImageStudio
         $published = resource_path('ghostwriter/prompts/image.md');
         $template = trim((string) File::get(File::exists($published) ? $published : __DIR__.'/../../resources/prompts/image.md'));
 
-        $summary = $session->draft && preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/m', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
+        $summary = $session->draft && preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
 
         return strtr($template, [
             '{{ field }}' => $label,

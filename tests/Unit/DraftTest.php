@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Unit;
 
 use InvalidArgumentException;
+use NineteenNinetyFour\Ghostwriter\Ai\Text;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardToMarkdown;
 use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
 use NineteenNinetyFour\Ghostwriter\Drafts\MarkdownToBard;
@@ -108,5 +109,20 @@ class DraftTest extends TestCase
         $this->assertSame('"Launch" and "Support" both answer it: whose name is on the code and who holds the keys after launch.', $draft->data['blocks'][0]['why']);
         $this->assertSame('Set it out plainly: code, hosting, support and how that sits alongside the relationship.', $draft->data['blocks'][0]['notes']);
         $this->assertSame('blue', $draft->data['blocks'][0]['tint']);
+    }
+
+    public function test_text_in_any_script_is_read_and_bad_bytes_are_scrubbed(): void
+    {
+        $draft = Draft::parse("title: 'Café “Zoë” – 東京'\nsummary: naïve résumé: with colon\n");
+
+        $this->assertSame('Café “Zoë” – 東京', $draft->title());
+        $this->assertSame('naïve résumé: with colon', $draft->data['summary']);
+
+        $scrubbed = Text::scrub(['ok' => 'Zoë', 'bad' => "caf\xE9", 'nested' => ['n' => "\xFF"]]);
+
+        $this->assertSame('Zoë', $scrubbed['ok']);
+        $this->assertTrue(mb_check_encoding($scrubbed['bad'], 'UTF-8'));
+        $this->assertTrue(mb_check_encoding($scrubbed['nested']['n'], 'UTF-8'));
+        $this->assertNotFalse(json_encode($scrubbed));
     }
 }

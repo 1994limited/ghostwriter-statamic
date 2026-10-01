@@ -28,7 +28,7 @@ class Draft
         $raw = trim($raw);
 
         // Models sometimes wrap the whole draft in a code fence.
-        $raw = (string) preg_replace('/\A```(?:yaml|yml)?\s*\n(.*)\n```\z/s', '$1', $raw);
+        $raw = (string) preg_replace('/\A```(?:yaml|yml)?\s*\n(.*?)\n?```\s*\z/su', '$1', $raw);
 
         try {
             $data = LenientYaml::parse($raw);

@@ -88,7 +88,7 @@ class EntryBuilder
     private function value(mixed $value, array $spec, array $pattern): mixed
     {
         return match ($spec['kind']) {
-            'text' => is_scalar($value) ? trim(preg_replace('/\s+/', ' ', (string) $value) ?? '') : null,
+            'text' => is_scalar($value) ? trim(preg_replace('/\s+/u', ' ', (string) $value) ?? '') : null,
             'longtext' => is_scalar($value) ? trim((string) $value) : null,
             'richtext' => is_scalar($value) ? $this->richtext(trim((string) $value), $spec) : null,
             'choice' => $this->choice($value, $spec),

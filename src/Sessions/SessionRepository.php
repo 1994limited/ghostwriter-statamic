@@ -5,6 +5,7 @@ namespace NineteenNinetyFour\Ghostwriter\Sessions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
+use NineteenNinetyFour\Ghostwriter\Ai\Text;
 
 /**
  * Sessions are stored one JSON file each, so the addon needs no database and
@@ -44,7 +45,7 @@ class SessionRepository
         $session->updatedAt = Carbon::now()->toIso8601String();
 
         File::ensureDirectoryExists($this->directory());
-        File::put($this->path($session->id), json_encode($session->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        File::put($this->path($session->id), json_encode(Text::scrub($session->toArray()), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         return $session;
     }

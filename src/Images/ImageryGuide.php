@@ -26,7 +26,7 @@ class ImageryGuide extends VoiceGuide
     {
         $guide = $this->get();
 
-        if (preg_match('/^##\s+'.preg_quote($collectionTitle, '/').'\s*$(.*?)(?=^##\s|\z)/ims', $guide, $m)) {
+        if (preg_match('/^##\s+'.preg_quote($collectionTitle, '/').'\s*$(.*?)(?=^##\s|\z)/imsu', $guide, $m)) {
             return trim($m[1]);
         }
 

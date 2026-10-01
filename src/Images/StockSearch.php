@@ -42,7 +42,7 @@ class StockSearch
     public function search(string $query, string $shape = 'landscape'): array
     {
         $results = $this->searchAll($query, $shape);
-        $words = preg_split('/\s+/', trim($query)) ?: [];
+        $words = preg_split('/\s+/u', trim($query)) ?: [];
 
         // The smaller libraries match every word, so a long search finds
         // nothing. Its first two words are usually the subject.

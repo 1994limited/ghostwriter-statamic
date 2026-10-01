@@ -4,6 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter\Ai;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Files\Image;
@@ -110,7 +111,7 @@ class Studio
         }
 
         try {
-            $summary = preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/m', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
+            $summary = preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
             $words = mb_strtolower(trim(preg_replace('/[^\p{L}\p{N} -]+/u', ' ', $this->ask(new PhotoResearcher, "Title: {$session->title()}\nSummary: {$summary}")->text) ?? ''));
 
             return $words !== '' && str_word_count($words) <= 6 ? $words : $session->title();
@@ -138,12 +139,25 @@ class Studio
             ."## Existing entries\n\n".$this->examples($pattern)."\n\n"
             .'Write the type.';
 
-        $response = $this->ask(new TypeAnalyst($this->promptFile('type-analyst')), $prompt);
-        $yaml = TaggedResponse::parse($response->text, 'type')->document;
+        $analyst = new TypeAnalyst($this->promptFile('type-analyst'));
+        $response = $this->ask($analyst, $prompt);
+        [$data, $problem] = $this->readType($response->text);
 
-        $data = $yaml !== null ? LenientYaml::parse($yaml) : null;
+        // An answer that cannot be read gets one more chance, told what was wrong.
+        if ($data === null) {
+            Log::warning("Ghostwriter: the type analysis for {$collection->handle()} could not be read ({$problem}):\n{$response->text}");
 
-        if (! is_array($data) || empty($data['questions'])) {
+            $response = $this->ask(
+                new TypeAnalyst($this->promptFile('type-analyst')),
+                "Your answer could not be read: {$problem}. Reply again with the whole type, as one YAML document inside a <type> block and nothing else.",
+                [['role' => 'user', 'content' => $prompt], ['role' => 'assistant', 'content' => $response->text]],
+            );
+            [$data, $problem] = $this->readType($response->text);
+        }
+
+        if ($data === null) {
+            Log::warning("Ghostwriter: the type analysis for {$collection->handle()} could not be read again ({$problem}):\n{$response->text}");
+
             throw new InvalidArgumentException('The analysis came back in a form that could not be read. Try again.');
         }
 
@@ -155,6 +169,35 @@ class Studio
             'examples' => $examples,
             'title' => $title,
         ]) + $data);
+    }
+
+    /**
+     * The type the analyst wrote, or why it could not be read.
+     *
+     * @return array{0: array<string, mixed>|null, 1: string}
+     */
+    private function readType(string $text): array
+    {
+        $yaml = TaggedResponse::parse($text, 'type')->document;
+
+        if ($yaml === null) {
+            return [null, 'there was no <type> block'];
+        }
+
+        // Models sometimes put the YAML in a code fence inside the block.
+        $yaml = (string) preg_replace('/\A```(?:yaml|yml)?\s*\n(.*?)\n?```\s*\z/su', '$1', trim($yaml));
+
+        try {
+            $data = LenientYaml::parse($yaml);
+        } catch (Throwable $exception) {
+            return [null, 'the YAML did not parse ('.$exception->getMessage().')'];
+        }
+
+        if (! is_array($data) || empty($data['questions']) || ! is_array($data['questions'])) {
+            return [null, 'it had no questions'];
+        }
+
+        return [$data, ''];
     }
 
     /**

@@ -11,7 +11,7 @@ use Stringable;
  * Studies a collection's fields and existing entries and writes the brief
  * questions and guidance for writing a new entry there.
  */
-#[MaxTokens(4000)]
+#[MaxTokens(16000)]
 class TypeAnalyst implements Agent
 {
     use Promptable;

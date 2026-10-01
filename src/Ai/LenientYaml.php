@@ -52,7 +52,7 @@ class LenientYaml
                 $block = null;
             }
 
-            if (! preg_match('/^(\s*(?:-\s+)*[A-Za-z0-9_.-]+:\s+|\s*-\s+)(\S.*?)\s*$/', $line, $m)) {
+            if (! preg_match('/^(\s*(?:-\s+)*[A-Za-z0-9_.-]+:\s+|\s*-\s+)(\S.*?)\s*$/u', $line, $m)) {
                 continue;
             }
 
@@ -75,7 +75,7 @@ class LenientYaml
                 $inner = $closed ? ($quote === "'" ? str_replace("''", "'", $inner) : stripcslashes($inner)) : $inner;
 
                 $lines[$i] = $key.self::quoted($inner);
-            } elseif (! str_contains('[{&*!|>%@`#"\'', $quote) && ! preg_match('/^-\s/', $value) && (str_contains($value, ': ') || str_contains($value, ' #'))) {
+            } elseif (! str_contains('[{&*!|>%@`#"\'', $quote) && ! preg_match('/^-\s/u', $value) && (str_contains($value, ': ') || str_contains($value, ' #'))) {
                 // A plain value holding what YAML would read as a mapping or a comment.
                 $lines[$i] = $key.self::quoted($value);
             }
@@ -111,7 +111,7 @@ class LenientYaml
 
             // More indented than the key whose value is still open, and not
             // a key or list item of its own: the value carries on here.
-            if ($open !== null && trim($line) !== '' && $indent > $open && ! preg_match('/^\s*(?:-\s+|[A-Za-z0-9_.-]+:(?:\s|$))/', $line)) {
+            if ($open !== null && trim($line) !== '' && $indent > $open && ! preg_match('/^\s*(?:-\s+|[A-Za-z0-9_.-]+:(?:\s|$))/u', $line)) {
                 $out[array_key_last($out)] .= ' '.trim($line);
 
                 continue;
@@ -120,7 +120,7 @@ class LenientYaml
             $open = null;
             $out[] = $line;
 
-            if (preg_match('/^(\s*(?:-\s+)*[A-Za-z0-9_.-]+:\s+)(\S.*?)\s*$/', $line, $m)) {
+            if (preg_match('/^(\s*(?:-\s+)*[A-Za-z0-9_.-]+:\s+)(\S.*?)\s*$/u', $line, $m)) {
                 if (preg_match('/^[|>][+-]?\d*$/', $m[2])) {
                     $block = $indent;
                 } elseif (! preg_match('/^[\[{]/', $m[2])) {

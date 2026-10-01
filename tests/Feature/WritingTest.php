@@ -57,14 +57,30 @@ class WritingTest extends TestCase
             && str_contains($prompt->prompt, 'A paragraph about'));
     }
 
-    public function test_an_unreadable_analysis_fails_without_saving_anything(): void
+    public function test_an_unreadable_analysis_is_asked_for_again_then_fails_without_saving_anything(): void
     {
-        TypeAnalyst::fake(['Sorry, I cannot help with that.']);
+        TypeAnalyst::fake(['Sorry, I cannot help with that.', 'Still no.']);
 
         (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
 
         $this->assertNull(app(TypeRepository::class)->find('articles'));
         $this->assertSame(TypeState::FAILED, app(TypeState::class)->get('articles')['status']);
+
+        // The second ask said what was wrong with the first answer.
+        TypeAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'could not be read: there was no <type> block'));
+    }
+
+    public function test_a_type_in_a_code_fence_or_fixed_on_the_second_try_is_read(): void
+    {
+        TypeAnalyst::fake([
+            "<type>\n```yaml\ntitle: Fenced\nquestions: not a list\n```\n</type>",
+            "<type>\n```yaml\ntitle: Fenced\nquestions:\n  - handle: what\n    label: What?\n```\n</type>",
+        ]);
+
+        (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+
+        $this->assertSame('Fenced', app(TypeRepository::class)->find('articles')->title);
+        TypeAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'could not be read: it had no questions'));
     }
 
     public function test_the_panel_is_told_about_its_collection(): void
