@@ -8,6 +8,7 @@ use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
+use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Settings;
@@ -23,7 +24,14 @@ class DashboardController
     {
         $this->checkForKinds($studio, $types, $settings, $suggestions);
 
+        $summaries = $sessions->all()->map(fn ($session) => $presenter->summary($session))->values();
+
         return Inertia::render('ghostwriter::Index', [
+            'setup' => app(Onboarding::class)->progress() + ['url' => cp_route('ghostwriter.setup.show'), 'hide_url' => cp_route('ghostwriter.setup.hide')],
+            'counts' => [
+                'in_progress' => $summaries->reject(fn (array $summary) => $summary['finished'])->count(),
+                'ideas' => app(IdeaRepository::class)->all()->where('status', IdeaRepository::OPEN)->count(),
+            ],
             'configured' => $studio->configured(),
             'provider' => $studio->provider(),
             'settings_url' => $settings->url(),
@@ -45,6 +53,7 @@ class DashboardController
                 'title' => $collection->title(),
                 'entries' => Entry::query()->where('collection', $collection->handle())->count(),
                 'types' => $types->forCollection($collection->handle())->map(fn ($type) => [
+                    'handle' => $type->handle,
                     'title' => $type->title,
                     'description' => $type->description,
                     'examples' => count($type->examples),
@@ -59,7 +68,7 @@ class DashboardController
                 'analyse_url' => cp_route('ghostwriter.collections.analyse', $collection->handle()),
                 'url' => $collection->createEntryUrl().'?ghostwriter=new',
             ])->values(),
-            'sessions' => $sessions->all()->take(30)->map(fn ($session) => $presenter->summary($session))->values(),
+            'sessions' => $summaries->take(30)->values(),
             'auto_kinds' => $settings->suggestsKinds(),
         ]);
     }

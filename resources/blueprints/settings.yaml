@@ -21,6 +21,13 @@ tabs:
               instructions: Read when the tone of voice guide is generated. Leave empty to read every collection.
               mode: select
           -
+            handle: show_get_started
+            field:
+              type: toggle
+              display: Show Get started
+              instructions: 'Bring the Get started steps back to the navigation and the dashboard after they were hidden. Saving with this on shows them again; it is not stored.'
+              default: false
+          -
             handle: suggest_kinds
             field:
               type: toggle

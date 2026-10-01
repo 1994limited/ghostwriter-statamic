@@ -8,12 +8,17 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImageryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImagesController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PlanController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SessionController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\SetupController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\TypeController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\VoiceController;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\AuthorizeGhostwriter;
 
 Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwriter::class)->group(function () {
     Route::get('/', DashboardController::class)->name('index');
+
+    Route::get('setup', [SetupController::class, 'show'])->name('setup.show');
+    Route::get('setup/status', [SetupController::class, 'status'])->name('setup.status');
+    Route::post('setup/hide', [SetupController::class, 'hide'])->name('setup.hide');
 
     Route::get('voice', [VoiceController::class, 'show'])->name('voice.show');
     Route::get('voice/status', [VoiceController::class, 'status'])->name('voice.status');

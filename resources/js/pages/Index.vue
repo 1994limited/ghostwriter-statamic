@@ -6,13 +6,13 @@
 <script>
 import ghost from '../icon.js';
 import { Head, Link, router } from '@statamic/cms/inertia';
-import { Alert, Badge, Button, Header, Heading, Modal, Panel, Subheading } from '@statamic/cms/ui';
+import { Alert, Badge, Button, Dropdown, DropdownItem, DropdownMenu, Header, Heading, Modal, Panel, Subheading } from '@statamic/cms/ui';
 import KindSuggestions from '../components/KindSuggestions.vue';
 import LearnForm from '../components/LearnForm.vue';
 import SetupAlert from '../components/SetupAlert.vue';
 
 export default {
-    components: { Alert, Badge, Button, Head, Header, Heading, KindSuggestions, LearnForm, Link, Modal, Panel, SetupAlert, Subheading },
+    components: { Alert, Badge, Button, Dropdown, DropdownItem, DropdownMenu, Head, Header, Heading, KindSuggestions, LearnForm, Link, Modal, Panel, SetupAlert, Subheading },
 
     props: {
         configured: { type: Boolean, required: true },
@@ -24,10 +24,12 @@ export default {
         collections: { type: Array, required: true },
         sessions: { type: Array, required: true },
         auto_kinds: { type: Boolean, default: true },
+        setup: { type: Object, required: true },
+        counts: { type: Object, required: true },
     },
 
     data() {
-        return { learning: null, info: null, timer: null, showFinished: false };
+        return { learning: null, info: null, timer: null, showFinished: false, hiddenSetup: this.setup.hidden, openKinds: {} };
     },
 
     computed: {
@@ -102,6 +104,20 @@ export default {
             router.reload();
         },
 
+        async toggleSetup(hidden) {
+            try {
+                await this.$axios.post(this.setup.hide_url, { hidden });
+                this.hiddenSetup = hidden;
+                router.reload();
+            } catch (error) {
+                this.$toast.error(error.response?.data?.message ?? this.__('Something went wrong.'));
+            }
+        },
+
+        suggestionsOf(collection) {
+            return collection.suggested?.suggestions?.length ?? 0;
+        },
+
         // Ask for kinds now, rather than waiting for the automatic check.
         async suggest(collection) {
             try {
@@ -150,67 +166,102 @@ export default {
 
     <div class="mx-auto max-w-5xl">
         <Header :title="__('Ghostwriter')" :icon="ghost">
-            <Button v-if="settings_url" :href="settings_url" :text="__('Settings')" icon="cog" variant="ghost" />
-            <Button :href="plan.url" :text="plan.open ? __('Content plan (:count)', { count: plan.open }) : __('Content plan')" icon="list" />
-            <Button :href="imagery.url" :text="__('Image style')" icon="media-image-picture-orientation" />
-            <Button :href="voice.url" :text="__('Voice guide')" icon="text-formatting-quotation" />
+            <Button v-if="settings_url" :href="settings_url" icon="cog" variant="ghost" :aria-label="__('Settings')" />
         </Header>
 
         <SetupAlert v-if="!configured" :provider="provider" />
 
-        <Panel :heading="__('Tone of voice')" class="mb-6">
+        <!-- Get started, until it is complete or hidden -->
+        <Panel v-if="!hiddenSetup && !setup.complete" class="mb-6">
             <div class="flex items-center justify-between gap-6 p-4">
-                <div>
-                    <Heading v-if="voice.exists" :text="__('Your voice guide is in place')" />
-                    <Heading v-else :text="__('Start by teaching Ghostwriter your voice')" />
-                    <Subheading v-if="voice.exists" :text="__('Last updated :when. Everything written here follows it.', { when: voice.updated_at })" />
-                    <Subheading v-else :text="__('It reads what you have already published and writes a guide to how you sound. New content is then written to match.')" />
+                <div class="min-w-0">
+                    <Heading :text="__('Get started') + ' · ' + __(':done of :total', { done: setup.done, total: setup.total })" />
+                    <Subheading v-if="setup.next" :text="__('Next: :title', { title: setup.next.title }) + (setup.next.optional ? ' (' + __('optional') + ')' : '')" />
+                    <div class="mt-2 h-1 w-64 max-w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                        <div class="h-full rounded-full" style="background: var(--gw-ink, #2b3a64)" :style="{ width: `${Math.round((setup.done / setup.total) * 100)}%` }"></div>
+                    </div>
                 </div>
-                <Button :href="voice.url" :variant="voice.exists ? 'default' : 'primary'" :text="voice.exists ? __('Review') : __('Create the voice guide')" />
+                <div class="flex shrink-0 gap-2">
+                    <Button size="sm" variant="ghost" :text="__('Hide')" @click="toggleSetup(true)" />
+                    <Button size="sm" variant="primary" :href="setup.url + (setup.next ? '#step-' + setup.next.number : '')" :text="__('Continue')" />
+                </div>
             </div>
         </Panel>
 
-        <Panel
-            :heading="__('Collections')"
-            :subheading="__('Writing opens the collection’s own create screen with Ghostwriter on it, and the draft fills in the form. It works on every collection as it is; kinds you teach it get a brief of their own.')"
-            class="mb-6"
-        >
+        <!-- Four tiles: where things stand -->
+        <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Link :href="voice.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
+                <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Voice guide') }}</div>
+                <div class="mt-1 font-medium">{{ voice.exists ? __('In place') : __('Not written yet') }}</div>
+                <div class="text-sm text-gray-500">{{ voice.exists ? __('Updated :when', { when: voice.updated_at }) : __('Everything written follows it') }}</div>
+            </Link>
+            <Link :href="imagery.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
+                <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Image style') }}</div>
+                <div class="mt-1 font-medium">{{ imagery.exists ? __('In place') : __('Not written yet') }}</div>
+                <div class="text-sm text-gray-500">{{ __('How your pictures look, in words') }}</div>
+            </Link>
+            <Link :href="plan.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
+                <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content plan') }}</div>
+                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-ink, #2b3a64)">{{ counts.ideas }}</span> {{ __('ideas waiting') }}</div>
+                <div class="text-sm text-gray-500">{{ __('What the site is missing') }}</div>
+            </Link>
+            <a href="#in-progress" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
+                <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('In progress') }}</div>
+                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-ink, #2b3a64)">{{ counts.in_progress }}</span> {{ __('pieces') }}</div>
+                <div class="text-sm text-gray-500">{{ __('Drafts and edits under way') }}</div>
+            </a>
+        </div>
+
+        <!-- Collections, as one list -->
+        <Panel :heading="__('Collections')" class="mb-6">
             <div class="divide-y divide-gray-200 dark:divide-gray-700">
                 <div v-for="collection in collections" :key="collection.handle" class="p-4">
                     <div class="flex items-center justify-between gap-4">
-                        <div>
-                            <Heading size="lg" :text="__(collection.title)" />
-                            <Subheading :text="__(':count entries', { count: collection.entries })" />
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-baseline gap-x-3">
+                                <Heading :text="__(collection.title)" />
+                                <span class="text-sm text-gray-500">{{ __(':count entries', { count: collection.entries }) }} · {{ collection.types.length === 1 ? __('1 kind') : __(':count kinds', { count: collection.types.length }) }}</span>
+                            </div>
+                            <div v-if="collection.types.length" class="mt-1.5 flex flex-wrap gap-1.5">
+                                <Link v-for="type in collection.types" :key="type.edit_url" :href="type.edit_url" :title="type.description" class="rounded-md border border-gray-200 px-2 py-0.5 text-xs hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">{{ type.title }}</Link>
+                            </div>
                         </div>
-                        <div class="flex gap-2">
-                            <Button size="sm" variant="ghost" :text="__('Suggest kinds')" :disabled="!configured || collection.suggested.status === 'working'" @click="suggest(collection)" />
-                            <Button size="sm" :text="__('Teach it a kind')" @click="add(collection)" />
+                        <div class="flex shrink-0 gap-2">
+                            <Dropdown>
+                                <template #trigger>
+                                    <Button size="sm" :text="__('Kinds')" />
+                                </template>
+                                <DropdownMenu>
+                                    <DropdownItem :text="__('Teach it a kind')" @click="add(collection)" />
+                                    <DropdownItem :text="__('Suggest kinds')" :disabled="!configured || collection.suggested.status === 'working'" @click="suggest(collection)" />
+                                </DropdownMenu>
+                            </Dropdown>
                             <Button size="sm" variant="primary" :icon="ghost" :href="collection.url" :text="__('Write')" />
                         </div>
                     </div>
 
-                    <KindSuggestions :ref="`kinds-${collection.handle}`" :collection="collection" :configured="configured" @learned="reload" />
-
-                    <ul v-if="collection.types.length" class="mt-3 space-y-1.5">
-                        <li v-for="type in collection.types" :key="type.edit_url">
-                            <Link :href="type.edit_url" class="flex items-center justify-between gap-4 rounded-md border border-gray-200 px-3 py-2 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
-                                <div class="min-w-0">
-                                    <span class="font-medium">{{ type.title }}</span>
-                                    <span class="ms-2 text-sm text-gray-500">{{ type.description }}</span>
-                                </div>
-                                <span class="shrink-0 text-sm text-gray-500">
-                                    {{ type.examples ? __('Modelled on :count entries', { count: type.examples }) : __('From the newest entries') }}
-                                </span>
-                            </Link>
-                        </li>
-                    </ul>
-                    <p v-else class="mt-3 text-sm text-gray-500">{{ __('Ready to write with a general brief. Teach it a kind of content you write often to give that kind questions of its own.') }}</p>
+                    <!-- Suggestions fold into one line until opened -->
+                    <button
+                        v-if="suggestionsOf(collection) && !openKinds[collection.handle]"
+                        type="button"
+                        class="mt-2 text-sm font-medium hover:underline"
+                        style="color: var(--gw-ink, #2b3a64)"
+                        @click="openKinds[collection.handle] = true"
+                    >{{ __(':count suggested kinds to review', { count: suggestionsOf(collection) }) }} →</button>
+                    <KindSuggestions
+                        v-show="openKinds[collection.handle] || !suggestionsOf(collection)"
+                        :ref="`kinds-${collection.handle}`"
+                        :collection="collection"
+                        :configured="configured"
+                        @learned="reload"
+                    />
                 </div>
 
                 <p v-if="!collections.length" class="p-4 text-sm text-gray-500">{{ __('No collections are switched on. Choose them in Settings.') }}</p>
             </div>
         </Panel>
 
+        <div id="in-progress"></div>
         <Panel v-if="inProgress.length" :heading="__('In progress')" :subheading="__('A piece leaves this list once its entry has been saved.')">
             <ul class="divide-y divide-gray-200 dark:divide-gray-700">
                 <li v-for="session in inProgress" :key="session.id" class="flex items-center gap-2 pe-3 hover:bg-gray-50 dark:hover:bg-gray-800">
@@ -244,6 +295,10 @@ export default {
                 </ul>
             </Panel>
         </div>
+
+        <p v-if="hiddenSetup" class="mt-8 text-center text-sm text-gray-500">
+            <button type="button" class="hover:underline" @click="toggleSetup(false)">{{ __('Show Get started') }}</button>
+        </p>
 
         <Modal v-model:open="open" :title="learning ? __('A kind of content in :collection', { collection: learning.title }) : ''" :icon="ghost">
             <div v-if="info" class="p-1">

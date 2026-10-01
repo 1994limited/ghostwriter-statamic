@@ -2,9 +2,11 @@
 
 namespace NineteenNinetyFour\Ghostwriter;
 
+use Illuminate\Support\Facades\Event;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use Statamic\Events\AddonSettingsSaving;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
 use Statamic\Facades\User;
@@ -53,6 +55,20 @@ class ServiceProvider extends AddonServiceProvider
         });
 
         // Tells the panel on the publish form which collections it may open on.
+        // The "Show Get started" setting acts on Ghostwriter's own state and
+        // is not kept in the settings file.
+        Event::listen(AddonSettingsSaving::class, function (AddonSettingsSaving $event): void {
+            if ($event->settings->addon()->id() !== Settings::ADDON) {
+                return;
+            }
+
+            if ($event->settings->get('show_get_started')) {
+                app(Onboarding::class)->hide(false);
+            }
+
+            $event->settings->set('show_get_started', null);
+        });
+
         Statamic::provideToScript(['ghostwriter' => fn () => [
             'enabled' => (bool) User::current()?->can('access ghostwriter'),
             'collections' => app(TypeRepository::class)->collections()->map->handle()->values()->all(),
@@ -65,6 +81,7 @@ class ServiceProvider extends AddonServiceProvider
                 ->icon(Settings::ICON)
                 ->can('access ghostwriter')
                 ->children(array_filter([
+                    app(Onboarding::class)->hidden() ? null : $nav->item('Get started')->route('ghostwriter.setup.show')->can('access ghostwriter'),
                     $nav->item('Content plan')->route('ghostwriter.plan.show')->can('access ghostwriter'),
                     $nav->item('Voice guide')->route('ghostwriter.voice.show')->can('access ghostwriter'),
                     $nav->item('Image style')->route('ghostwriter.imagery.show')->can('access ghostwriter'),
