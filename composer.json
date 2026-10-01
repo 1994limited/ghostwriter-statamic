@@ -35,12 +35,6 @@
             "NineteenNinetyFour\\Ghostwriter\\Tests\\": "tests"
         }
     },
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/1994limited/ghostwriter-core"
-        }
-    ],
     "require": {
         "php": "^8.3",
         "ext-gd": "*",
