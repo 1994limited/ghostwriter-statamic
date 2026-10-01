@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1 — 2026-10-01
+
+Fixes from the pre-release review.
+
+- A conversation belongs to whoever started it: nobody else sees it on the dashboard, in the collection panel, the widget or the content plan, or can open, read, write in, apply or delete it. Super users see all. Conversations from before this release stay open to everyone, as they were.
+- Putting a draft into a new entry, or saving it straight to one, needs Statamic's own permission to create entries in that collection; editing an existing one needs permission to edit it.
+- Saving an image into a field, from a conversation or the field button, needs permission to upload to the field's asset container.
+- Logo uploads are checked harder: only PNG, WebP or SVG by content; Imagick is told the format rather than left to guess; an SVG with scripts, external references, `<use>`, `<style>`, `url()` or `@import` is refused, however it is padded.
+- Photograph downloads follow redirects over HTTPS only and stop reading at the size cap.
+- The Composer package no longer ships docs, scripts, tests or frontend sources (22 MB down to under 1 MB); a LICENSE file; direct dependencies declared; `ext-imagick` suggested.
+
 ## 1.0.0 — 2026-10-01
 
 First release.

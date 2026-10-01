@@ -147,11 +147,24 @@ abstract class TestCase extends AddonTestCase
         ]));
     }
 
+    /** What a writer may do, Ghostwriter aside: the Statamic permissions the tests lean on. */
+    protected const WRITER_PERMISSIONS = ['view articles entries', 'edit articles entries', 'create articles entries', 'edit other authors articles entries', 'view pages entries', 'edit pages entries', 'create pages entries', 'view stories entries', 'edit stories entries', 'create stories entries', 'upload assets assets'];
+
     protected function signIn(bool $permitted = true): \Statamic\Contracts\Auth\User
     {
-        $this->setTestRoles(['writer' => ['access cp', 'access ghostwriter', 'view articles entries', 'edit articles entries', 'edit other authors articles entries', 'view pages entries', 'edit pages entries', 'create pages entries', 'view stories entries', 'edit stories entries', 'create stories entries'], 'visitor' => ['access cp']]);
+        return $this->signInWith($permitted ? ['access ghostwriter', ...self::WRITER_PERMISSIONS] : []);
+    }
 
-        $user = User::make()->email('writer@example.com')->assignRole($permitted ? 'writer' : 'visitor');
+    /**
+     * A user with the Control Panel and just these permissions.
+     *
+     * @param  array<int, string>  $permissions
+     */
+    protected function signInWith(array $permissions): \Statamic\Contracts\Auth\User
+    {
+        $this->setTestRoles(['tester' => ['access cp', ...$permissions]]);
+
+        $user = User::make()->email('writer@example.com')->assignRole('tester');
         $user->save();
 
         $this->actingAs($user);

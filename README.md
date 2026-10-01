@@ -83,7 +83,7 @@ The **Get started** page walks through it. In short:
 
 ## Permissions
 
-Users need **Write content and edit the voice guide with Ghostwriter**. Editing an entry through Ghostwriter still needs the user's own permission to edit that entry, and only someone who may edit the addon's settings sees them.
+Users need **Write content and edit the voice guide with Ghostwriter**. Beyond that, Ghostwriter never does what the person could not do by hand: putting a draft into an entry needs their permission to create entries in that collection (or edit that entry), and saving an image into an assets field needs their permission to upload to its container. Conversations belong to whoever started them; nobody else sees or opens them, super users aside. Only someone who may edit the addon's settings sees them.
 
 ## The queue
 
@@ -164,15 +164,17 @@ From existing entries it learns, per replicator field, the usual order of sets, 
 
 Nothing is sent until someone asks for it.
 
-## Development
+## Developing
+
+`package.json` takes Statamic's UI package from `vendor/statamic/cms`, so Composer has to run before npm on a fresh clone, in this order:
 
 ```bash
 composer install
-npm install
+npm ci
 npm run build        # builds resources/dist, which is committed
 vendor/bin/phpunit
 ```
 
-Tests fake every model call and HTTP request, so they need no API key. In a site using the addon, after a build: `php artisan vendor:publish --tag=ghostwriter-statamic --force`.
+Tests fake every model call and HTTP request, so they need no API key. The installed package carries only what runs (`.gitattributes` keeps the docs, scripts, tests and frontend sources out of the Composer download). In a site using the addon, after a build: `php artisan vendor:publish --tag=ghostwriter-statamic --force`.
 
 Marketplace screenshots are taken from the real product with `php scripts/screenshots.php` (see the script for what it needs), then set in the brand frames with `scripts/frame.php`. `scripts/promo.php` records a short promo video the same way; it needs `ffmpeg` to encode the result.

@@ -31,13 +31,13 @@ class LogoCard
      * @param  bool  $white  Turn the logo white, as on a coloured ground it usually should be.
      * @return array{content: string, colour: string}
      */
-    public function compose(string $logo, int $width, int $height, ?string $colour = null, ?string $colourTo = null, bool $white = true, int $angle = 135): array
+    public function compose(string $logo, int $width, int $height, ?string $colour = null, ?string $colourTo = null, bool $white = true, int $angle = 135, ?string $type = null): array
     {
         if (! self::available()) {
             throw new InvalidArgumentException('Logo cards need the Imagick PHP extension, which this server does not have.');
         }
 
-        $mark = $this->read($logo, $width);
+        $mark = $this->read($logo, $width, $type);
         $colour = $this->hex($colour) ?? $this->mainColour($mark);
         $colourTo = $this->hex($colourTo);
 
@@ -71,13 +71,22 @@ class LogoCard
         return ['content' => $card->getImageBlob(), 'colour' => $colour];
     }
 
-    private function read(string $logo, int $width): Imagick
+    /**
+     * @param  string|null  $type  "svg" or a raster format, as the upload was validated; Imagick is told, never left to guess.
+     */
+    private function read(string $logo, int $width, ?string $type = null): Imagick
     {
-        $isSvg = str_contains(substr($logo, 0, 2048), '<svg');
+        // Anything that looks like SVG anywhere is treated as SVG, so it is
+        // checked as one, however much padding comes before the tag.
+        $isSvg = $type === 'svg' || stripos($logo, '<svg') !== false;
+
+        if ($type !== null && $type !== 'svg' && $isSvg) {
+            throw new InvalidArgumentException('That file is not the kind of image it claims to be.');
+        }
 
         // An SVG can pull in files from elsewhere; a logo has no need to.
-        if ($isSvg && preg_match('/<!ENTITY|<script|<image|<foreignObject|href\s*=\s*["\'](?!#)/i', $logo)) {
-            throw new InvalidArgumentException('That SVG refers to other files or contains scripts. Export it as a plain SVG or a PNG.');
+        if ($isSvg && preg_match('/<!ENTITY|<!DOCTYPE|<script|<image|<foreignObject|<use|<iframe|<embed|<object|href\s*=\s*["\'](?!#)|url\s*\(|@import|<style/i', $logo)) {
+            throw new InvalidArgumentException('That SVG refers to other files, styles or scripts. Export it as a plain SVG or a PNG.');
         }
 
         $mark = new Imagick;
@@ -87,9 +96,14 @@ class LogoCard
             if ($isSvg) {
                 // Drawn large, so it is sharp at any card size.
                 $mark->setResolution(600, 600);
+                $mark->setFormat('svg');
                 $mark->readImageBlob($logo, 'logo.svg');
             } else {
-                $mark->readImageBlob($logo);
+                // The format is fixed from the upload's checked type, so
+                // Imagick never picks a coder from the bytes themselves.
+                $format = in_array($type, ['png', 'webp', 'jpg', 'jpeg'], true) ? $type : 'png';
+                $mark->setFormat($format);
+                $mark->readImageBlob($logo, "logo.{$format}");
             }
         } catch (\ImagickException) {
             throw new InvalidArgumentException('That logo could not be read. Use a PNG or SVG with a transparent background.');

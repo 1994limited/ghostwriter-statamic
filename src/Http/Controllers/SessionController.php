@@ -29,6 +29,9 @@ use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use Statamic\Contracts\Assets\Asset;
+use Statamic\Contracts\Entries\Entry as EntryContract;
+use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
 use Symfony\Component\Yaml\Yaml;
@@ -169,6 +172,12 @@ class SessionController
 
         $original = $session->source ? Entry::find($session->source) : null;
 
+        // Filling a form the person could not save is pointless, and the
+        // draft is theirs to see only where they could use it.
+        abort_unless($original
+            ? User::current()?->can('edit', $original)
+            : User::current()?->can('create', [EntryContract::class, $blueprint->parent()]), 403, 'You cannot save entries in this collection.');
+
         if ($original) {
             // Editing an entry: only the writing changes. Its images, links,
             // settings and block IDs come from the entry, not from what this
@@ -222,6 +231,8 @@ class SessionController
         ]);
 
         abort_if(($session->images[$validated['key']]['status'] ?? null) === 'working', 409, 'That image is already being made.');
+
+        $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
 
         $source = null;
 
@@ -325,6 +336,8 @@ class SessionController
             'id' => ['required', 'string', 'max:64'],
         ]);
 
+        $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
+
         try {
             $photo = $stock->fetch($validated['source'], $validated['id']);
         } catch (InvalidArgumentException $exception) {
@@ -386,12 +399,14 @@ class SessionController
 
         $validated = $request->validate([
             'key' => ['required', 'string', Rule::in(array_keys($slots))],
-            'logo' => ['required', 'file', 'max:5120'],
+            'logo' => ['required', 'file', 'max:5120', 'mimes:png,webp,svg', 'mimetypes:image/png,image/webp,image/svg+xml,image/svg'],
             'colour' => ['nullable', 'string', 'max:7'],
             'colour_to' => ['nullable', 'string', 'max:7'],
             'white' => ['nullable', 'boolean'],
             'everywhere' => ['nullable', 'boolean'],
         ]);
+
+        $this->ensureCanUploadTo($slots[$validated['key']]['container']);
 
         [$width, $height] = $images->sizeFor($session, $type, $validated['key']);
 
@@ -403,6 +418,7 @@ class SessionController
                 $validated['colour'] ?? null,
                 $validated['colour_to'] ?? null,
                 (bool) ($validated['white'] ?? true),
+                type: (string) $request->file('logo')->guessExtension(),
             );
         } catch (InvalidArgumentException $exception) {
             abort(422, $exception->getMessage());
@@ -430,9 +446,14 @@ class SessionController
     public function entry(string $session, EntryWriter $writer, SchemaReader $reader, ImageStudio $images): JsonResponse
     {
         $session = $this->session($session);
+        $type = $this->type($session->type)->forSession($session);
+
+        // Ghostwriter never creates what the person could not create by hand.
+        $collection = $type->statamicCollection() ?? abort(422, 'The collection this was written for no longer exists.');
+        abort_unless(User::current()?->can('create', [EntryContract::class, $collection]), 403, 'You cannot create entries in this collection.');
 
         try {
-            $entry = $writer->write($this->parsedDraft($session), $this->type($session->type)->forSession($session), User::current());
+            $entry = $writer->write($this->parsedDraft($session), $type, User::current());
         } catch (InvalidArgumentException $exception) {
             abort(422, $exception->getMessage());
         }
@@ -466,6 +487,17 @@ class SessionController
         }
     }
 
+    /**
+     * Saving an image into a container is uploading to it, and needs the
+     * same permission as uploading by hand.
+     */
+    private function ensureCanUploadTo(string $container): void
+    {
+        $found = AssetContainer::find($container) ?? abort(422, "The asset container \"{$container}\" no longer exists.");
+
+        abort_unless(User::current()?->can('store', [Asset::class, $found]), 403, 'You cannot upload to the '.$found->title().' container.');
+    }
+
     private function type(string $handle): ContentType
     {
         $type = $this->types->find($handle);
@@ -475,9 +507,17 @@ class SessionController
         return $type;
     }
 
+    /**
+     * A session is its starter's: nobody else may read it, write in it or
+     * use its draft, super users aside.
+     */
     private function session(string $id): Session
     {
-        return $this->sessions->find($id) ?? abort(404);
+        $session = $this->sessions->find($id) ?? abort(404);
+
+        abort_unless($session->belongsTo(User::current()), 403);
+
+        return $session;
     }
 
     private function ensureConfigured(): void

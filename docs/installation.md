@@ -45,7 +45,9 @@ On a server, add the same variable wherever your host keeps environment variable
 Ghostwriter adds one permission, under **Permissions** in a role: **Write content and edit the voice guide with Ghostwriter**.
 
 - People with it see Ghostwriter in the navigation, the **Write with Ghostwriter** and **Edit with Ghostwriter** buttons, the image button on assets fields, and the dashboard widget.
-- Editing an entry through Ghostwriter also needs Statamic's own permission to edit that entry. Ghostwriter never lets anyone change an entry they could not change by hand.
+- Putting a draft into an entry also needs Statamic's own permission to create entries in that collection, and editing an entry through Ghostwriter needs the permission to edit that entry. Ghostwriter never lets anyone change an entry they could not change by hand.
+- Saving an image into an assets field needs the permission to upload to that field's container.
+- A conversation belongs to whoever started it. Nobody else sees it on the dashboard or the widget, or can open it, super users aside.
 - Ghostwriter's settings screen is seen by whoever may edit the addon's settings (the **Edit Ghostwriter settings** permission, or a super user).
 
 ## The queue

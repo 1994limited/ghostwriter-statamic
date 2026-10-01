@@ -196,6 +196,27 @@ class FieldImageTest extends TestCase
         $this->postJson(cp_route('ghostwriter.images.start'), ['collection' => 'stories', 'path' => 'brochure', 'mode' => 'find'])->assertStatus(422);
     }
 
+    public function test_the_button_does_not_put_an_image_where_the_person_could_not_upload(): void
+    {
+        Image::fake();
+        Bus::fake();
+
+        // Finding and making may be started (nothing is saved yet), but
+        // keeping the result or composing a card into the field may not.
+        $this->signInWith(['access ghostwriter', 'view stories entries', 'edit stories entries']);
+
+        $started = $this->postJson(cp_route('ghostwriter.images.start'), ['collection' => 'stories', 'path' => 'cover', 'mode' => 'make', 'direction' => 'A lighthouse'])->assertOk()->json();
+        (new MakeImage($started['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
+
+        $this->postJson(cp_route('ghostwriter.images.use', $started['id']), ['current' => []])->assertForbidden();
+        $this->post(cp_route('ghostwriter.images.logo'), [
+            'collection' => 'stories', 'path' => 'cover',
+            'logo' => UploadedFile::fake()->createWithContent('logo.png', $this->png()),
+        ], ['Accept' => 'application/json'])->assertForbidden();
+
+        $this->assertSame(['covers/one.png', 'covers/two.png'], Storage::disk('assets')->files('covers'));
+    }
+
     private function png(): string
     {
         return base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');

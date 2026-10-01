@@ -397,7 +397,7 @@ class ImageStudio
 
         try {
             $shown = collect($references)->take(self::REFERENCES)->map(fn (Asset $asset) => $this->small((string) $asset->contents()))->filter()->values();
-            $thumbs = Http::pool(fn ($pool) => array_map(fn (array $photo) => $pool->timeout(15)->get($photo['thumb']), $candidates));
+            $thumbs = Http::pool(fn ($pool) => array_map(fn (array $photo) => $pool->timeout(15)->withOptions(['allow_redirects' => ['max' => 3, 'protocols' => ['https']]])->get($photo['thumb']), $candidates));
 
             $seen = [];
             $attachments = $shown->all();

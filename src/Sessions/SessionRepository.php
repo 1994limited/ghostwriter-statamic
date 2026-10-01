@@ -6,6 +6,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use NineteenNinetyFour\Ghostwriter\Ai\Text;
+use Statamic\Contracts\Auth\User;
 
 /**
  * Sessions are stored one JSON file each, so the addon needs no database and
@@ -28,6 +29,16 @@ class SessionRepository
             ->filter()
             ->sortByDesc(fn (Session $session) => $session->updatedAt)
             ->values();
+    }
+
+    /**
+     * The sessions a person may see: their own, or all for a super user.
+     *
+     * @return Collection<int, Session>
+     */
+    public function visibleTo(?User $user): Collection
+    {
+        return $this->all()->filter(fn (Session $session) => $session->belongsTo($user))->values();
     }
 
     public function find(string $id): ?Session

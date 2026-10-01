@@ -87,7 +87,8 @@ class EntryController
     {
         $id = $entry->id();
         $collection = $entry->collectionHandle();
-        $all = $this->sessions->all();
+        // Only the person's own conversations are theirs to pick up again.
+        $all = $this->sessions->visibleTo(User::current());
 
         $existing = $all->first(fn (Session $session) => $session->source === $id || $session->entryId === $id)
             ?? $all->first(fn (Session $session) => $session->source === null

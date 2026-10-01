@@ -28,7 +28,7 @@ class Ghostwriter extends Widget
 
         $presenter = app(Presenter::class);
         $limit = max(1, min(20, (int) $this->config('limit', 5)));
-        $inProgress = app(SessionRepository::class)->all()
+        $inProgress = app(SessionRepository::class)->visibleTo(User::current())
             ->map(fn ($session) => $presenter->summary($session))
             ->reject(fn (array $summary) => $summary['finished'])
             ->values();

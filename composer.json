@@ -3,7 +3,16 @@
     "description": "Learns a site's tone of voice and image style from what it has published, then drafts new entries in that voice from a short brief and a conversation, finds or makes images to match, and plans what the site is missing.",
     "type": "statamic-addon",
     "license": "proprietary",
-    "keywords": ["statamic", "statamic-addon", "ai", "writing", "content", "claude", "openai", "gemini"],
+    "keywords": [
+        "statamic",
+        "statamic-addon",
+        "ai",
+        "writing",
+        "content",
+        "claude",
+        "openai",
+        "gemini"
+    ],
     "homepage": "https://github.com/1994limited/ghostwriter-statamic",
     "support": {
         "issues": "https://github.com/1994limited/ghostwriter-statamic/issues",
@@ -28,13 +37,19 @@
     },
     "require": {
         "php": "^8.3",
+        "ext-gd": "*",
         "laravel/ai": "^1.0",
-        "statamic/cms": "^6.0"
+        "league/commonmark": "^2.4",
+        "statamic/cms": "^6.0",
+        "symfony/yaml": "^7.0 || ^8.0"
     },
     "require-dev": {
         "laravel/pint": "^1.20",
         "orchestra/testbench": "^11.0",
         "phpunit/phpunit": "^12.0"
+    },
+    "suggest": {
+        "ext-imagick": "Needed for logo cards and SVG logos."
     },
     "extra": {
         "statamic": {
@@ -50,9 +65,7 @@
         }
     },
     "config": {
-        "allow-plugins": {
-            "pixelfear/composer-dist-plugin": true
-        }
+        "sort-packages": true
     },
     "minimum-stability": "dev",
     "prefer-stable": true

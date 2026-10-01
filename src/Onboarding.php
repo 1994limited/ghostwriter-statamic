@@ -142,7 +142,7 @@ class Onboarding
                 'key' => 'write',
                 'title' => 'Write something',
                 'text' => 'Start a new entry with Ghostwriter beside it. Answer a short brief, talk the draft through, then put it into the entry and save it as usual.',
-                'done' => $this->sessions->all()->isNotEmpty(),
+                'done' => $this->sessions->visibleTo(User::current())->isNotEmpty(),
                 'working' => false,
                 'optional' => false,
                 'detail' => null,

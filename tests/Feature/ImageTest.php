@@ -185,10 +185,64 @@ class ImageTest extends TestCase
         $this->assertSame($images['cover']['path'], $images['blocks:banner:0:picture']['path']);
 
         $post(['colour' => 'greenish'])->assertStatus(422);
+    }
+
+    public function test_a_logo_is_only_ever_a_plain_png_webp_or_svg(): void
+    {
+        if (! LogoCard::available()) {
+            $this->markTestSkipped('Imagick is not installed.');
+        }
+
+        $this->signIn();
+
+        $reference = new \Imagick;
+        $reference->newImage(400, 300, new \ImagickPixel('#cccccc'), 'png');
+        Storage::disk('assets')->put('stories/one.png', $reference->getImageBlob());
+        Storage::disk('assets')->put('stories/two.png', $reference->getImageBlob());
+
+        $session = $this->draftSession();
+        $refused = fn (string $name, string $content) => $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
+            'key' => 'cover',
+            'logo' => UploadedFile::fake()->createWithContent($name, $content),
+        ], ['Accept' => 'application/json'])->assertStatus(422);
+
+        // An SVG that pulls in other files or scripts, however it is dressed.
+        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><image href="http://example.com/x.png"/></svg>');
+        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><style>rect { fill: url(http://example.com/x.svg#p) }</style><rect width="1" height="1"/></svg>');
+        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><style>@import url("http://example.com/x.css");</style><rect width="1" height="1"/></svg>');
+        $refused('logo.svg', '<!--'.str_repeat('padding ', 400).'--><svg xmlns="http://www.w3.org/2000/svg"><image href="http://example.com/x.png"/></svg>');
+
+        // An Imagick drawing script, with and without an image's name.
+        $mvg = "push graphic-context\nviewbox 0 0 640 480\nfill 'url(http://example.com/x.jpg)'\npop graphic-context";
+        $refused('logo.mvg', $mvg);
+        $refused('logo.png', $mvg);
+
+        // The addon's own ghost is fine.
         $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
             'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><image href="http://example.com/x.png"/></svg>'),
-        ], ['Accept' => 'application/json'])->assertStatus(422);
+            'logo' => UploadedFile::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#2f9e44"/></svg>'),
+        ], ['Accept' => 'application/json'])->assertOk();
+    }
+
+    public function test_an_image_is_not_saved_where_the_person_could_not_upload(): void
+    {
+        config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
+        Bus::fake();
+
+        $this->signInWith(['access ghostwriter', 'view stories entries', 'edit stories entries', 'create stories entries']);
+
+        $session = $this->draftSession();
+
+        $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'unsplash', 'id' => 'abc123'])->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.image', $session->id), ['key' => 'cover'])->assertForbidden();
+        $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
+            'key' => 'cover',
+            'logo' => UploadedFile::fake()->createWithContent('logo.png', $this->png()),
+        ], ['Accept' => 'application/json'])->assertForbidden();
+
+        Bus::assertNotDispatched(GenerateImage::class);
+        $this->assertSame(['stories/one.png', 'stories/two.png'], Storage::disk('assets')->files('stories'));
+        $this->assertNull(app(SessionRepository::class)->find($session->id)->images['cover'] ?? null);
     }
 
     public function test_free_photographs_can_be_searched_for(): void

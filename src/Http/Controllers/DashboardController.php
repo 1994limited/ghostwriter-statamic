@@ -17,6 +17,7 @@ use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\Types\TypeState;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use Statamic\Facades\Entry;
+use Statamic\Facades\User;
 
 class DashboardController
 {
@@ -24,7 +25,7 @@ class DashboardController
     {
         $this->checkForKinds($studio, $types, $settings, $suggestions);
 
-        $summaries = $sessions->all()->map(fn ($session) => $presenter->summary($session))->values();
+        $summaries = $sessions->visibleTo(User::current())->map(fn ($session) => $presenter->summary($session))->values();
 
         return Inertia::render('ghostwriter::Index', [
             'setup' => app(Onboarding::class)->progress() + ['url' => cp_route('ghostwriter.setup.show'), 'hide_url' => cp_route('ghostwriter.setup.hide')],

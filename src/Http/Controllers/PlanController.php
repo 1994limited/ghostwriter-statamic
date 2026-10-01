@@ -17,6 +17,7 @@ use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Collection;
 use Statamic\Facades\Collection as Collections;
+use Statamic\Facades\User;
 
 /**
  * The content plan: ideas for what the site is missing, each one a click
@@ -212,6 +213,10 @@ class PlanController
         $session = $idea['session'] ? $this->sessions->find($idea['session']) : null;
         $progress = $session ? $this->presenter->summary($session) : null;
 
+        // Another person's conversation shows where the piece has got to, but
+        // is not theirs to open.
+        $mine = $session?->belongsTo(User::current()) ?? false;
+
         // A piece whose conversation was removed is back to being just an idea.
         if ($idea['status'] === IdeaRepository::DRAFTED && ! $session) {
             $idea['status'] = IdeaRepository::OPEN;
@@ -221,7 +226,7 @@ class PlanController
             // Where a started piece has got to, and where to pick it up.
             'stage' => $progress['stage'] ?? null,
             'finished' => $progress['finished'] ?? false,
-            'resume_url' => $progress['url'] ?? null,
+            'resume_url' => $mine ? ($progress['url'] ?? null) : null,
             'entry_url' => $progress['entry_url'] ?? null,
             'collection_title' => $collection?->title() ?? $idea['collection'],
             'type_title' => $type?->title,

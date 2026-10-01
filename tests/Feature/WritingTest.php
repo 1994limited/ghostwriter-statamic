@@ -20,8 +20,10 @@ use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\Types\TypeState;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
+use NineteenNinetyFour\Ghostwriter\Widgets\Ghostwriter;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
+use Statamic\Facades\User;
 
 /**
  * Learning a collection, the questionnaire, the conversation, and handing
@@ -659,6 +661,74 @@ class WritingTest extends TestCase
         // A second entry from the same draft does not overwrite the first.
         $this->postJson(cp_route('ghostwriter.sessions.entry', $session->id))->assertOk();
         $this->assertSame(1, Entry::query()->where('collection', 'articles')->where('slug', 'what-does-a-website-cost-2')->count());
+    }
+
+    public function test_a_session_belongs_to_whoever_started_it(): void
+    {
+        Bus::fake([SuggestKinds::class]);
+        $this->signIn();
+        $this->makeType();
+
+        $theirs = $this->sessionWithDraft(self::DRAFT);
+        $theirs->userId = 'someone-else';
+        app(SessionRepository::class)->save($theirs);
+
+        // Nobody else sees it listed, or can open it, read it, write in it,
+        // use its draft or remove it.
+        $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonPath('sessions', []);
+        $this->get(cp_route('ghostwriter.index'))->assertOk()->assertInertia(fn ($page) => $page->where('counts.in_progress', 0));
+        $this->assertSame([], (new Ghostwriter)->component()->toArray()['props']['inProgress']);
+
+        $this->getJson(cp_route('ghostwriter.sessions.show', $theirs->id))->assertForbidden();
+        $this->get(cp_route('ghostwriter.sessions.open', $theirs->id))->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.message', $theirs->id), ['content' => 'Shorter.'])->assertForbidden();
+        $this->patchJson(cp_route('ghostwriter.sessions.field', $theirs->id), ['path' => 'title', 'value' => 'Mine now'])->assertForbidden();
+        $this->patchJson(cp_route('ghostwriter.sessions.draft', $theirs->id), ['draft' => 'title: Mine'])->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.apply', $theirs->id))->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.image', $theirs->id), ['key' => 'x'])->assertForbidden();
+        $this->getJson(cp_route('ghostwriter.sessions.photos', $theirs->id, ['key' => 'x']))->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.photo', $theirs->id), ['key' => 'x', 'source' => 'unsplash', 'id' => '1'])->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.image.copy', $theirs->id), ['key' => 'x'])->assertForbidden();
+        $this->post(cp_route('ghostwriter.sessions.logo-card', $theirs->id), ['key' => 'x'], ['Accept' => 'application/json'])->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.entry', $theirs->id))->assertForbidden();
+        $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $theirs->id))->assertForbidden();
+
+        $this->assertNotNull(app(SessionRepository::class)->find($theirs->id));
+        $this->assertSame(0, Entry::query()->where('collection', 'articles')->where('slug', 'what-does-a-website-cost')->count());
+
+        // The owner, and a super user, carry on as before.
+        $mine = $this->sessionWithDraft(self::DRAFT);
+        $mine->userId = (string) User::current()->id();
+        app(SessionRepository::class)->save($mine);
+
+        $this->getJson(cp_route('ghostwriter.sessions.show', $mine->id))->assertOk();
+        $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonCount(1, 'sessions');
+
+        // Solo allows one user, so the same person is made super.
+        User::current()->makeSuper()->save();
+        $this->getJson(cp_route('ghostwriter.sessions.show', $theirs->id))->assertOk();
+        $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonCount(2, 'sessions');
+    }
+
+    public function test_a_draft_is_not_saved_where_the_person_could_not_create_an_entry(): void
+    {
+        $this->signInWith(['access ghostwriter', 'view articles entries', 'edit articles entries', 'edit other authors articles entries']);
+        $this->makeType();
+
+        $session = $this->sessionWithDraft(self::DRAFT);
+
+        $this->postJson(cp_route('ghostwriter.sessions.entry', $session->id))->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id))->assertForbidden();
+
+        $this->assertSame(0, Entry::query()->where('collection', 'articles')->where('slug', 'what-does-a-website-cost')->count());
+        $this->assertNull(app(SessionRepository::class)->find($session->id)->entryId);
+
+        // Editing an entry they may edit is still allowed.
+        $this->makeArticle('older', 'Older', 'An older piece.');
+        $session->source = Entry::query()->where('slug', 'older')->first()->id();
+        app(SessionRepository::class)->save($session);
+
+        $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id))->assertOk();
     }
 
     public function test_a_session_is_finished_once_its_entry_exists(): void

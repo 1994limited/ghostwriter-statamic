@@ -4,6 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter\Sessions;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Statamic\Contracts\Auth\User;
 
 /**
  * One piece of content being written: the questionnaire answers it started
@@ -83,6 +84,19 @@ class Session
             createdAt: $data['created_at'] ?? null,
             updatedAt: $data['updated_at'] ?? null,
         );
+    }
+
+    /**
+     * Whether a person may open this session: the one who started it, or a
+     * super user. A session from before users were recorded is anyone's.
+     */
+    public function belongsTo(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return $this->userId === null || $this->userId === (string) $user->id() || $user->isSuper();
     }
 
     public function addMessage(string $role, string $content): void

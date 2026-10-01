@@ -21,6 +21,7 @@ use Statamic\Contracts\Entries\Collection as StatamicCollection;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry as Entries;
+use Statamic\Facades\User;
 
 /**
  * What the Ghostwriter panel needs to know about a collection, and the
@@ -218,7 +219,7 @@ class CollectionController
                 ->filter(fn (array $idea) => $idea['collection'] === $handle && $idea['status'] === IdeaRepository::OPEN)
                 ->map(fn (array $idea) => array_intersect_key($idea, array_flip(['id', 'title', 'type', 'why', 'notes'])))
                 ->values(),
-            'sessions' => $this->sessions->all()
+            'sessions' => $this->sessions->visibleTo(User::current())
                 ->filter(fn ($session) => $types->has($session->type) && $session->entryId === null && $session->source === null)
                 ->map(fn ($session) => $this->presenter->summary($session))
                 ->reject(fn (array $session) => $session['finished'])

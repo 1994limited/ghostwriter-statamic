@@ -95,9 +95,24 @@ class StockSearch
             throw new InvalidArgumentException('That photograph has no secure download address.');
         }
 
-        $response = Http::timeout(60)->get($photo['file'])->throw();
+        $response = Http::timeout(60)
+            ->withOptions(['allow_redirects' => ['max' => 3, 'protocols' => ['https']], 'stream' => true])
+            ->get($photo['file'])
+            ->throw();
         $mime = strtolower(trim(explode(';', (string) $response->header('Content-Type'))[0]));
-        $content = $response->body();
+
+        // Read no more than the cap: a file that is larger is not wanted,
+        // so the rest of it is never fetched.
+        $body = $response->toPsrResponse()->getBody();
+        $content = '';
+
+        if ($body->isSeekable()) {
+            $body->rewind();
+        }
+
+        while (! $body->eof() && strlen($content) <= self::MAX_BYTES) {
+            $content .= $body->read(self::MAX_BYTES + 1 - strlen($content));
+        }
 
         if (! isset(self::EXTENSIONS[$mime]) || strlen($content) > self::MAX_BYTES || @getimagesizefromstring($content) === false) {
             throw new InvalidArgumentException('That file is not an image Ghostwriter can use.');

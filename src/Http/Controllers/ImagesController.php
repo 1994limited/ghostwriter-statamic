@@ -17,6 +17,7 @@ use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
 use NineteenNinetyFour\Ghostwriter\Jobs\MakeImage;
 use Statamic\Contracts\Assets\Asset;
+use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
 use Statamic\Fields\Field;
@@ -116,6 +117,8 @@ class ImagesController
         $data = $this->mine($id);
         $slot = FieldSlot::find(...$data['slot']) ?? abort(422, 'That image field is no longer on the page.');
 
+        $this->ensureCanUploadTo($slot);
+
         try {
             if ($data['mode'] === 'find') {
                 $validated = $request->validate(['source' => ['required', 'string'], 'photo' => ['required', 'string', 'max:64'], 'term' => ['nullable', 'string', 'max:200']]);
@@ -150,10 +153,12 @@ class ImagesController
     {
         $slot = $this->slot($request);
 
+        $this->ensureCanUploadTo($slot);
+
         abort_unless(LogoCard::available(), 422, 'Logo cards need the Imagick PHP extension, which this server does not have.');
 
         $validated = $request->validate([
-            'logo' => ['required', 'file', 'max:5120'],
+            'logo' => ['required', 'file', 'max:5120', 'mimes:png,webp,svg', 'mimetypes:image/png,image/webp,image/svg+xml,image/svg'],
             'colour' => ['nullable', 'string', 'max:7'],
             'colour_to' => ['nullable', 'string', 'max:7'],
             'white' => ['nullable', 'boolean'],
@@ -171,6 +176,7 @@ class ImagesController
                 $validated['colour'] ?? null,
                 $validated['colour_to'] ?? null,
                 (bool) ($validated['white'] ?? true),
+                type: (string) $request->file('logo')->guessExtension(),
             );
 
             $name = pathinfo((string) $request->file('logo')->getClientOriginalName(), PATHINFO_FILENAME);
@@ -180,6 +186,17 @@ class ImagesController
         }
 
         return response()->json($this->kept($slot, $asset, (array) $request->input('current', [])));
+    }
+
+    /**
+     * Saving an image into the field's container is uploading to it, and
+     * needs the same permission as uploading by hand.
+     */
+    private function ensureCanUploadTo(FieldSlot $slot): void
+    {
+        $container = AssetContainer::find($slot->field['container']) ?? abort(422, 'That field\'s asset container no longer exists.');
+
+        abort_unless(User::current()?->can('store', [Asset::class, $container]), 403, 'You cannot upload to the '.$container->title().' container.');
     }
 
     /**

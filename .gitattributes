@@ -1,0 +1,14 @@
+# Keep the package people install to what runs: no docs, scripts, tests or
+# frontend sources. resources/dist, prompts, blueprints and brand files stay.
+/docs             export-ignore
+/scripts          export-ignore
+/tests            export-ignore
+/phpunit.xml      export-ignore
+/vite.config.js   export-ignore
+/package.json     export-ignore
+/package-lock.json export-ignore
+/resources/js     export-ignore
+/resources/css    export-ignore
+/.gitignore       export-ignore
+/.gitattributes   export-ignore
+/.phpunit.cache   export-ignore
