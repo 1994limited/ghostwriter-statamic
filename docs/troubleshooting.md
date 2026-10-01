@@ -71,7 +71,7 @@ php artisan vendor:publish --tag=ghostwriter-statamic --force
 
 ## Gemini: "quota exceeded" or "model not found" on the free tier
 
-The free tier covers Flash models only, with daily limits. Set **Model** to a Flash model such as `gemini-2.5-flash`, or turn on billing. See [API keys](api-keys.md#google-gemini).
+The free tier covers Flash models only, with daily limits. Leave **Model** blank to use the Laravel AI SDK's default Gemini model, which is a Flash model, or set a 3.x Flash model, or turn on billing. Google limits the older 2.5 models to accounts that have used them before. See [API keys](api-keys.md#google-gemini).
 
 ## Seeing what went wrong
 

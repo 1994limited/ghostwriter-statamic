@@ -67,7 +67,7 @@ OpenAI may ask you to verify your organisation before its image models can be us
    GEMINI_API_KEY=...
    ```
 
-**Using the free tier.** The free tier covers Gemini's Flash models, with daily limits. Set **Provider** to Gemini and **Model** to a Flash model, for example `gemini-2.5-flash`. Two things to know:
+**Using the free tier.** The free tier covers Gemini's Flash models, with daily limits. The Laravel AI SDK's default Gemini model is a Flash model, so to write for free, set **Provider** to Gemini and leave **Model** blank. If you set a model, choose a 3.x Flash model: Google now limits the older 2.5 models to accounts that have used them before. Two things to know:
 
 - **Google may use what you send to improve its products.** That includes excerpts of your entries and drafts. For client sites, or anything confidential, turn on billing for the project so the paid terms apply.
 - **Making images is not on the free tier.** Gemini's image model needs billing turned on for the project.
