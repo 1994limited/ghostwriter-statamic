@@ -160,7 +160,7 @@ export default {
                         <span class="text-gray-500">{{ percent }}%</span>
                     </div>
                     <div class="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                        <div class="h-full rounded-full transition-all" style="background: var(--gw-ink, #2b3a64)" :style="{ width: `${percent}%` }"></div>
+                        <div class="h-full rounded-full transition-all" style="background: var(--gw-accent, #2b3a64)" :style="{ width: `${percent}%` }"></div>
                     </div>
                 </div>
                 <ol>
@@ -175,7 +175,7 @@ export default {
                             <span
                                 class="flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium"
                                 :class="item.done ? 'text-white' : 'border border-gray-300 text-gray-500 dark:border-gray-600'"
-                                :style="item.done ? 'background: var(--gw-ink, #2b3a64)' : null"
+                                :style="item.done ? 'background: var(--gw-accent, #2b3a64)' : null"
                             >{{ item.done ? '✓' : i + 1 }}</span>
                             <span class="min-w-0 flex-1 truncate text-sm" :class="{ 'font-medium': i === index }">{{ item.title }}</span>
                             <span class="shrink-0 text-xs" :class="{ 'text-green-700 dark:text-green-400': item.done, 'text-blue-700 dark:text-blue-400': item.working, 'text-gray-500': !item.done && !item.working }">{{ status(item).text }}</span>

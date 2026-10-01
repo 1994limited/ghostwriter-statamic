@@ -1,8 +1,21 @@
 {
     "name": "1994/ghostwriter-statamic",
-    "description": "Learns a site's tone of voice from its existing content, then drafts new entries in that voice through a questionnaire and a follow-up conversation.",
+    "description": "Learns a site's tone of voice and image style from what it has published, then drafts new entries in that voice from a short brief and a conversation, finds or makes images to match, and plans what the site is missing.",
     "type": "statamic-addon",
     "license": "proprietary",
+    "keywords": ["statamic", "statamic-addon", "ai", "writing", "content", "claude", "openai", "gemini"],
+    "homepage": "https://github.com/1994limited/ghostwriter-statamic",
+    "support": {
+        "issues": "https://github.com/1994limited/ghostwriter-statamic/issues",
+        "source": "https://github.com/1994limited/ghostwriter-statamic"
+    },
+    "authors": [
+        {
+            "name": "1994",
+            "email": "hello@1994.co.uk",
+            "homepage": "https://1994.co.uk"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "NineteenNinetyFour\\Ghostwriter\\": "src"
@@ -26,7 +39,9 @@
     "extra": {
         "statamic": {
             "name": "Ghostwriter",
-            "description": "Learns your tone of voice from existing content and drafts new entries in it."
+            "description": "Learns your tone of voice and image style, drafts entries in your voice from a brief and a conversation, finds or makes images, and plans what the site is missing.",
+            "developer": "1994",
+            "developer-url": "https://1994.co.uk"
         },
         "laravel": {
             "providers": [

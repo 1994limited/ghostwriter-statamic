@@ -4,6 +4,7 @@
     the background, so this screen polls the status endpoint until they finish.
 -->
 <script>
+import ghost from '../icon.js';
 import { Head } from '@statamic/cms/inertia';
 import { Alert, Button, Checkbox, Header, Panel, PublishContainer, Subheading, Textarea } from '@statamic/cms/ui';
 import SetupAlert from '../components/SetupAlert.vue';
@@ -37,6 +38,8 @@ export default {
     },
 
     computed: {
+        ghost: () => ghost,
+
         working() {
             return this.current.status === 'working';
         },
@@ -152,7 +155,7 @@ export default {
     <Head :title="__(text.title)" />
 
     <div class="mx-auto max-w-6xl">
-        <Header :title="__(text.title)" icon="text-formatting-quotation">
+        <Header :title="__(text.title)" :icon="ghost">
             <Button :href="urls.index" :text="__('Back')" variant="ghost" />
             <Button :text="__('Save')" variant="primary" :disabled="!dirty || saving || working" :loading="saving" @click="save" />
         </Header>

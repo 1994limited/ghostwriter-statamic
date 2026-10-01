@@ -178,7 +178,7 @@ export default {
                     <Heading :text="__('Get started') + ' · ' + __(':done of :total', { done: setup.done, total: setup.total })" />
                     <Subheading v-if="setup.next" :text="__('Next: :title', { title: setup.next.title }) + (setup.next.optional ? ' (' + __('optional') + ')' : '')" />
                     <div class="mt-2 h-1 w-64 max-w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                        <div class="h-full rounded-full" style="background: var(--gw-ink, #2b3a64)" :style="{ width: `${Math.round((setup.done / setup.total) * 100)}%` }"></div>
+                        <div class="h-full rounded-full" style="background: var(--gw-accent, #2b3a64)" :style="{ width: `${Math.round((setup.done / setup.total) * 100)}%` }"></div>
                     </div>
                 </div>
                 <div class="flex shrink-0 gap-2">
@@ -202,12 +202,12 @@ export default {
             </Link>
             <Link :href="plan.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content plan') }}</div>
-                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-ink, #2b3a64)">{{ counts.ideas }}</span> {{ __('ideas waiting') }}</div>
+                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.ideas }}</span> {{ __('ideas waiting') }}</div>
                 <div class="text-sm text-gray-500">{{ __('What the site is missing') }}</div>
             </Link>
             <a href="#in-progress" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('In progress') }}</div>
-                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-ink, #2b3a64)">{{ counts.in_progress }}</span> {{ __('pieces') }}</div>
+                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.in_progress }}</span> {{ __('pieces') }}</div>
                 <div class="text-sm text-gray-500">{{ __('Drafts and edits under way') }}</div>
             </a>
         </div>
@@ -245,7 +245,7 @@ export default {
                         v-if="suggestionsOf(collection) && !openKinds[collection.handle]"
                         type="button"
                         class="mt-2 text-sm font-medium hover:underline"
-                        style="color: var(--gw-ink, #2b3a64)"
+                        style="color: var(--gw-accent, #2b3a64)"
                         @click="openKinds[collection.handle] = true"
                     >{{ __(':count suggested kinds to review', { count: suggestionsOf(collection) }) }} →</button>
                     <KindSuggestions

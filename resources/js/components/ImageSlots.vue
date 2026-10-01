@@ -90,7 +90,7 @@ export default {
 </script>
 
 <template>
-    <div class="border-t border-gray-200 pt-6 dark:border-gray-700">
+    <div class="border-t border-gray-200 pt-6 dark:border-gray-700" data-gw-images>
         <Heading :text="__('Images')" />
         <Subheading
             class="mb-4"

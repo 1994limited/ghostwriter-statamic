@@ -1,32 +1,43 @@
-# Ghostwriter
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+    <img src="docs/logo-light.png" alt="Ghostwriter" width="360">
+  </picture>
+</p>
 
-A Statamic 6 addon that learns how a site writes, then drafts new entries in that voice through a short questionnaire and a follow-up conversation. It works on any collection because it takes its instructions from the collection's blueprint and the entries already in it.
+<p align="center">A Statamic 6 addon that learns how a site writes and what its pictures look like, then drafts new entries in that voice from a short brief and a conversation, on the entry's own create screen.</p>
 
-It uses the [Laravel AI SDK](https://laravel.com/docs/ai-sdk), so it runs on Claude, ChatGPT or any other provider that package supports, with your own API key.
+<p align="center">
+  <img src="docs/store/01-writing-panel.png" alt="The writing panel beside an entry form" width="800">
+</p>
 
-## How it works
+It works on any collection because it takes its instructions from the collection's blueprint and the entries already in it. It runs on Claude, ChatGPT or Gemini through the [Laravel AI SDK](https://laravel.com/docs/ai-sdk), with your own API key, and nothing it writes is published for you: every draft goes into the normal entry form for a person to check and save.
 
-**1. The voice guide.** Ghostwriter reads a sample of your published entries and writes a tone of voice guide: who is talking and to whom, how pieces are shaped, the words you use and the ones you never do, with quoted examples. The guide is a markdown file in your project (`resources/ghostwriter/voice.md`). Edit it in the Control Panel's markdown editor, or ask for a change in plain words.
+## What it does
 
-**2. Reading the collection.** Ghostwriter reads the collection's blueprint and its existing entries and works out how pages there are really built: which fields are written, which page-builder blocks are used and in what order, and which settings never change. This needs no setup and no model call, so every collection you switch on can be written for straight away.
+- **Voice guide.** Reads a sample of your published entries and writes a tone of voice guide: who is talking and to whom, how pieces are shaped, the words you use and the ones you never do. A markdown file in your project, edited in the Control Panel or refined by asking for a change.
+- **Image style.** Looks at the images your entries use and writes down the house style, a section per collection, so the photographs it finds and the pictures it makes belong beside them.
+- **Kinds of content.** Looks over each collection and suggests the kinds of content in it (a case study, a service page, a press release), each learned with a click into a brief of its own. A general brief works on every collection with no setup at all.
+- **Writing.** *Write with Ghostwriter* on a create screen opens a panel beside the form. Give it a title and a few notes and the brief fills itself in; check it, answer anything it still needs, and the draft appears. Ask for changes in conversation, click any piece of writing to edit it in place, then *Use this draft* fills in the form.
+- **Editing.** *Edit with Ghostwriter* on an existing entry starts from the entry as saved. Only the writing changes; images, links, chosen entries, settings and block IDs stay as they were.
+- **House style.** A new entry takes what the model entries agree on place by place: the settings and links where each block sits, how many nested items (such as breadcrumbs) and of which types, and how rich text is dressed. Where an image belongs but none is chosen yet, a striped placeholder marks the spot.
+- **Images.** A Ghostwriter button on every assets field: find a free photograph (searches chosen from the words around the field, ranked against the pictures already in that place), have one made in that style, or compose a logo card. The image goes straight into the field.
+- **Content plan.** Ghostwriter reads the whole site and suggests entries it is missing. Keep the good ones; each opens a new entry with its brief filled in.
+- **Get started.** Seven steps from installed to writing, done from one page, with a card on the dashboard and a Control Panel widget.
 
-**3. Writing.** On a collection's create screen, **Write with Ghostwriter** opens a panel beside the form. What it offers depends on the site it is installed on:
+<p align="center">
+  <img src="docs/store/02-content-plan.png" alt="The content plan" width="400">
+  <img src="docs/store/03-image-choices.png" alt="Photographs chosen for a field" width="400">
+</p>
 
-- **Kinds it found.** Entries that are built the same way are grouped, so a Pages collection might offer "Like the pages under Services" beside "Like About Us and Our Values". Choosing one models the new entry on those.
-- **Something else.** A general brief for anything. Tick the entries to model it on (a structured collection is listed as its tree), or tick none and describe the shape you want.
-- **Kinds you taught it.** For content you write often, *Teach it a kind* has Ghostwriter write a brief for that kind alone, with its own questions and guidance.
-
-You answer the brief; Ghostwriter asks for anything it still needs, then drafts. You ask for changes in conversation. **Use this draft** fills in the form underneath, which you check and save as usual. Nothing is published for you.
-
-**4. Images.** Under the draft, each image field the entry normally has gets two options. *Make image* has an image model draw one, given the pictures the same field holds on the entries the draft is modelled on as the style to match; you can add an image of your own, such as a logo, for it to be built around. This needs `OPENAI_API_KEY` or `GEMINI_API_KEY` (Claude does not make images). *Find a photo* searches free libraries: Openverse with no key (public-domain and CC0 work only), plus Unsplash, Pixabay and Pexels when `UNSPLASH_ACCESS_KEY`, `PIXABAY_API_KEY` or `PEXELS_API_KEY` is set. The chosen image is saved to the field's asset container, with its credit, and goes into the form with the draft. Nothing is made or downloaded until you ask.
-
-The writer is told to use only facts from the brief and the conversation. It does not invent figures, quotes or client names.
+The writer is told to use only facts from the brief and the conversation. It does not invent figures, quotes, client names or results; what it does not know it asks for, or writes around.
 
 ## Requirements
 
 - Statamic 6
-- PHP 8.3+
+- PHP 8.3+, with GD (for placeholders); Imagick for logo cards and SVG logos
 - An API key for a provider the Laravel AI SDK supports
+- A queue connection, or PHP-FPM (see "The queue" below)
 
 ## Installation
 
@@ -40,67 +51,41 @@ Add your key to `.env`:
 ANTHROPIC_API_KEY=your-key
 ```
 
-or `OPENAI_API_KEY` for ChatGPT. The key is read by the Laravel AI SDK and is never stored by Ghostwriter.
+Then open **Tools → Ghostwriter → Get started** in the Control Panel.
 
-Then open **Tools → Ghostwriter** in the Control Panel.
+## API keys
+
+Keys are read from `.env` by the Laravel AI SDK and the addon. None is ever stored by Ghostwriter.
+
+| Key | For | Needed |
+| --- | --- | --- |
+| `ANTHROPIC_API_KEY` | Writing, briefs, kinds, the plan, ranking photographs (Claude) | One of these three |
+| `OPENAI_API_KEY` | The same with ChatGPT; also making images | |
+| `GEMINI_API_KEY` | The same with Gemini; also making images | |
+| `UNSPLASH_ACCESS_KEY` | Finding photographs on Unsplash (free key) | Optional |
+| `PIXABAY_API_KEY` | Finding photographs on Pixabay (free key) | Optional |
+| `PEXELS_API_KEY` | Finding photographs on Pexels | Optional |
+
+Openverse (public-domain and CC0 work) is searched with no key at all. Claude cannot make images; with only an Anthropic key, images are found, not made.
 
 ## Setting up
 
-1. **Settings** (under Ghostwriter in the navigation): choose the collections to write for, the collections to learn the voice from, and the provider and model.
+The **Get started** page walks through it. In short:
+
+1. **Settings** (under Ghostwriter in the navigation): the collections to write for, the collections to read for the voice, the provider and model.
 2. **Voice guide**: generate it, read it, correct it.
-3. Write. Optionally, for a kind of content you write often, *Teach it a kind*: leave the entries unticked to learn from the newest published entries, or tick up to six to model it on, then review the questions and guidance it wrote.
+3. **Kinds**: on the dashboard, learn the kinds Ghostwriter suggests for each collection, or *Teach it a kind* by hand.
+4. **Image style** (optional): generate it from your images.
+5. **Content plan** (optional): ask what is missing.
+6. Write something.
 
-Users need the **Write content and edit the voice guide with Ghostwriter** permission.
+## Permissions
 
-## Where things are kept
+Users need **Write content and edit the voice guide with Ghostwriter**. Editing an entry through Ghostwriter still needs the user's own permission to edit that entry, and only someone who may edit the addon's settings sees them.
 
-| What | Where | Versioned |
-| --- | --- | --- |
-| Voice guide | `resources/ghostwriter/voice.md` | Yes |
-| Content types | `resources/ghostwriter/types/*.yaml` | Yes |
-| Settings | `resources/addons/ghostwriter-statamic.yaml` | Yes |
-| Sessions (brief, conversation, draft) | `storage/ghostwriter/` | No |
+## The queue
 
-No database is needed.
-
-## How blueprints are read
-
-Every field is reduced to a kind:
-
-| Kind | Fieldtypes | The writer produces |
-| --- | --- | --- |
-| text, long text | text, textarea | plain strings |
-| rich text | bard, markdown | markdown, converted to a Bard document where the field is Bard |
-| choice | select, radio, button group, checkboxes | one of the field's options |
-| toggle, number, list | toggle, integer, float, list, taggable | the value |
-| blocks | replicator | a list of sets, each with its own fields |
-| rows, group | grid, group | nested fields |
-| reference | assets, entries, users, terms, link, date and others | nothing; left for a person |
-
-From existing entries it also learns, per replicator field, the usual order of sets, how often each is used, which fields are ever filled in, and which values are the same on nearly every entry. Those house defaults are applied when the entry is built, so the writer only deals with the writing. Where a Bard field offers a quote-style set, block quotes are stored as that set.
-
-## Content type files
-
-A type is YAML and can be edited by hand or on its screen in the Control Panel:
-
-```yaml
-title: Case study
-description: Tells one project from start to finish.
-collection: case_studies
-blueprint: case_study          # optional, for collections with several
-examples: [entry-id, ...]      # optional: model the type on these entries
-where: { categories: guides }  # optional: learn only from entries matching this
-defaults: { categories: [guides] }   # optional: entry data set on everything written
-questions:
-  - handle: client
-    label: Who is the client?
-    type: text                 # text or textarea
-    required: true
-guidance: |
-  Markdown: who the reader is, what each part does and in what order, how long it runs.
-checklist:
-  - The result states only outcomes given in the brief.
-```
+Model calls take a minute or more, longer than a web request should be held open. With a real queue connection they run as queued jobs. On the `sync` driver, the default for a flat-file site, they run after the HTTP response has been sent, in the same PHP process, while the screen polls for the result. This needs PHP-FPM (Herd, Forge and most hosts); the single-threaded `php artisan serve` will block.
 
 ## Configuration
 
@@ -110,15 +95,72 @@ checklist:
 php artisan vendor:publish --tag=ghostwriter-config
 ```
 
-The prompts are plain markdown files and can be overridden per project:
+| Setting | Where | Default |
+| --- | --- | --- |
+| Provider and model | Settings screen, or `provider` / `model` | `anthropic`, the provider's default model |
+| Collections to write for | Settings screen, or `collections` | All |
+| Collections read for the voice | Settings screen, or `voice.collections` | All |
+| Suggest kinds automatically | Settings screen, or `suggest_kinds` | On |
+| Striped placeholders | Settings screen, or `images.placeholders` | On |
+| Image provider and model | Settings screen, or `images.provider` / `images.model` | Whichever has a key |
+| Openverse | `images.openverse` | On |
+| Show Get started | Settings screen (acts on Ghostwriter's own state; not stored) | |
+| Timeout per model call | `timeout` | 180 seconds |
+
+The dashboard widget is added in `config/statamic/cp.php`:
+
+```php
+'widgets' => [
+    ['type' => 'ghostwriter', 'limit' => 5],
+],
+```
+
+## Where things are kept
+
+| What | Where | Versioned |
+| --- | --- | --- |
+| Voice guide | `resources/ghostwriter/voice.md` | Yes |
+| Image style guide | `resources/ghostwriter/imagery.md` | Yes |
+| Content types (kinds) | `resources/ghostwriter/types/*.yaml` | Yes |
+| Content plan | `resources/ghostwriter/ideas.yaml` | Yes |
+| Settings | `resources/addons/ghostwriter-statamic.yaml` | Yes |
+| Sessions, suggestions, image requests | `storage/ghostwriter/` | No |
+
+No database is needed.
+
+## Prompt overrides
+
+The prompts are plain markdown files. Publish them and edit any one per project:
 
 ```bash
 php artisan vendor:publish --tag=ghostwriter-prompts
 ```
 
-Model calls can take a minute or more. With a real queue connection they run as queued jobs. On the `sync` driver they run after the HTTP response has been sent, in the same PHP process, while the screen polls for the result. This needs PHP-FPM (Herd, Forge and most hosts); the single-threaded `php artisan serve` will block.
+They land in `resources/ghostwriter/prompts/`; a file there replaces the addon's own.
 
-To save a draft straight to an entry from your own code, resolve `Contracts\EntryWriter`. Bind your own implementation to take over how entries are built.
+## How fields are read
+
+Every field in a blueprint is reduced to a kind:
+
+| Kind | Fieldtypes | The writer produces |
+| --- | --- | --- |
+| text, long text | text, textarea, color | plain strings |
+| rich text | bard, markdown | markdown, converted to a Bard document where the field is Bard |
+| choice | select, radio, button group, checkboxes; an assets field limited to one small folder | one of the field's options |
+| toggle, number, list | toggle, integer, float, list, taggable | the value |
+| blocks | replicator | a list of sets, each with its own fields |
+| rows, group | grid, group | nested fields |
+| reference | assets, entries, users, terms, link, date and others | nothing; left for a person, a placeholder or the house style |
+
+From existing entries it learns, per replicator field, the usual order of sets, how often each is used, which fields are ever filled in, and which values are the same on nearly every entry; blocks identical everywhere (process steps, testimonials) are copied rather than written. The house style adds what the entries agree on by position.
+
+## What is sent to providers
+
+- To the text provider: the voice guide, the content type's brief and guidance, the blueprint's fields, one or two existing entries as examples, and the conversation. For the image style guide and photo ranking: small copies of the images concerned. For kind suggestions and the plan: entry titles, how entries are built and how they open.
+- To the image provider: the prompt and up to three reference images from your site, plus any source image you supply.
+- To photo libraries: the search terms only.
+
+Nothing is sent until someone asks for it.
 
 ## Development
 
@@ -126,8 +168,9 @@ To save a draft straight to an entry from your own code, resolve `Contracts\Entr
 composer install
 npm install
 npm run build        # builds resources/dist, which is committed
-# then, in a site using it: php artisan vendor:publish --tag=ghostwriter-statamic --force
 vendor/bin/phpunit
 ```
 
-Tests fake every model call, so they need no API key.
+Tests fake every model call and HTTP request, so they need no API key. In a site using the addon, after a build: `php artisan vendor:publish --tag=ghostwriter-statamic --force`.
+
+Marketplace screenshots are taken from the real product with `php scripts/screenshots.php` (see the script for what it needs), then set in the brand frames.

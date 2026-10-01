@@ -274,7 +274,7 @@ export default {
                             :title="`${photo.credit} · ${photo.licence}`"
                             @click="use(photo)"
                         >
-                            <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium text-gray-900">{{ __('Best match') }}</span>
+                            <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
                             <img :src="photo.thumb" alt="" loading="lazy" class="block h-auto w-full" />
                             <span class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
                             <span class="block truncate px-1.5 py-1 text-xs text-gray-500">{{ photo.credit }}</span>

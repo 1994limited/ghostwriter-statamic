@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
@@ -97,6 +98,17 @@ class SessionController
         } catch (InvalidArgumentException $exception) {
             abort(422, $exception->getMessage());
         }
+    }
+
+    /**
+     * Straight to a session where it is written: the entry it edits, or its
+     * collection's create screen with the panel open on it.
+     */
+    public function open(string $session): RedirectResponse
+    {
+        $url = $this->presenter->summary($this->session($session))['url'] ?? abort(404);
+
+        return redirect($url);
     }
 
     public function show(string $session): JsonResponse

@@ -13,8 +13,8 @@ class Settings
 {
     public const ADDON = '1994/ghostwriter-statamic';
 
-    /** Ghostwriter's own mark, drawn to sit beside the Control Panel's icons. */
-    public const ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M2.5 12.75V6a4.5 4.5 0 0 1 9 0v6.75l-1.5-1.4-1.5 1.4-1.5-1.4-1.5 1.4-1.5-1.4-1.5 1.4Z"/><circle cx="5.4" cy="6.1" r=".75" fill="currentColor"/><circle cx="8.6" cy="6.1" r=".75" fill="currentColor"/></svg>';
+    /** Ghostwriter's mark as a 1px stroke icon, on the brand's 14-grid geometry. */
+    public const ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 10h2.5L9 12.5Z"/><circle cx="5.4" cy="6.25" r=".75" fill="currentColor"/><circle cx="8.6" cy="6.25" r=".75" fill="currentColor"/></svg>';
 
     public function provider(): string
     {

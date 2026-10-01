@@ -2,6 +2,26 @@
 
 @source '../**/*.vue';
 
+/*
+    Brand tokens. Ink is the accent: progress, the current step, "Best match",
+    counts. In dark mode a lighter ink keeps the contrast. No web fonts in the
+    Control Panel; it uses the CMS's own.
+*/
+:root {
+    --gw-ink: #2b3a64;
+    --gw-ink-tint: #8e99bc;
+    --gw-paper: #f3eee4;
+    --gw-fold: #cfc5b2;
+    --gw-graphite: #1c1e24;
+    --gw-pencil: #5e5a52;
+    --gw-rule: #e0d8c8;
+    --gw-accent: var(--gw-ink);
+}
+
+.dark {
+    --gw-accent: #a7b6e2;
+}
+
 /* The draft preview is rendered markdown, so it needs its own prose styles. */
 .gw-prose h2 { @apply mt-8 mb-3 text-xl font-semibold first:mt-0; }
 .gw-prose h3 { @apply mt-6 mb-2 text-lg font-semibold; }

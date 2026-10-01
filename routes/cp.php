@@ -64,6 +64,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('types/{type}/brief', [SessionController::class, 'brief'])->name('types.brief');
     Route::post('types/{type}/sessions', [SessionController::class, 'store'])->name('sessions.store');
     Route::get('sessions/{session}', [SessionController::class, 'show'])->name('sessions.show');
+    Route::get('sessions/{session}/open', [SessionController::class, 'open'])->name('sessions.open');
     Route::post('sessions/{session}/messages', [SessionController::class, 'message'])->name('sessions.message');
     Route::patch('sessions/{session}/field', [SessionController::class, 'editField'])->name('sessions.field');
     Route::patch('sessions/{session}/draft', [SessionController::class, 'draft'])->name('sessions.draft');
