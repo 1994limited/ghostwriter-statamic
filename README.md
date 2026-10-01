@@ -31,7 +31,7 @@ The writer is told to use only facts from the brief and the conversation. It doe
 ## Installation
 
 ```bash
-composer require 1994/ghostwriter
+composer require 1994/ghostwriter-statamic
 ```
 
 Add your key to `.env`:
@@ -58,7 +58,7 @@ Users need the **Write content and edit the voice guide with Ghostwriter** permi
 | --- | --- | --- |
 | Voice guide | `resources/ghostwriter/voice.md` | Yes |
 | Content types | `resources/ghostwriter/types/*.yaml` | Yes |
-| Settings | `resources/addons/ghostwriter.yaml` | Yes |
+| Settings | `resources/addons/ghostwriter-statamic.yaml` | Yes |
 | Sessions (brief, conversation, draft) | `storage/ghostwriter/` | No |
 
 No database is needed.
@@ -126,6 +126,7 @@ To save a draft straight to an entry from your own code, resolve `Contracts\Entr
 composer install
 npm install
 npm run build        # builds resources/dist, which is committed
+# then, in a site using it: php artisan vendor:publish --tag=ghostwriter-statamic --force
 vendor/bin/phpunit
 ```
 

@@ -22,9 +22,19 @@ class ServiceProvider extends AddonServiceProvider
         'hotFile' => __DIR__.'/../resources/dist/hot',
     ];
 
+    /**
+     * The package is 1994/ghostwriter-statamic, so Statamic would file its
+     * config under "ghostwriter-statamic". It is merged by hand as plain
+     * "ghostwriter" instead, which is what every setting is read as.
+     */
+    protected $config = false;
+
     public function register(): void
     {
         parent::register();
+
+        $this->mergeConfigFrom(__DIR__.'/../config/ghostwriter.php', 'ghostwriter');
+        $this->publishes([__DIR__.'/../config/ghostwriter.php' => config_path('ghostwriter.php')], 'ghostwriter-config');
 
         // Resolved late so a project can point `ghostwriter.writer` at its own
         // class, or bind the contract itself in a service provider.

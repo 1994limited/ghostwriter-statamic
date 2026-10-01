@@ -1,5 +1,5 @@
 {
-    "name": "1994/ghostwriter",
+    "name": "1994/ghostwriter-statamic",
     "description": "Learns a site's tone of voice from its existing content, then drafts new entries in that voice through a questionnaire and a follow-up conversation.",
     "type": "statamic-addon",
     "license": "proprietary",
