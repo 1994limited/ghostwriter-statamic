@@ -1,0 +1,319 @@
+<?php
+
+namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
+
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
+use InvalidArgumentException;
+use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
+use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
+use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
+use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
+use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
+use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
+use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
+use NineteenNinetyFour\Ghostwriter\Jobs\MakeImage;
+use Statamic\Contracts\Assets\Asset;
+use Statamic\Facades\Entry;
+use Statamic\Facades\User;
+use Statamic\Fields\Field;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * The image button on an assets field: find a photograph, have one made,
+ * or compose a logo card, for one field on the form being edited.
+ */
+class ImagesController
+{
+    public function __construct(
+        private ImageRequests $requests,
+        private FieldImages $images,
+        private ImageStudio $studio,
+        private StockSearch $stock,
+        private Studio $text,
+    ) {}
+
+    /**
+     * What the button can offer on this site.
+     */
+    public function tools(): JsonResponse
+    {
+        return response()->json([
+            'find' => $this->stock->sources() !== [],
+            'make' => $this->studio->configured(),
+            'logo_card' => LogoCard::available(),
+            'suggests' => $this->text->configured(),
+        ]);
+    }
+
+    /**
+     * Start a search (mode "find") or a picture (mode "make").
+     */
+    public function start(Request $request): JsonResponse
+    {
+        $slot = $this->slot($request);
+        $mode = $request->input('mode');
+
+        if ($mode === 'find') {
+            abort_if($this->stock->sources() === [], 422, 'No photo library is switched on. Turn on Openverse in the settings, or add an Unsplash, Pexels or Pixabay key.');
+
+            $terms = FieldImages::terms((string) $request->input('words', ''));
+
+            abort_if($terms === [] && ! $this->text->configured() && $slot->title === '', 422, 'Type what the picture should show.');
+
+            $data = $this->requests->create($this->owner($request) + ['mode' => 'find', 'terms' => $terms, 'options' => []]);
+            FindImages::start($data['id']);
+
+            return response()->json($this->payload($data));
+        }
+
+        if ($mode === 'make') {
+            abort_unless($this->studio->configured(), 422, 'No image provider has an API key. Add OPENAI_API_KEY or GEMINI_API_KEY to your .env file.');
+
+            $request->validate(['source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'], 'direction' => ['nullable', 'string', 'max:2000']]);
+
+            $data = $this->requests->create($this->owner($request) + ['mode' => 'make', 'direction' => trim((string) $request->input('direction', ''))]);
+
+            if ($upload = $request->file('source')) {
+                $path = $this->requests->file($data['id'].'-source', $upload->extension() ?: 'png');
+                File::put($path, (string) file_get_contents($upload->getRealPath()));
+                $data = $this->requests->update($data['id'], ['source' => $path]);
+            }
+
+            MakeImage::start($data['id']);
+
+            return response()->json($this->payload($data));
+        }
+
+        abort(422, 'Choose to find a photograph or make a picture.');
+    }
+
+    public function status(string $id): JsonResponse
+    {
+        return response()->json($this->payload($this->mine($id)));
+    }
+
+    /**
+     * A picture that has been made, before it is kept.
+     */
+    public function preview(string $id): Response
+    {
+        $data = $this->mine($id);
+
+        abort_unless(! empty($data['file']) && File::exists($data['file']), 404);
+
+        return response()->file($data['file'], ['Content-Type' => $data['mime'] ?? 'image/png']);
+    }
+
+    /**
+     * Keep a found photograph, or the picture made, as an asset in the field.
+     */
+    public function use(Request $request, string $id): JsonResponse
+    {
+        $data = $this->mine($id);
+        $slot = FieldSlot::find(...$data['slot']) ?? abort(422, 'That image field is no longer on the page.');
+
+        try {
+            if ($data['mode'] === 'find') {
+                $validated = $request->validate(['source' => ['required', 'string'], 'photo' => ['required', 'string', 'max:64'], 'term' => ['nullable', 'string', 'max:200']]);
+                $photo = $this->stock->fetch($validated['source'], $validated['photo']);
+                $term = (string) ($validated['term'] ?: ($data['terms'][0] ?? ''));
+
+                $asset = $this->images->keep($slot, $photo['content'], $photo['extension'], [
+                    'title' => ucfirst($term) ?: $slot->title,
+                    'credit' => $photo['credit'],
+                    'credit_url' => $photo['credit_url'],
+                    'licence' => $photo['licence'],
+                ]);
+            } else {
+                abort_unless(! empty($data['file']) && File::exists($data['file']), 422, 'That picture is no longer here. Make it again.');
+
+                $asset = $this->images->keep($slot, (string) File::get($data['file']), pathinfo($data['file'], PATHINFO_EXTENSION), [
+                    'title' => trim((string) ($data['direction'] ?? '')) !== '' ? mb_substr(trim($data['direction']), 0, 80) : $slot->title,
+                ]);
+            }
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        return response()->json($this->kept($slot, $asset, (array) $request->input('current', [])));
+    }
+
+    /**
+     * A logo centred on a flat or gradient ground, drawn in code so the
+     * logo comes out exactly as it went in.
+     */
+    public function logo(Request $request, LogoCard $card): JsonResponse
+    {
+        $slot = $this->slot($request);
+
+        abort_unless(LogoCard::available(), 422, 'Logo cards need the Imagick PHP extension, which this server does not have.');
+
+        $validated = $request->validate([
+            'logo' => ['required', 'file', 'max:5120'],
+            'colour' => ['nullable', 'string', 'max:7'],
+            'colour_to' => ['nullable', 'string', 'max:7'],
+            'white' => ['nullable', 'boolean'],
+        ]);
+
+        $reference = $slot->references()[0] ?? null;
+        $width = (int) $reference?->width() ?: 1600;
+        $height = (int) $reference?->height() ?: 1200;
+
+        try {
+            $made = $card->compose(
+                (string) file_get_contents($request->file('logo')->getRealPath()),
+                min($width, 2400),
+                (int) round($height * min($width, 2400) / $width),
+                $validated['colour'] ?? null,
+                $validated['colour_to'] ?? null,
+                (bool) ($validated['white'] ?? true),
+            );
+
+            $name = pathinfo((string) $request->file('logo')->getClientOriginalName(), PATHINFO_FILENAME);
+            $asset = $this->images->keep($slot, $made['content'], 'jpg', ['title' => trim(str_replace(['-', '_'], ' ', $name)) ?: 'Logo']);
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        return response()->json($this->kept($slot, $asset, (array) $request->input('current', [])));
+    }
+
+    /**
+     * The field the request is about, from what the form sent.
+     */
+    private function slot(Request $request): FieldSlot
+    {
+        $validated = $request->validate([
+            'collection' => ['required', 'string', 'max:100'],
+            'blueprint' => ['nullable', 'string', 'max:100'],
+            'path' => ['required', 'string', 'max:200', 'regex:/^[A-Za-z0-9_.-]+$/'],
+            'set' => ['nullable', 'string', 'max:100'],
+            'entry' => ['nullable', 'string', 'max:64'],
+            'title' => ['nullable', 'string', 'max:300'],
+            'block_text' => ['nullable', 'string', 'max:20000'],
+            'page_text' => ['nullable', 'string', 'max:20000'],
+        ]);
+
+        if (! empty($validated['entry'])) {
+            $entry = Entry::find($validated['entry']) ?? abort(404);
+            abort_unless(User::current()?->can('edit', $entry), 403);
+        }
+
+        return FieldSlot::find(...$this->slotArguments($validated)) ?? abort(422, 'Ghostwriter cannot help with this field: it is not an image field in a collection it writes for.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<int, mixed>
+     */
+    private function slotArguments(array $validated): array
+    {
+        return [
+            $validated['collection'],
+            $validated['blueprint'] ?? null,
+            $validated['path'],
+            $validated['set'] ?? null,
+            $validated['entry'] ?? null,
+            (string) ($validated['title'] ?? ''),
+            (string) ($validated['block_text'] ?? ''),
+            (string) ($validated['page_text'] ?? ''),
+        ];
+    }
+
+    /**
+     * What a request records about who asked and for which field.
+     *
+     * @return array<string, mixed>
+     */
+    private function owner(Request $request): array
+    {
+        $validated = $request->only(['collection', 'blueprint', 'path', 'set', 'entry', 'title', 'block_text', 'page_text']);
+
+        return ['user' => (string) User::current()?->id(), 'slot' => $this->slotArguments($validated)];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mine(string $id): array
+    {
+        $data = $this->requests->find($id) ?? abort(404);
+
+        abort_unless(($data['user'] ?? null) === (string) User::current()?->id(), 403);
+
+        return $data;
+    }
+
+    /**
+     * The field's new value, with the asset in it, and the meta the form's
+     * assets field needs to show it. A placeholder makes way; so does the
+     * picture in a single-image field.
+     *
+     * @param  array<int, string>  $current
+     * @return array<string, mixed>
+     */
+    private function kept(FieldSlot $slot, Asset $asset, array $current): array
+    {
+        $single = ($slot->field['max_files'] ?? null) === 1;
+        $kept = $single ? [] : array_values(array_filter($current, fn ($id) => is_string($id) && ! str_ends_with($id, '::'.Placeholders::PATH) && $id !== Placeholders::PATH));
+        $value = [...$kept, $asset->id()];
+
+        $field = $this->formField($slot)->setValue($value)->preProcess();
+
+        return [
+            'asset' => ['id' => $asset->id(), 'path' => $asset->path(), 'url' => $asset->url(), 'title' => (string) $asset->get('title')],
+            'value' => $field->value(),
+            'meta' => $field->meta(),
+        ];
+    }
+
+    /**
+     * The form's own field, so the value is pre-processed the way the
+     * publish form expects it.
+     */
+    private function formField(FieldSlot $slot): Field
+    {
+        $handle = $slot->field['handle'];
+
+        if ($slot->set === null) {
+            return $slot->blueprint->field($handle) ?? abort(422, 'That field is no longer on the blueprint.');
+        }
+
+        $sets = (array) $slot->blueprint->field($slot->set['in'])?->get('sets', []);
+
+        foreach ($sets as $key => $group) {
+            $set = $key === $slot->set['handle'] && ! isset($group['sets']) ? $group : ($group['sets'][$slot->set['handle']] ?? null);
+
+            foreach ((array) ($set['fields'] ?? []) as $config) {
+                if (($config['handle'] ?? null) === $handle && is_array($config['field'] ?? null)) {
+                    return new Field($handle, $config['field']);
+                }
+            }
+        }
+
+        abort(422, 'That field is no longer on the blueprint.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function payload(array $data): array
+    {
+        return [
+            'id' => $data['id'],
+            'mode' => $data['mode'],
+            'status' => $data['status'],
+            'error' => $data['error'] ?? null,
+            'terms' => $data['terms'] ?? [],
+            'options' => $data['options'] ?? [],
+            'preview_url' => ! empty($data['file']) ? cp_route('ghostwriter.images.preview', $data['id']) : null,
+            'status_url' => cp_route('ghostwriter.images.status', $data['id']),
+            'use_url' => cp_route('ghostwriter.images.use', $data['id']),
+        ];
+    }
+}

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use Laravel\Ai\Files\Image as ImageFile;
 use Laravel\Ai\Image;
+use Laravel\Ai\Responses\Data\GeneratedImage;
 use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoPicker;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
@@ -337,13 +338,13 @@ class ImageStudio
 
         $candidates = $this->candidates($terms, $shape);
         $retry = null;
-        $best = $this->judged($candidates, $references, $session, $style, $retry);
+        $best = $this->judged($candidates, $references, $session->title(), $style, $retry);
 
         // The judge found nothing that belongs and said what to look for
         // instead. One more round with its searches, then settle.
         if ($best === null && $retry) {
             $second = $this->candidates($retry, $shape);
-            $best = $this->judged($second, $references, $session, $style);
+            $best = $this->judged($second, $references, $session->title(), $style);
             $candidates = [...$second, ...$candidates];
 
             if ($best === null && $second !== []) {
@@ -384,7 +385,7 @@ class ImageStudio
      * @param  array<int, string>|null  $retry  Set to the searches the judge would try instead, when nothing fits.
      * @return array<int, array<string, mixed>>|null
      */
-    private function judged(array $candidates, array $references, Session $session, string $style = '', ?array &$retry = null): ?array
+    private function judged(array $candidates, array $references, string $title, string $style = '', ?array &$retry = null): ?array
     {
         $canRetry = func_num_args() > 4;
 
@@ -415,7 +416,7 @@ class ImageStudio
             $list = collect($seen)->map(fn (array $photo, int $i) => ($i + 1).'. from the search "'.$photo['term'].'"')->implode("\n");
 
             $answer = (new PhotoPicker)->prompt(
-                "The page is titled \"{$session->title()}\".\n\nThe first {$shown->count()} image(s) are the references. The ".count($seen)." after them are the candidates, in this order:\n{$list}\n\n"
+                "The page is titled \"{$title}\".\n\nThe first {$shown->count()} image(s) are the references. The ".count($seen)." after them are the candidates, in this order:\n{$list}\n\n"
                 .($style !== '' ? "The site's own description of its images in this section:\n{$style}\n\n" : '')
                 .'Rank the best '.(self::SHORTLIST * 2).'.'
                 .($canRetry ? ' If none of them would belong beside the references, reply instead with the word none, a colon, and three better searches separated by semicolons, each two to four plain words: for example `none: mended pottery gold; restored classic car; old stone bridge`.' : ''),
@@ -511,10 +512,25 @@ class ImageStudio
         $slot = $this->slots($session, $type)[$key]
             ?? throw new InvalidArgumentException('That image field is no longer part of the draft.');
 
+        $summary = $session->draft && preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
+        $image = $this->make($slot['references'], $session->title(), $summary, $slot['label'], $direction, $source, $this->guide->for((string) $type->statamicCollection()?->title()));
+
+        return $this->store($session, $slot, $image->content(), Str::after($image->mime(), '/'));
+    }
+
+    /**
+     * Have a picture made in the style of the references: the pictures
+     * already in that place on the site's other entries.
+     *
+     * @param  array<int, Asset>  $references
+     * @param  string|null  $source  Path to an image the editor supplied, such as a logo, to be used in the picture.
+     */
+    public function make(array $references, string $title, string $summary, string $label, string $direction = '', ?string $source = null, string $style = ''): GeneratedImage
+    {
         $provider = $this->provider()
             ?? throw new InvalidArgumentException('No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
 
-        $references = collect($slot['references'])->take(self::REFERENCES);
+        $references = collect($references)->take(self::REFERENCES);
 
         $attachments = $references
             ->map(fn (Asset $asset) => ImageFile::fromBase64(base64_encode((string) $asset->contents()), $asset->mimeType()))
@@ -522,7 +538,7 @@ class ImageStudio
             ->values()
             ->all();
 
-        $pending = Image::of($this->prompt($session, $slot['label'], $direction, $references->count(), $source !== null, $this->guide->for((string) $type->statamicCollection()?->title())))
+        $pending = Image::of($this->prompt($title, $summary, $label, $direction, $references->count(), $source !== null, $style))
             ->attachments($attachments)
             ->timeout((int) config('ghostwriter.timeout', 180));
 
@@ -532,9 +548,58 @@ class ImageStudio
             default => $pending->landscape(),
         };
 
-        $image = $pending->generate($provider, $this->settings->imageModel())->firstImage();
+        return $pending->generate($provider, $this->settings->imageModel())->firstImage();
+    }
 
-        return $this->store($session, $slot, $image->content(), Str::after($image->mime(), '/'));
+    /**
+     * Photographs for a field on a form, chosen the same way as for a draft:
+     * each search run, and the best beside the references first. Public so
+     * the image button on a field can use it without a session.
+     *
+     * @param  array<int, string>  $terms
+     * @param  array<int, Asset>  $references
+     * @return array<int, array<string, mixed>>
+     */
+    public function shortlistFor(array $terms, array $references, string $shape, string $title, string $style = ''): array
+    {
+        $candidates = $this->candidates(array_slice($terms, 0, self::SHORTLIST), $shape);
+        $retry = null;
+        $best = $this->judged($candidates, $references, $title, $style, $retry);
+
+        if ($best === null && $retry) {
+            $second = $this->candidates($retry, $shape);
+            $best = $this->judged($second, $references, $title, $style);
+            $candidates = [...$second, ...$candidates];
+
+            if ($best === null && $second !== []) {
+                $best = $this->oneOfEach($second);
+            }
+        }
+
+        $best ??= $this->oneOfEach($candidates);
+        $ids = array_map(fn (array $photo) => $photo['source'].$photo['id'], $best);
+
+        return [
+            ...array_map(fn (array $photo) => $photo + ['picked' => true], $best),
+            ...array_values(array_filter($candidates, fn (array $photo) => ! in_array($photo['source'].$photo['id'], $ids, true))),
+        ];
+    }
+
+    /**
+     * landscape, portrait or square, going by a picture already there.
+     */
+    public function shapeOf(?Asset $reference): string
+    {
+        return $this->shape($reference);
+    }
+
+    /**
+     * An image small enough to show a model many of at once. Public for the
+     * search-term chooser, which looks at the references too.
+     */
+    public function thumbnail(string $content): ?ImageFile
+    {
+        return $this->small($content);
     }
 
     /**
@@ -748,16 +813,14 @@ class ImageStudio
         return $ratio > 1.2 ? 'landscape' : ($ratio < 0.83 ? 'portrait' : 'square');
     }
 
-    private function prompt(Session $session, string $label, string $direction, int $references, bool $hasSource, string $style = ''): string
+    private function prompt(string $title, string $summary, string $label, string $direction, int $references, bool $hasSource, string $style = ''): string
     {
         $published = resource_path('ghostwriter/prompts/image.md');
         $template = trim((string) File::get(File::exists($published) ? $published : __DIR__.'/../../resources/prompts/image.md'));
 
-        $summary = $session->draft && preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
-
         return strtr($template, [
             '{{ field }}' => $label,
-            '{{ title }}' => $session->title(),
+            '{{ title }}' => $title,
             '{{ summary }}' => $summary !== '' ? $summary : '(none)',
             '{{ direction }}' => trim($direction) !== '' ? trim($direction) : '(none given; choose a subject that suits the title)',
             '{{ style }}' => $style !== '' ? $style : 'No written guide; go by the reference images.',

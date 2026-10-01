@@ -5,6 +5,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\CollectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\DashboardController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\EntryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImageryController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImagesController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PlanController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SessionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\TypeController;
@@ -19,6 +20,13 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('voice/scan', [VoiceController::class, 'scan'])->name('voice.scan');
     Route::patch('voice', [VoiceController::class, 'update'])->name('voice.update');
     Route::post('voice/refine', [VoiceController::class, 'refine'])->name('voice.refine');
+
+    Route::get('images/tools', [ImagesController::class, 'tools'])->name('images.tools');
+    Route::post('images', [ImagesController::class, 'start'])->name('images.start');
+    Route::post('images/logo', [ImagesController::class, 'logo'])->name('images.logo');
+    Route::get('images/{id}', [ImagesController::class, 'status'])->name('images.status');
+    Route::get('images/{id}/preview', [ImagesController::class, 'preview'])->name('images.preview');
+    Route::post('images/{id}/use', [ImagesController::class, 'use'])->name('images.use');
 
     Route::get('plan', [PlanController::class, 'show'])->name('plan.show');
     Route::get('plan/status', [PlanController::class, 'status'])->name('plan.status');
