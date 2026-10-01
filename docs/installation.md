@@ -20,7 +20,7 @@ From your project's root:
 composer require 1994/ghostwriter-statamic
 ```
 
-Ghostwriter depends on `1994/ghostwriter-core`. Until that is on Packagist, Composer needs it added to your project: put `"repositories": [{"type": "vcs", "url": "https://github.com/1994limited/ghostwriter-core"}]` and `"1994/ghostwriter-core": "0.1.x-dev"` in your `composer.json`, and give Composer a GitHub token that can read the repository (`composer config --global github-oauth.github.com <token>`).
+Ghostwriter depends on `1994/ghostwriter-core`, which is public and on its way to Packagist. Until it is listed, add `"repositories": [{"type": "vcs", "url": "https://github.com/1994limited/ghostwriter-core"}]` to your project's `composer.json` (Composer only reads repositories from the project). Once it is on Packagist, that entry can go.
 
 Statamic discovers the addon on install. Its Control Panel assets are published automatically; after an update, or if the screens look broken, publish them again:
 

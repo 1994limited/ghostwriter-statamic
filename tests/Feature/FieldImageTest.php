@@ -173,7 +173,7 @@ class FieldImageTest extends TestCase
         $this->assertNotNull($status['preview_url']);
         $this->get($status['preview_url'])->assertOk();
 
-        $this->assertImageMade(fn (ImageRequest $prompt) => str_contains($prompt->prompt, 'A lighthouse at dusk') && count($prompt->references) === 3);
+        $this->ai->assertImageSent(fn (ImageRequest $prompt) => str_contains($prompt->prompt, 'A lighthouse at dusk') && count($prompt->references) === 3);
 
         $kept = $this->postJson(cp_route('ghostwriter.images.use', $started['id']), ['current' => ['assets::covers/one.png']])->assertOk()->json();
 

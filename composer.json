@@ -44,8 +44,8 @@
     "require": {
         "php": "^8.3",
         "ext-gd": "*",
-        "1994/ghostwriter-core": "^0.1@dev",
-        "guzzlehttp/guzzle": "^7.8",
+        "1994/ghostwriter-core": "~0.1.0",
+        "guzzlehttp/guzzle": "^7.8|^8.0",
         "league/commonmark": "^2.4",
         "statamic/cms": "^6.0",
         "symfony/yaml": "^7.0 || ^8.0"

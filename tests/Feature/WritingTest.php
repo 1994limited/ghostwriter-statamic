@@ -5,7 +5,6 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 use Illuminate\Support\Facades\Bus;
 use NineteenNinetyFour\Ghostwriter\Actions\WriteWithGhostwriter;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\StopReason;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextResponse;
@@ -437,9 +436,7 @@ class WritingTest extends TestCase
         // Nothing has been started.
         $this->assertCount(0, app(SessionRepository::class)->all());
 
-        // A fresh fake, so this answer is the next one given.
-        $this->ai = app(Providers::class)->fake();
-        $this->ai->respond('brief-writer', 'I would rather chat about it.');
+        $this->ai->reset('brief-writer')->respond('brief-writer', 'I would rather chat about it.');
 
         $this->postJson(cp_route('ghostwriter.types.brief', 'articles'), ['title' => 'Faceted search'])->assertStatus(422);
     }

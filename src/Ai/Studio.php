@@ -56,12 +56,6 @@ class Studio
         'voice-editor' => 'The voice guide was longer than Ghostwriter allows and was cut off. Try asking for a shorter guide.',
     ];
 
-    /**
-     * Search words for a draft's picture, which has no prompt file of its
-     * own in core: the field button's searches use photo-researcher.
-     */
-    private const PHOTO_QUERY = 'You choose search terms for stock photo libraries. Given a web page\'s title and summary, reply with two to four plain words naming a concrete, photographable subject that would suit the page: objects, places or scenes, never brand names, abstract ideas or the word "website". Reply with the words only, lower case, no punctuation.';
-
     /** Examples are trimmed to this many characters each. */
     private const EXAMPLE_LIMIT = 7000;
 
@@ -136,7 +130,7 @@ class Studio
 
         try {
             $summary = preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
-            $words = mb_strtolower(trim(preg_replace('/[^\p{L}\p{N} -]+/u', ' ', $this->ask('photo-scout', "Title: {$session->title()}\nSummary: {$summary}", instructions: self::PHOTO_QUERY)->text) ?? ''));
+            $words = mb_strtolower(trim(preg_replace('/[^\p{L}\p{N} -]+/u', ' ', $this->ask('photo-query', "Title: {$session->title()}\nSummary: {$summary}")->text) ?? ''));
 
             return $words !== '' && str_word_count($words) <= 6 ? $words : $session->title();
         } catch (Throwable $exception) {
@@ -543,7 +537,7 @@ class Studio
         if ($more > $limit) {
             Log::warning("Ghostwriter: the {$agent} reply ran out of room at {$limit} tokens; asking again with {$more}.", ['provider' => $response->provider, 'model' => $response->model]);
 
-            $response = $provider->text(new TextRequest($request->agent, $request->instructions, $request->prompt, $request->history, $request->images, $more, $request->model, $request->timeout, $request->effort));
+            $response = $provider->text($request->withMaxTokens($more));
 
             if (! $response->truncated()) {
                 return $response;

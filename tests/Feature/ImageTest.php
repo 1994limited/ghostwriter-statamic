@@ -257,7 +257,7 @@ class ImageTest extends TestCase
             ]]]),
         ]);
 
-        $this->ai->respond('photo-scout', 'Lighthouse at dusk.');
+        $this->ai->respond('photo-query', 'Lighthouse at dusk.');
 
         $this->signIn();
 
@@ -360,7 +360,7 @@ class ImageTest extends TestCase
         Storage::disk('assets')->assertExists($image['path']);
 
         // The two existing banner pictures went along as the style to match.
-        $this->assertImageMade(fn (ImageRequest $prompt) => str_contains($prompt->prompt, 'A lighthouse at dusk')
+        $this->ai->assertImageSent(fn (ImageRequest $prompt) => str_contains($prompt->prompt, 'A lighthouse at dusk')
             && str_contains($prompt->prompt, 'Banner: Picture')
             && str_contains($prompt->prompt, 'The first 2 attached image(s)')
             && count($prompt->references) === 2);

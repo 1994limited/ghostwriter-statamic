@@ -3,7 +3,6 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests;
 
 use Illuminate\Support\Facades\File;
-use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\FakeProvider;
@@ -62,8 +61,9 @@ abstract class TestCase extends AddonTestCase
     }
 
     /**
-     * Take providers' keys away. A faked model answers whatever the keys
-     * say, so the fake is set aside too; it still shows nothing was sent.
+     * Take providers' keys away: "anthropic" stands for the writing key,
+     * "openai" for the image key. The fake then answers as a site without
+     * them would, and still records anything sent.
      */
     protected function withoutKeys(string ...$providers): void
     {
@@ -71,15 +71,7 @@ abstract class TestCase extends AddonTestCase
             config(["ghostwriter.keys.{$provider}" => null]);
         }
 
-        $this->app->make(Providers::class)->unfake();
-    }
-
-    /**
-     * @param  callable(ImageRequest): bool  $check
-     */
-    protected function assertImageMade(callable $check): void
-    {
-        $this->assertNotEmpty(array_filter($this->ai->imageRequests, $check), 'No image like that was asked for.');
+        $this->ai->unconfigured(text: in_array('anthropic', $providers, true), image: in_array('openai', $providers, true));
     }
 
     protected function tearDown(): void

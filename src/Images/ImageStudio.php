@@ -10,8 +10,8 @@ use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Limits;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
-use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers\HttpProvider;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
@@ -388,13 +388,9 @@ class ImageStudio
             $attachments = $shown->all();
 
             foreach ($thumbs as $i => $response) {
-                // Core sends at most this many images in one request; three
-                // searches of six results and three references is one more.
-                if (count($attachments) >= HttpProvider::MAX_IMAGES) {
-                    break;
-                }
-
-                if ($response instanceof Response && $response->successful() && ($image = $this->small($response->body()))) {
+                // Only as many as one request can carry. Three references and
+                // three searches of six fit; large originals (no Imagick) may not.
+                if ($response instanceof Response && $response->successful() && ($image = $this->small($response->body())) && Limits::fits([...$attachments, $image])) {
                     $attachments[] = $image;
                     $seen[] = $candidates[$i];
                 }

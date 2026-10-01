@@ -47,15 +47,10 @@ Full documentation is in [docs/](docs/README.md): [installation](docs/installati
 composer require 1994/ghostwriter-statamic
 ```
 
-Ghostwriter depends on `1994/ghostwriter-core`, which is not on Packagist yet. Until it is, add its repository to your project's `composer.json` and allow its development version (Composer reads both only from the project, not from the addon), with a GitHub token that can read it:
+Ghostwriter depends on `1994/ghostwriter-core`, which is public and on its way to Packagist. Until it is listed, add its repository to your project's `composer.json` (Composer only reads repositories from the project, not from the addon); once it is on Packagist this entry can go:
 
 ```json
-"repositories": [{"type": "vcs", "url": "https://github.com/1994limited/ghostwriter-core"}],
-"require": {"1994/ghostwriter-core": "0.1.x-dev"}
-```
-
-```bash
-composer config --global github-oauth.github.com <token>
+"repositories": [{"type": "vcs", "url": "https://github.com/1994limited/ghostwriter-core"}]
 ```
 
 Add your key to `.env`:
