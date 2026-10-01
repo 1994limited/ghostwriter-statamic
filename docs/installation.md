@@ -20,6 +20,8 @@ From your project's root:
 composer require 1994/ghostwriter-statamic
 ```
 
+Ghostwriter depends on `1994/ghostwriter-core`. Until that is on Packagist, Composer needs it added to your project: put `"repositories": [{"type": "vcs", "url": "https://github.com/1994limited/ghostwriter-core"}]` and `"1994/ghostwriter-core": "0.1.x-dev"` in your `composer.json`, and give Composer a GitHub token that can read the repository (`composer config --global github-oauth.github.com <token>`).
+
 Statamic discovers the addon on install. Its Control Panel assets are published automatically; after an update, or if the screens look broken, publish them again:
 
 ```bash
@@ -36,7 +38,7 @@ Add the key for your chosen provider to your project's `.env` file:
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Ghostwriter reads keys from the environment each time it needs one, through the Laravel AI SDK. It never stores them, and they never appear in a settings file. See [API keys](api-keys.md) for every key it can use.
+Ghostwriter reads keys from the environment each time it needs one. It never stores them, and they never appear in a settings file. See [API keys](api-keys.md) for every key it can use.
 
 On a server, add the same variable wherever your host keeps environment variables (Laravel Forge, Ploi and Laravel Cloud all have a screen for this).
 
@@ -57,7 +59,7 @@ Writing a draft or a guide can take a minute or more, which is longer than a web
 - **With a queue connection** (Redis, database, and so on) each model call runs as a queued job. Keep a worker running (`php artisan queue:work`, Horizon, or your host's daemon), or nothing will happen.
 - **On the `sync` driver**, the default for a flat-file site, the call runs after the HTTP response has been sent, in the same PHP process, while the screen polls for the result. This needs PHP-FPM, which Herd, Forge and most hosts use. The single-threaded `php artisan serve` blocks until the call is done.
 
-Each call is allowed the configured timeout (180 seconds by default) plus 30 seconds.
+Each call is allowed the configured timeout (180 seconds by default). A call that finds the provider busy or rate-limited is tried again, up to three times in all, so each job is allowed three times the timeout plus 60 seconds (10 minutes by default). If your worker has its own time limit (`--timeout`, or Horizon's `timeout`), set it at least that high.
 
 ## Updating
 

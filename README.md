@@ -11,7 +11,7 @@
   <img src="docs/store/01-writing-panel.png" alt="The writing panel beside an entry form" width="800">
 </p>
 
-It works on any collection because it takes its instructions from the collection's blueprint and the entries already in it. It runs on Claude, ChatGPT or Gemini through the [Laravel AI SDK](https://laravel.com/docs/ai-sdk), with your own API key, and nothing it writes is published for you: every draft goes into the normal entry form for a person to check and save.
+It works on any collection because it takes its instructions from the collection's blueprint and the entries already in it. It runs on Claude, ChatGPT or Gemini, with your own API key, and nothing it writes is published for you: every draft goes into the normal entry form for a person to check and save.
 
 ## What it does
 
@@ -38,13 +38,24 @@ Full documentation is in [docs/](docs/README.md): [installation](docs/installati
 
 - Statamic 6
 - PHP 8.3+, with GD (for placeholders); Imagick for logo cards and SVG logos
-- An API key for a provider the Laravel AI SDK supports
+- An API key for Anthropic, OpenAI or Gemini
 - A queue connection, or PHP-FPM (see "The queue" below)
 
 ## Installation
 
 ```bash
 composer require 1994/ghostwriter-statamic
+```
+
+Ghostwriter depends on `1994/ghostwriter-core`, which is not on Packagist yet. Until it is, add its repository to your project's `composer.json` and allow its development version (Composer reads both only from the project, not from the addon), with a GitHub token that can read it:
+
+```json
+"repositories": [{"type": "vcs", "url": "https://github.com/1994limited/ghostwriter-core"}],
+"require": {"1994/ghostwriter-core": "0.1.x-dev"}
+```
+
+```bash
+composer config --global github-oauth.github.com <token>
 ```
 
 Add your key to `.env`:
@@ -57,7 +68,7 @@ Then open **Tools → Ghostwriter → Get started** in the Control Panel.
 
 ## API keys
 
-Keys are read from `.env` by the Laravel AI SDK and the addon. None is ever stored by Ghostwriter.
+Keys are read from `.env` each time one is needed. None is ever stored by Ghostwriter.
 
 | Key | For | Needed |
 | --- | --- | --- |
@@ -138,7 +149,7 @@ The prompts are plain markdown files. Publish them and edit any one per project:
 php artisan vendor:publish --tag=ghostwriter-prompts
 ```
 
-They land in `resources/ghostwriter/prompts/`; a file there replaces the addon's own.
+They land in `resources/ghostwriter/prompts/`; a file there replaces the one Ghostwriter Core ships.
 
 ## How fields are read
 
