@@ -24,13 +24,13 @@ class DemoLibrary
     public const PHOTOS = [
         'demo-101' => ['Stone path through a summer meadow', 1600, 1067, null],
         'demo-102' => ['Rain on a slate roof', 1600, 1067, null],
+        'demo-109' => ['Crowd at a summer music festival', 1600, 1067, 'Editorial use only: news and commentary. No commercial, promotional or advertising use.'],
         'demo-103' => ['Beech hedge in autumn light', 1600, 1200, null],
         'demo-104' => ['Hands planting seedlings in a tray', 1600, 1067, null],
         'demo-105' => ['Harbour at low tide', 1600, 900, null],
         'demo-106' => ['Lighthouse in a winter storm', 1067, 1600, null],
         'demo-107' => ['Oak table in a bright kitchen', 1600, 1067, null],
         'demo-108' => ['Wild garlic in a beech wood', 1600, 1067, null],
-        'demo-109' => ['Crowd at a summer music festival', 1600, 1067, 'Editorial use only: news and commentary. No commercial, promotional or advertising use.'],
         'demo-110' => ['City rooftops in morning fog', 1600, 1000, null],
     ];
 

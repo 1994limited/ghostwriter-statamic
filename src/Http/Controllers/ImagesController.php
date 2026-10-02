@@ -22,6 +22,9 @@ use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
 use NineteenNinetyFour\Ghostwriter\Jobs\MakeImage;
 use NineteenNinetyFour\Ghostwriter\Settings;
+use NineteenNinetyFour\Ghostwriter\Stock\Previews;
+use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
+use NineteenNinetyFour\Ghostwriter\Stock\StockPresenter;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
@@ -41,6 +44,9 @@ class ImagesController
         private ImageStudio $studio,
         private StockSearch $stock,
         private Studio $text,
+        private StockLibraries $libraries,
+        private Previews $previews,
+        private Settings $settings,
     ) {}
 
     /**
@@ -48,10 +54,17 @@ class ImagesController
      */
     public function tools(): JsonResponse
     {
+        $sources = $this->libraries->choices($this->settings->canChange());
+
         return response()->json([
-            'find' => $this->stock->sources() !== [],
+            'find' => $this->stock->sources() !== [] || $this->libraries->paid() !== [],
             'make' => $this->studio->configured(),
             'suggests' => $this->text->configured(),
+            // "Search in": the choices, where it starts for this person, and
+            // whether editorial images start included.
+            'sources' => count($sources) > 1 || ($sources[0]['paid'] ?? false) ? $sources : [],
+            'source' => $this->libraries->startingSource(),
+            'editorial' => $this->settings->stockIncludeEditorial(),
         ]);
     }
 
@@ -64,13 +77,18 @@ class ImagesController
         $mode = $request->input('mode');
 
         if ($mode === 'find') {
-            abort_if($this->stock->sources() === [], 422, 'No photo library is switched on. Turn on Openverse in the settings, or add an Unsplash, Pexels or Pixabay key.');
+            $source = (string) ($request->input('source') ?: StockLibraries::FREE);
+
+            abort_if($this->libraries->scope($source) === [] && $source !== StockLibraries::FREE, 422, 'That photo library isn\'t available. Choose another in "Search in".');
+            abort_if($this->libraries->scope($source) === [], 422, 'No photo library is switched on. Turn on Openverse in the settings, or add an Unsplash, Pexels or Pixabay key.');
+
+            $this->libraries->remember($source);
 
             $terms = PhotoFinder::terms((string) $request->input('words', ''));
 
             abort_if($terms === [] && ! $this->text->configured() && $slot->title === '', 422, 'Type what the picture should show.');
 
-            $started = $this->requests->start(ImageRequest::FIND, Presenter::viewer(), $this->owner($request));
+            $started = $this->requests->start(ImageRequest::FIND, Presenter::viewer(), $this->owner($request) + ['source' => $source, 'editorial' => $request->boolean('editorial')]);
             $started = $this->requests->change($started->id, fn (ImageRequest $found) => $found->terms = $terms) ?? $started;
             FindImages::start($started->id);
 
@@ -129,7 +147,20 @@ class ImagesController
             if ($found->mode === ImageRequest::FIND) {
                 $validated = $request->validate(['source' => ['required', 'string'], 'photo' => ['required', 'string', 'max:64'], 'term' => ['nullable', 'string', 'max:200']]);
                 $term = (string) (($validated['term'] ?? null) ?: ($found->terms[0] ?? ''));
-                $asset = $this->images->keepPhoto($slot, $this->stock->fetch($validated['source'], $validated['photo']), $term, (string) ($found->details['slot'][2] ?? ''));
+                $field = (string) ($found->details['slot'][2] ?? '');
+
+                // A paid library's photo goes in as a preview, not licensed.
+                if ($this->libraries->isPaid($validated['source'])) {
+                    $library = $this->libraries->licensable($validated['source']) ?? abort(422, 'That photo library isn\'t available any more.');
+                    ['asset' => $asset, 'record' => $record] = $this->previews->insert($slot, $library, $validated['photo'], $field, $term);
+
+                    return response()->json($this->kept($slot, $asset, (array) $request->input('current', [])) + [
+                        'stock' => app(StockPresenter::class)->summary($record),
+                        'toast' => __('Preview added. Only signed-in editors see the photo; license it before publishing.'),
+                    ]);
+                }
+
+                $asset = $this->images->keepPhoto($slot, $this->stock->fetch($validated['source'], $validated['photo']), $term, $field);
             } else {
                 $file = $this->requests->file($id, StoredFile::MADE) ?? abort(422, 'That picture is no longer here. Make it again.');
                 $direction = trim((string) ($found->details['direction'] ?? ''));
@@ -304,6 +335,7 @@ class ImagesController
             'judged' => (bool) ($request->details['judged'] ?? false),
             'none_fit' => (bool) ($request->details['none_fit'] ?? false),
             'with_references' => (bool) ($request->details['with_references'] ?? false),
+            'paid_libraries' => array_values((array) ($request->details['paid_libraries'] ?? [])),
             'preview_url' => $request->file !== null && $request->file !== '' ? cp_route('ghostwriter.images.preview', $request->id) : null,
             'status_url' => cp_route('ghostwriter.images.status', $request->id),
             'use_url' => cp_route('ghostwriter.images.use', $request->id),
