@@ -1,0 +1,26 @@
+[
+    {"type": "heading", "attrs": {"level": 2, "textAlign": "left"}, "content": [{"type": "text", "text": "What we care about"}]},
+    {"type": "bulletList", "content": [
+        {"type": "listItem", "content": [{"type": "text", "text": "Plants that suit the soil"}]},
+        {"type": "listItem", "content": [{"type": "text", "marks": [{"type": "bold"}], "text": "Materials "}, {"type": "text", "text": "that weather well"}]},
+        {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Gardens for "}, {"type": "text", "marks": [{"type": "link", "attrs": {"href": "https://example.com/wildlife"}}], "text": "wildlife"}]}]},
+        {"type": "listItem", "content": [
+            {"type": "text", "text": "Straight talk about"},
+            {"type": "bulletList", "content": [
+                {"type": "listItem", "content": [{"type": "text", "text": "cost"}]},
+                {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "marks": [{"type": "italic"}], "text": "time"}]}]}
+            ]}
+        ]}
+    ]},
+    {"type": "orderedList", "attrs": {"order": 1}, "content": [
+        {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Survey"}]}]},
+        {"type": "listItem", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "Design"}]},
+            {"type": "orderedList", "content": [
+                {"type": "listItem", "content": [{"type": "text", "text": "Sketch"}]},
+                {"type": "listItem", "content": [{"type": "text", "text": "Plan"}]}
+            ]}
+        ]},
+        {"type": "listItem", "content": [{"type": "text", "text": "Build"}, {"type": "hardBreak"}, {"type": "text", "text": "and plant"}]}
+    ]}
+]

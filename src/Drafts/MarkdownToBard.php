@@ -9,6 +9,7 @@ use League\CommonMark\Extension\CommonMark\Node\Block\Heading;
 use League\CommonMark\Extension\CommonMark\Node\Block\ListBlock;
 use League\CommonMark\Extension\CommonMark\Node\Block\ListItem;
 use League\CommonMark\Extension\CommonMark\Node\Block\ThematicBreak;
+use League\CommonMark\Extension\CommonMark\Node\Inline\Code;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Emphasis;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Link;
 use League\CommonMark\Extension\CommonMark\Node\Inline\Strong;
@@ -24,8 +25,10 @@ use League\CommonMark\Parser\MarkdownParser;
 
 /**
  * Converts a markdown body into the ProseMirror document a Bard field stores:
- * headings, paragraphs, lists, block quotes and tables, with bold, italic and
- * link marks. Anything else is reduced to its text.
+ * headings, paragraphs, lists (nested too), block quotes and tables, with
+ * bold, italic and link marks. Anything else is reduced to its text: Bard
+ * only knows the marks its field's buttons switch on, so inline code keeps
+ * its words but not a code mark.
  */
 class MarkdownToBard
 {
@@ -66,7 +69,8 @@ class MarkdownToBard
                 'type' => $node->getListData()->type === ListBlock::TYPE_ORDERED ? 'orderedList' : 'bulletList',
                 'content' => array_map(fn (ListItem $item) => [
                     'type' => 'listItem',
-                    'content' => array_values(array_filter(array_map(fn (Node $child) => $this->block($child), iterator_to_array($item->children(), false)))),
+                    // A listItem must hold at least a paragraph, even an empty one.
+                    'content' => array_values(array_filter(array_map(fn (Node $child) => $this->block($child), iterator_to_array($item->children(), false)))) ?: [['type' => 'paragraph']],
                 ], iterator_to_array($node->children(), false)),
             ],
             $node instanceof BlockQuote => [
@@ -131,6 +135,12 @@ class MarkdownToBard
 
         foreach ($parent->children() as $child) {
             if ($child instanceof Text) {
+                if ($child->getLiteral() !== '') {
+                    $out[] = $marks
+                        ? ['type' => 'text', 'marks' => $marks, 'text' => $child->getLiteral()]
+                        : ['type' => 'text', 'text' => $child->getLiteral()];
+                }
+            } elseif ($child instanceof Code) {
                 if ($child->getLiteral() !== '') {
                     $out[] = $marks
                         ? ['type' => 'text', 'marks' => $marks, 'text' => $child->getLiteral()]

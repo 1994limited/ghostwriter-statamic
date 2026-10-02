@@ -17,6 +17,11 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Prompts ship with Ghostwriter Core. `php artisan vendor:publish --tag=ghostwriter-prompts` still publishes them to `resources/ghostwriter/prompts/`, where an edited copy still takes precedence. The photo picker's prompt is now a file too, `photo-picker.md`.
 - **Dark mode.** The "Ghostwriter needs your answer" card was a light amber with near-white text, and a few hover borders didn't change. Statamic's own utilities outranked the addon's dark and hover styles; they now win.
 
+**Fixes from the docs pass** (F6, F7):
+
+- **Lists kept when editing an entry.** Turning an entry into a draft gave empty bullets for Bard list items whose text isn't inside a paragraph, as lists from some editors and imports are stored, and using the changes could then wipe the list. Every shape of list item now keeps its text: with or without a paragraph, with bold, italic and links, and nested lists, which used to be run together on one line. Nested lists under a numbered item, and items with more than one paragraph, also come back from markdown as they were. Inline code keeps its words.
+- **The notes after Use this draft fit.** The notes (placeholders to replace, fields left out, things to set by hand) overflowed the control panel's fixed-height toast. They are now one notice above the form, listing every note, that stays until you close it. With no notes, a short toast says the draft is in the form, as before.
+
 **Follow-ups from the wave 2 reviews** (F1, F2, F4, Q1, Q3):
 
 - **Locked settings show the value that applies.** A field set in `config/ghostwriter.php` or `.env` showed the value saved on the settings screen beside the note saying what config sets it to, so the Openverse switch could read on while config had it off. It now shows the config's value. What was saved on the screen is kept, and comes back if the line is taken out of the config.
