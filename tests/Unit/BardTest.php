@@ -36,4 +36,70 @@ class BardTest extends TestCase
 
         $this->assertSame("Before.\n\n> Challenge accepted.", $markdown);
     }
+
+    public function test_list_items_keep_their_text_in_every_shape(): void
+    {
+        $nodes = json_decode(file_get_contents(__DIR__.'/../__fixtures__/bard/lists.json'), true);
+
+        $this->assertSame(implode("\n", [
+            '## What we care about',
+            '',
+            '- Plants that suit the soil',
+            '- **Materials** that weather well',
+            '- Gardens for [wildlife](https://example.com/wildlife)',
+            '- Straight talk about',
+            '  - cost',
+            '  - *time*',
+            '',
+            '1. Survey',
+            '2. Design',
+            '   1. Sketch',
+            '   2. Plan',
+            '3. Build  ',
+            '   and plant',
+        ]), (new BardToMarkdown)->convert($nodes));
+    }
+
+    public function test_lists_survive_the_trip_to_markdown_and_back(): void
+    {
+        $nodes = json_decode(file_get_contents(__DIR__.'/../__fixtures__/bard/lists.json'), true);
+        $markdown = (new BardToMarkdown)->convert($nodes);
+
+        $bard = (new MarkdownToBard)->convert($markdown);
+
+        $this->assertSame(['heading', 'bulletList', 'orderedList'], array_column($bard, 'type'));
+        $this->assertCount(4, $bard[1]['content']);
+        $this->assertSame('bulletList', $bard[1]['content'][3]['content'][1]['type']);
+        $this->assertSame('orderedList', $bard[2]['content'][1]['content'][1]['type']);
+        $this->assertSame(['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Plants that suit the soil']]], $bard[1]['content'][0]['content'][0]);
+        $this->assertSame($markdown, (new BardToMarkdown)->convert($bard));
+    }
+
+    public function test_an_item_with_more_than_one_paragraph_stays_one_item(): void
+    {
+        $markdown = (new BardToMarkdown)->convert([
+            ['type' => 'bulletList', 'content' => [
+                ['type' => 'listItem', 'content' => [
+                    ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'First.']]],
+                    ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Second.']]],
+                ]],
+                ['type' => 'listItem', 'content' => []],
+            ]],
+        ]);
+
+        $this->assertSame("- First.\n\n  Second.\n-", $markdown);
+
+        $bard = (new MarkdownToBard)->convert($markdown);
+
+        $this->assertCount(2, $bard[0]['content']);
+        $this->assertSame(['paragraph', 'paragraph'], array_column($bard[0]['content'][0]['content'], 'type'));
+        $this->assertSame([['type' => 'paragraph']], $bard[0]['content'][1]['content']);
+    }
+
+    public function test_inline_code_keeps_its_words(): void
+    {
+        $nodes = (new MarkdownToBard)->convert('Run `php please stache:clear` after.');
+
+        $this->assertSame('Run php please stache:clear after.', implode('', array_column($nodes[0]['content'], 'text')));
+    }
 }
