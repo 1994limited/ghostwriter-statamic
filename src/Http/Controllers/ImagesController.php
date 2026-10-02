@@ -121,7 +121,7 @@ class ImagesController
         try {
             if ($data['mode'] === 'find') {
                 $validated = $request->validate(['source' => ['required', 'string'], 'photo' => ['required', 'string', 'max:64'], 'term' => ['nullable', 'string', 'max:200']]);
-                $term = (string) ($validated['term'] ?: ($data['terms'][0] ?? ''));
+                $term = (string) (($validated['term'] ?? null) ?: ($data['terms'][0] ?? ''));
                 $asset = $this->images->keepPhoto($slot, $this->stock->fetch($validated['source'], $validated['photo']), $term);
             } else {
                 abort_unless(! empty($data['file']) && File::exists($data['file']), 422, 'That picture is no longer here. Make it again.');
