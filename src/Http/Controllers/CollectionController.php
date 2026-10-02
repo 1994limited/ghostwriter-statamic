@@ -5,7 +5,7 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Blueprints\KindFinder;
+use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
@@ -36,7 +36,7 @@ class CollectionController
         private VoiceGuide $guide,
         private SessionRepository $sessions,
         private Presenter $presenter,
-        private KindFinder $kinds,
+        private EntryLayouts $layouts,
         private SchemaReader $reader,
         private KindSuggestions $suggestions,
     ) {}
@@ -235,7 +235,7 @@ class CollectionController
             // Kinds of entry found by how the existing ones are built, offered
             // as ready-made models for something new.
             'kinds' => ($schemaSource = $blueprint ? $collection->entryBlueprint($blueprint) : $collection->entryBlueprint())
-                ? $this->kinds->find($handle, $this->reader->read($schemaSource), $blueprint)
+                ? $this->layouts->kinds($this->reader->schema($schemaSource), $handle, $blueprint)
                 : [],
             'entries' => $this->entries($collection),
             // Ideas from the content plan waiting to be written here.

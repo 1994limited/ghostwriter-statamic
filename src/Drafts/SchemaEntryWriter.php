@@ -3,7 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Drafts;
 
 use InvalidArgumentException;
-use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
+use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
@@ -22,8 +22,7 @@ class SchemaEntryWriter implements EntryWriter
 {
     public function __construct(
         private SchemaReader $reader,
-        private PatternFinder $patterns,
-        private EntryBuilder $builder,
+        private EntryLayouts $layouts,
         private HouseFinish $finish,
     ) {}
 
@@ -33,12 +32,12 @@ class SchemaEntryWriter implements EntryWriter
             ?? throw new InvalidArgumentException("The collection \"{$type->collection}\" no longer exists.");
 
         $blueprint = $type->statamicBlueprint();
-        $schema = $this->reader->read($blueprint);
+        $schema = $this->reader->schema($blueprint);
 
-        $pattern = $this->patterns->find($collection->handle(), $schema, $type->blueprint, $type->where, $type->examples);
-        $built = $this->builder->build($draft->data, $schema, $pattern, $type->defaults);
+        $pattern = $this->layouts->pattern($schema, $collection->handle(), $type->blueprint, $type->where, $type->examples);
+        $built = $this->layouts->build($draft->data, $schema, $pattern, $type->defaults);
 
-        $data = $this->finish->finish($built['data'], $schema, $pattern, null, $draft->title())['data'];
+        $data = $this->finish->finish($built->data, $schema, $pattern, null, $draft->title())['data'];
         $data['title'] = $draft->title();
 
         // A single-author field is set to whoever asked for the piece.

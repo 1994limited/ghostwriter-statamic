@@ -13,6 +13,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\FakeProvider;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\MockHttpClient;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\Testing\LayoutLog;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Testing\RequestLog;
 use NineteenNinetyFour\Ghostwriter\ServiceProvider;
 use NineteenNinetyFour\Ghostwriter\Settings;
@@ -75,10 +76,14 @@ abstract class TestCase extends AddonTestCase
         $this->ai = $this->app->make(Providers::class)->fake();
         $this->app->instance(FakeProvider::class, $this->ai);
 
-        // When recording requests, the clock, entry IDs and the entries'
-        // file times (and so the order entries are listed in) are the same
-        // on every run.
-        if (getenv('GHOSTWRITER_RECORD_REQUESTS')) {
+        // Writes down what the layout algorithms gave, to compare two runs
+        // (docs: core's layout.md).
+        LayoutLog::start(getenv('GHOSTWRITER_RECORD_LAYOUTS') ?: null, static::class.'::'.$this->name());
+
+        // When recording requests or layouts, the clock, entry IDs and the
+        // entries' file times (and so the order entries are listed in) are
+        // the same on every run.
+        if (getenv('GHOSTWRITER_RECORD_REQUESTS') || getenv('GHOSTWRITER_RECORD_LAYOUTS')) {
             Carbon::setTestNow('2026-01-01 12:00:00');
             Event::listen(EntrySaved::class, fn (EntrySaved $event) => is_file($path = (string) $event->entry->path()) && touch($path, Carbon::now()->getTimestamp()));
             $count = 0;
@@ -154,8 +159,13 @@ abstract class TestCase extends AddonTestCase
         // Writes down what was sent, to compare two runs (docs: core's studio.md).
         if ($path = getenv('GHOSTWRITER_RECORD_REQUESTS')) {
             RequestLog::append($path, static::class.'::'.$this->name(), $this->ai->requests());
+        }
+
+        if (getenv('GHOSTWRITER_RECORD_REQUESTS') || getenv('GHOSTWRITER_RECORD_LAYOUTS')) {
             Str::createUuidsNormally();
         }
+
+        LayoutLog::stop();
 
         $this->assertSame([], $this->http->requests, 'A request reached the network layer.');
 

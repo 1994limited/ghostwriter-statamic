@@ -10,14 +10,14 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
+use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
-use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
 use NineteenNinetyFour\Ghostwriter\Drafts\FormBaseline;
 use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
@@ -190,7 +190,7 @@ class SessionController
      * The draft as values for the publish form the panel is open on. Nothing
      * is saved: the person reviews the filled-in form and saves it themselves.
      */
-    public function apply(Request $request, string $session, SchemaReader $reader, PatternFinder $patterns, EntryBuilder $builder, ImageStudio $images, EntryMerger $merger, HouseFinish $finish, FormBaseline $baseline): JsonResponse
+    public function apply(Request $request, string $session, SchemaReader $reader, EntryLayouts $layouts, ImageStudio $images, EntryMerger $merger, HouseFinish $finish, FormBaseline $baseline): JsonResponse
     {
         $session = $this->session($session);
         $type = $this->type($session->type)->forSession($session);
@@ -201,7 +201,8 @@ class SessionController
         $blueprint = ($request->input('blueprint') ? $type->statamicCollection()?->entryBlueprint($request->input('blueprint')) : null)
             ?? $type->statamicBlueprint()
             ?? abort(422, 'The collection this was written for no longer exists.');
-        $schema = $reader->read($blueprint);
+        $specs = $reader->read($blueprint);
+        $schema = Schema::fromSpecs($specs);
 
         $original = $session->source ? Entry::find($session->source) : null;
 
@@ -215,32 +216,34 @@ class SessionController
             // Editing an entry: only the writing changes. Its images, links,
             // settings and block IDs come from the form as it stands, unsaved
             // changes included, not from what this kind of entry usually has.
-            $built = $builder->build($draft->data, $schema);
-            $built['data'] = $merger->merge($built['data'], $baseline->data($original, $request->input('values')), $schema);
+            $built = $layouts->build($draft->data, $schema);
+            $data = $merger->merge($built->data, $baseline->data($original, $request->input('values')), $specs);
+            $notes = $built->notes;
         } else {
-            $pattern = $patterns->find($type->collection, $schema, $type->blueprint, $type->where, $type->examples);
-            $built = $builder->build($draft->data, $schema, $pattern, $type->defaults);
+            $pattern = $layouts->pattern($schema, $type->collection, $type->blueprint, $type->where, $type->examples);
+            $built = $layouts->build($draft->data, $schema, $pattern, $type->defaults);
+            $data = $built->data;
 
             // An image already chosen in the form stays: no placeholder,
             // nor anything the model entries suggest, goes over it. One
             // chosen in the panel still goes in below.
             $form = $baseline->values($blueprint, $request->input('values'));
 
-            foreach ($schema as $spec) {
-                if ($spec['type'] === 'assets' && ! empty($form[$spec['handle']])) {
-                    $built['data'][$spec['handle']] = $form[$spec['handle']];
+            foreach ($schema as $field) {
+                if ($field->type === 'assets' && ! empty($form[$field->handle])) {
+                    $data[$field->handle] = $form[$field->handle];
                 }
             }
 
             // What the model entries agree on place by place, and a striped
             // placeholder where an image is still to come. The entry has no
             // ID yet, so links to itself wait.
-            $finished = $finish->finish($built['data'], $schema, $pattern, null, $draft->title());
-            $built['data'] = $finished['data'];
-            $built['notes'] = [...$built['notes'], ...$finished['notes']];
+            $finished = $finish->finish($data, $schema, $pattern, null, $draft->title());
+            $data = $finished['data'];
+            $notes = [...$built->notes, ...$finished['notes']];
         }
 
-        $data = $images->place(['title' => $draft->title()] + $built['data'], $session, $schema);
+        $data = $images->place(['title' => $draft->title()] + $data, $session, $specs);
 
         // Run the data through each fieldtype's own pre-processing, so the
         // form receives exactly what it would have loaded from a saved entry.
@@ -256,7 +259,7 @@ class SessionController
         return response()->json([
             'values' => $fields->values()->only(array_keys($data))->all(),
             'meta' => $fields->meta()->only(array_keys($data))->all(),
-            'notes' => $built['notes'],
+            'notes' => $notes,
         ]);
     }
 

@@ -2,7 +2,9 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Drafts;
 
-use NineteenNinetyFour\Ghostwriter\Blueprints\HouseStyle;
+use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\Pattern;
+use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Settings;
 
@@ -14,30 +16,26 @@ use NineteenNinetyFour\Ghostwriter\Settings;
  */
 class HouseFinish
 {
-    public function __construct(private HouseStyle $style, private Settings $settings) {}
+    public function __construct(private EntryLayouts $layouts, private Settings $settings) {}
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<int, array<string, mixed>>  $schema
-     * @param  array<string, mixed>  $pattern  From PatternFinder.
      * @return array{data: array<string, mixed>, notes: array<int, string>}
      */
-    public function finish(array $data, array $schema, array $pattern, ?string $id, string $title): array
+    public function finish(array $data, Schema $schema, Pattern $pattern, ?string $id, string $title): array
     {
         $notes = [];
 
-        if (! empty($pattern['house'])) {
-            $toFill = [];
-            $data = $this->style->apply($data, $schema, $pattern['house'], $toFill, ['id' => $id, 'title' => $title]);
+        $house = $this->layouts->apply($data, $schema, $pattern->house, $id, $title);
+        $data = $house->data;
 
-            if ($toFill) {
-                $notes[] = 'Still to set by hand, as it differs from page to page: '.implode('; ', array_unique($toFill)).'.';
-            }
+        if ($note = $house->note()) {
+            $notes[] = $note;
         }
 
         if ($this->settings->placeholderImages()) {
-            $placeholders = new Placeholders($pattern['filled'] ?? []);
-            $data = $placeholders->fill($data, $schema);
+            $placeholders = new Placeholders($pattern->filled);
+            $data = $placeholders->fill($data, $schema->toSpecs());
 
             if ($placeholders->filled()) {
                 $notes[] = 'A striped placeholder marks each image still to pick: '.implode('; ', $placeholders->filled()).'. Replace them before publishing.';
@@ -51,12 +49,10 @@ class HouseFinish
      * Once the entry has an ID: the links to itself the house style held back.
      *
      * @param  array<string, mixed>  $data
-     * @param  array<int, array<string, mixed>>  $schema
-     * @param  array<string, mixed>  $pattern
      * @return array<string, mixed>
      */
-    public function linkToSelf(array $data, array $schema, array $pattern, string $id, string $title): array
+    public function linkToSelf(array $data, Schema $schema, Pattern $pattern, string $id, string $title): array
     {
-        return empty($pattern['house']) ? $data : $this->style->linkToSelf($data, $schema, $pattern['house'], $id, $title);
+        return $this->layouts->linkToSelf($data, $schema, $pattern->house, $id, $title);
     }
 }

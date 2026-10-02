@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Blueprints;
 
+use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use Statamic\Facades\AssetContainer;
 use Statamic\Fields\Blueprint;
 use Statamic\Fields\Field;
@@ -54,18 +55,26 @@ class SchemaReader
         'group' => 'group',
     ];
 
-    /** Kinds that configure how something looks rather than say anything. */
-    public const SETTING_KINDS = ['choice', 'choices', 'toggle', 'number'];
-
     /** Fieldtypes that hold no content at all. */
     private const IGNORED = ['section', 'html', 'spacer', 'hidden', 'revealer'];
 
     /**
+     * The blueprint's fields as plain arrays ("specs"), as the addon's own
+     * code reads them.
+     *
      * @return array<int, array<string, mixed>>
      */
     public function read(Blueprint $blueprint): array
     {
         return $this->fields($blueprint->fields(), 0);
+    }
+
+    /**
+     * The blueprint's fields as core's schema, for the layout algorithms.
+     */
+    public function schema(Blueprint $blueprint): Schema
+    {
+        return Schema::fromSpecs($this->read($blueprint));
     }
 
     /**
@@ -246,16 +255,5 @@ class SchemaReader
         }
 
         return $normalised;
-    }
-
-    /**
-     * Whether the writer fills this field in, as opposed to leaving it for a
-     * person or for the site's usual defaults.
-     *
-     * @param  array<string, mixed>  $spec
-     */
-    public static function writable(array $spec): bool
-    {
-        return $spec['kind'] !== 'reference';
     }
 }

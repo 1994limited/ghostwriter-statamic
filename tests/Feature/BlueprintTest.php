@@ -2,10 +2,10 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
-use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
-use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
+use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
-use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\Pattern;
+use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\Collection;
 
@@ -28,7 +28,7 @@ class BlueprintTest extends TestCase
 
     public function test_the_reader_reduces_fields_to_kinds(): void
     {
-        $schema = collect($this->schema('articles'))->keyBy('handle');
+        $schema = collect(app(SchemaReader::class)->read(Collection::findByHandle('articles')->entryBlueprint()))->keyBy('handle');
 
         $this->assertSame('text', $schema['title']['kind']);
         $this->assertTrue($schema['title']['required']);
@@ -57,8 +57,7 @@ class BlueprintTest extends TestCase
             $this->makeArticle($slug, ucfirst($slug), self::PARAGRAPH.' '.ucfirst($slug).'.');
         }
 
-        $schema = $this->schema('articles');
-        $pattern = app(PatternFinder::class)->find('articles', $schema);
+        $pattern = $this->pattern('articles')->toArray();
         $blocks = $pattern['blocks']['page_builder'];
 
         $this->assertSame(3, $pattern['entries']);
@@ -96,12 +95,11 @@ class BlueprintTest extends TestCase
         }
 
         $schema = $this->schema('articles');
-        $pattern = app(PatternFinder::class)->find('articles', $schema);
 
         // Whatever the writer put in such a block, the copy wins.
-        $built = app(EntryBuilder::class)->build(['title' => 'New', 'page_builder' => [
+        $built = $this->layouts()->build(['title' => 'New', 'page_builder' => [
             ['type' => 'cards', 'items' => [['text' => 'Something made up']]],
-        ]], $schema, $pattern)['data'];
+        ]], $schema, $this->pattern('articles'))->data;
         $cards = $built['page_builder'][0];
 
         $this->assertSame('Broader uses', $cards['heading']);
@@ -123,7 +121,7 @@ class BlueprintTest extends TestCase
             ]]);
         }
 
-        $blocks = app(PatternFinder::class)->find('articles', $this->schema('articles'))['blocks']['page_builder'];
+        $blocks = $this->pattern('articles')->blocks['page_builder'];
 
         // Neither wording is on 80% of entries, but none is an entry's own.
         $this->assertSame(['cards'], $blocks['boilerplate']);
@@ -136,13 +134,10 @@ class BlueprintTest extends TestCase
         $this->makeArticle('one', 'One', self::PARAGRAPH, ['kind' => 'project']);
         $this->makeArticle('two', 'Two', self::PARAGRAPH, ['kind' => 'guide', 'page_builder' => [['id' => 'x', 'type' => 'long_form', 'enabled' => true]]]);
 
-        $finder = app(PatternFinder::class);
-        $schema = $this->schema('articles');
-
-        $this->assertSame(['long_form'], $finder->find('articles', $schema, null, ['kind' => 'guide'])['blocks']['page_builder']['sequence']);
+        $this->assertSame(['long_form'], $this->pattern('articles', ['kind' => 'guide'])->blocks['page_builder']['sequence']);
 
         // Nothing matches yet, so the whole collection is the evidence.
-        $this->assertSame(2, $finder->find('articles', $schema, null, ['kind' => 'newsletter'])['entries']);
+        $this->assertSame(2, $this->pattern('articles', ['kind' => 'newsletter'])->entries);
     }
 
     public function test_the_brief_describes_what_is_used_and_names_the_rest(): void
@@ -151,8 +146,7 @@ class BlueprintTest extends TestCase
             $this->makeArticle($slug, ucfirst($slug), self::PARAGRAPH.' '.ucfirst($slug).'.');
         }
 
-        $schema = $this->schema('articles');
-        $text = app(SchemaDescriber::class)->describe($schema, app(PatternFinder::class)->find('articles', $schema));
+        $text = $this->layouts()->layout($this->schema('articles'), $this->pattern('articles'))->fields;
 
         $this->assertStringContainsString('- `title` (short text, required)', $text);
         $this->assertStringContainsString('- `summary` (plain text). Shown in lists', $text);
@@ -177,7 +171,7 @@ class BlueprintTest extends TestCase
 
         $schema = $this->schema('articles');
 
-        $built = app(EntryBuilder::class)->build([
+        $built = $this->layouts()->build([
             'title' => 'New Piece',
             'summary' => "A summary\nover two lines.",
             'featured_image' => 'not/for/the/writer.jpg',
@@ -189,9 +183,9 @@ class BlueprintTest extends TestCase
                 ['type' => 'related'],
                 ['type' => 'carousel', 'caption' => 'No such block'],
             ],
-        ], $schema, app(PatternFinder::class)->find('articles', $schema), ['kind' => 'guide']);
+        ], $schema, $this->pattern('articles'), ['kind' => 'guide']);
 
-        $data = $built['data'];
+        $data = $built->data;
         $blocks = $data['page_builder'];
 
         $this->assertSame('New Piece', $data['title']);
@@ -219,44 +213,54 @@ class BlueprintTest extends TestCase
         $this->assertSame('Broader uses', $blocks[2]['heading']);
         $this->assertSame(['Property searches', 'Recipe selection'], array_column($blocks[2]['items'], 'text'));
         $this->assertArrayHasKey('id', $blocks[2]['items'][0]);
-        $this->assertContains('Card Grid is the same on every entry here, so its usual content was used in place of what was drafted.', $built['notes']);
+        $this->assertContains('Card Grid is the same on every entry here, so its usual content was used in place of what was drafted.', $built->notes);
 
         // A boilerplate block written as its type alone gets its usual content.
         $this->assertSame('More articles', $blocks[3]['heading']);
         $this->assertSame(3, $blocks[3]['limit']);
 
-        $this->assertCount(3, $built['notes']);
-        $this->assertStringContainsString('"carousel" does not exist', implode(' ', $built['notes']));
+        $this->assertCount(3, $built->notes);
+        $this->assertStringContainsString('"carousel" does not exist', implode(' ', $built->notes));
     }
 
     public function test_a_plain_collection_needs_no_page_builder(): void
     {
         $schema = $this->schema('posts');
 
-        $this->assertSame(['title' => 'text', 'intro' => 'richtext', 'content' => 'richtext'], array_column($schema, 'kind', 'handle'));
+        $this->assertSame(['title' => 'text', 'intro' => 'richtext', 'content' => 'richtext'], array_column($schema->toSpecs(), 'kind', 'handle'));
 
-        $built = app(EntryBuilder::class)->build([
+        $built = $this->layouts()->build([
             'title' => 'A Post',
             'intro' => 'Stays **markdown**.',
             'content' => "## Heading\n\nA paragraph.\n\n- one\n- two",
-        ], $schema, app(PatternFinder::class)->find('posts', $schema));
+        ], $schema, $this->pattern('posts'));
 
         // A Markdown field keeps its markdown; a Bard field gets a document.
-        $this->assertSame('Stays **markdown**.', $built['data']['intro']);
-        $this->assertSame(['heading', 'paragraph', 'bulletList'], array_column($built['data']['content'], 'type'));
-        $this->assertSame([], $built['notes']);
+        $this->assertSame('Stays **markdown**.', $built->data['intro']);
+        $this->assertSame(['heading', 'paragraph', 'bulletList'], array_column($built->data['content'], 'type'));
+        $this->assertSame([], $built->notes);
 
         // With nothing published there is no pattern, and the brief says so.
-        $text = app(SchemaDescriber::class)->describe($schema, app(PatternFinder::class)->find('posts', $schema));
+        $text = $this->layouts()->layout($schema, $this->pattern('posts'))->fields;
         $this->assertStringContainsString('- `content` (markdown)', $text);
         $this->assertStringNotContainsString('usually build', $text);
     }
 
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function schema(string $collection): array
+    private function schema(string $collection): Schema
     {
-        return app(SchemaReader::class)->read(Collection::findByHandle($collection)->entryBlueprint());
+        return app(SchemaReader::class)->schema(Collection::findByHandle($collection)->entryBlueprint());
+    }
+
+    /**
+     * @param  array<string, mixed>  $where
+     */
+    private function pattern(string $collection, array $where = []): Pattern
+    {
+        return $this->layouts()->pattern($this->schema($collection), $collection, null, $where);
+    }
+
+    private function layouts(): EntryLayouts
+    {
+        return app(EntryLayouts::class);
     }
 }
