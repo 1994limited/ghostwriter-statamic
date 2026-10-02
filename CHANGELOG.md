@@ -17,6 +17,15 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Prompts ship with Ghostwriter Core. `php artisan vendor:publish --tag=ghostwriter-prompts` still publishes them to `resources/ghostwriter/prompts/`, where an edited copy still takes precedence. The photo picker's prompt is now a file too, `photo-picker.md`.
 - **Dark mode.** The "Ghostwriter needs your answer" card was a light amber with near-white text, and a few hover borders didn't change. Statamic's own utilities outranked the addon's dark and hover styles; they now win.
 
+**Wording shared with the Filament and Craft addons** (W1):
+
+- Ghostwriter's own home page is the **Overview**: its heading, a navigation item under Ghostwriter, Get started's link back, and the Hide Get started question. The Control Panel's dashboard keeps its name.
+- The draft's YAML button is **Edit YAML** (was **Edit**).
+- Under a draft, a line says how to change it: "Click any writing (or Tab to it) to change it. It's saved when you leave it; Esc puts it back."
+- The image dialog is titled **Image for** and the field's name. **Make image** is **Make the picture**, in the dialog and under a draft. Choosing an image says "Image added. Save to keep it."
+- The Overview's voice guide and image style tiles say **Written** or **Not written yet** (was **In place**).
+- The writing panel's "No voice guide yet" notice points to Ghostwriter → Voice guide.
+
 **Fixes from the docs pass** (F6, F7):
 
 - **Lists kept when editing an entry.** Turning an entry into a draft gave empty bullets for Bard list items whose text isn't inside a paragraph, as lists from some editors and imports are stored, and using the changes could then wipe the list. Every shape of list item now keeps its text: with or without a paragraph, with bold, italic and links, and nested lists, which used to be run together on one line. Nested lists under a numbered item, and items with more than one paragraph, also come back from markdown as they were. Inline code keeps its words.

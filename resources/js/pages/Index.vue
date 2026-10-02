@@ -182,10 +182,10 @@ export default {
 </script>
 
 <template>
-    <Head :title="__('Ghostwriter')" />
+    <Head :title="__('Overview')" />
 
     <div class="mx-auto max-w-5xl">
-        <Header :title="__('Ghostwriter')" :icon="ghost">
+        <Header :title="__('Overview')" :icon="ghost">
             <Button v-if="settings_url" :href="settings_url" icon="cog" variant="ghost" :aria-label="__('Settings')" />
         </Header>
 
@@ -224,12 +224,12 @@ export default {
         <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Link :href="voice.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Voice guide') }}</div>
-                <div class="mt-1 font-medium">{{ voice.exists ? __('In place') : __('Not written yet') }}</div>
+                <div class="mt-1 font-medium">{{ voice.exists ? __('Written') : __('Not written yet') }}</div>
                 <div class="text-sm text-gray-500">{{ voice.exists ? __('Updated :when', { when: voice.updated_at }) : __('Everything written follows it') }}</div>
             </Link>
             <Link :href="imagery.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Image style') }}</div>
-                <div class="mt-1 font-medium">{{ imagery.exists ? __('In place') : __('Not written yet') }}</div>
+                <div class="mt-1 font-medium">{{ imagery.exists ? __('Written') : __('Not written yet') }}</div>
                 <div class="text-sm text-gray-500">{{ __('How your pictures look, in words') }}</div>
             </Link>
             <Link :href="plan.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">

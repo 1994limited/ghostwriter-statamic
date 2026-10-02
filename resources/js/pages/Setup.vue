@@ -165,7 +165,7 @@ export default {
         },
 
         async hide() {
-            if (!confirm(this.__('Hide Get started? It leaves the navigation and the dashboard. A link at the foot of the dashboard brings it back.'))) return;
+            if (!confirm(this.__('Hide Get started? It leaves the navigation and the Overview. A link at the foot of the Overview brings it back.'))) return;
 
             await this.$axios.post(this.urls.hide, { hidden: true });
             router.visit(this.urls.index);
@@ -187,7 +187,7 @@ export default {
 
     <div class="mx-auto max-w-6xl">
         <Header :title="__('Get started with Ghostwriter')" :icon="ghost">
-            <Button :href="urls.index" :text="__('Dashboard')" variant="ghost" />
+            <Button :href="urls.index" :text="__('Overview')" variant="ghost" />
             <Button v-if="current.progress.can_toggle" :text="__('Hide Get started')" variant="ghost" @click="hide" />
         </Header>
 
