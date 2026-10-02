@@ -95,7 +95,7 @@ class HouseStyleTest extends TestCase
     }
 
     /**
-     * What the pages agree on, each page known by its slug.
+     * What the pages agree on, each keyed by its entry ID.
      *
      * @param  array<string, array<string, mixed>>  $pages
      */
