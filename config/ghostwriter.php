@@ -12,19 +12,21 @@ return [
     | "anthropic" (Claude), "openai" (ChatGPT) or "gemini". Leave the model
     | null to use the provider's default.
     |
-    | These, and the collection lists below, are defaults. Whatever is chosen
-    | on the addon's settings screen in the Control Panel takes precedence.
+    | These, and the other settings marked below, can also be chosen on the
+    | addon's settings screen in the Control Panel. A value set here wins:
+    | the screen shows it locked. Leave one null (or an empty list) to let
+    | the settings screen decide; with neither, Claude is used.
     |
     */
 
-    'provider' => env('GHOSTWRITER_PROVIDER', 'anthropic'),
+    'provider' => env('GHOSTWRITER_PROVIDER'),
 
     'model' => env('GHOSTWRITER_MODEL'),
 
     // Seconds to wait for one response. Long drafts take a while. A call
     // that finds the provider busy is tried up to three times, so queued
-    // jobs are given three times this, plus a minute.
-    'timeout' => (int) env('GHOSTWRITER_TIMEOUT', 180),
+    // jobs are given three times this, plus a minute. Set here only.
+    'timeout' => (int) env('GHOSTWRITER_TIMEOUT', 300),
 
     /*
     |--------------------------------------------------------------------------
@@ -84,6 +86,7 @@ return [
     */
 
     'images' => [
+        // Settings-screen fields too: a value here wins.
         'provider' => env('GHOSTWRITER_IMAGE_PROVIDER'),
         'model' => env('GHOSTWRITER_IMAGE_MODEL'),
         'unsplash_key' => env('UNSPLASH_ACCESS_KEY'),
@@ -95,9 +98,11 @@ return [
         'guide_path' => resource_path('ghostwriter/imagery.md'),
         'guide_samples' => 10,
 
-        // Put a striped placeholder in each image field a new entry should
-        // have but the draft left empty, so the layout shows as it will be.
-        'placeholders' => (bool) env('GHOSTWRITER_PLACEHOLDER_IMAGES', true),
+        // Mark each image field a new entry should have but the draft left
+        // empty with a striped placeholder, so the layout shows as it will
+        // be. On unless turned off here or on the settings screen; a value
+        // here wins.
+        'placeholders' => env('GHOSTWRITER_PLACEHOLDER_IMAGES'),
     ],
 
     /*
@@ -107,7 +112,8 @@ return [
     |
     | The guide is a markdown file in your project, so it is versioned with
     | the rest of the site. "collections" limits which collections are read
-    | when it is generated; leave it empty to read every collection.
+    | when it is generated; leave it empty to let the settings screen decide,
+    | and so read every collection unless some are chosen there.
     |
     */
 
@@ -124,10 +130,9 @@ return [
     | Collections
     |--------------------------------------------------------------------------
     |
-    | The collections Ghostwriter offers to write for. Leave this empty to
-    | offer every collection. Each one is "learned" once: Ghostwriter reads its
-    | blueprint and existing entries and saves a content type, which you can
-    | then edit, in the types directory below.
+    | The collections Ghostwriter offers to write for. Leave this empty to let
+    | the settings screen decide, and so offer every collection unless some
+    | are chosen there. A list here wins over the screen.
     |
     */
 
@@ -137,7 +142,8 @@ return [
 
     // Whether each collection is looked over for kinds of content worth
     // teaching, the first time it is seen and again as entries are published.
-    'suggest_kinds' => (bool) env('GHOSTWRITER_SUGGEST_KINDS', true),
+    // On unless turned off here or on the settings screen; a value here wins.
+    'suggest_kinds' => env('GHOSTWRITER_SUGGEST_KINDS'),
 
     /*
     |--------------------------------------------------------------------------

@@ -9,7 +9,7 @@
 Optional:
 
 - An OpenAI or Gemini key, to make images. Claude does not make images.
-- The **Imagick** PHP extension, for logo cards (and SVG logos) and for sending smaller copies of images to the model. Without it, logo cards are not offered and images are sent at their original size up to 1 MB.
+- The **Imagick** PHP extension, for sending smaller copies of images to the model. Without it, images are sent at their original size up to 1 MB.
 - The **GD** extension, which Statamic already needs, draws the striped image placeholders.
 
 ## Install the addon
@@ -57,7 +57,7 @@ Writing a draft or a guide can take a minute or more, which is longer than a web
 - **With a queue connection** (Redis, database, and so on) each model call runs as a queued job. Keep a worker running (`php artisan queue:work`, Horizon, or your host's daemon), or nothing will happen.
 - **On the `sync` driver**, the default for a flat-file site, the call runs after the HTTP response has been sent, in the same PHP process, while the screen polls for the result. This needs PHP-FPM, which Herd, Forge and most hosts use. The single-threaded `php artisan serve` blocks until the call is done.
 
-Each call is allowed the configured timeout (180 seconds by default). A call that finds the provider busy or rate-limited is tried again, up to three times in all, so each job is allowed three times the timeout plus 60 seconds (10 minutes by default). If your worker has its own time limit (`--timeout`, or Horizon's `timeout`), set it at least that high.
+Each call is allowed the configured timeout (300 seconds by default). A call that finds the provider busy or rate-limited is tried again, up to three times in all, so each job is allowed three times the timeout plus 60 seconds (16 minutes by default). If your worker has its own time limit (`--timeout`, or Horizon's `timeout`), set it at least that high.
 
 ## Updating
 
@@ -72,6 +72,6 @@ php artisan vendor:publish --tag=ghostwriter-statamic --force
 composer remove 1994/ghostwriter-statamic
 ```
 
-Ghostwriter adds no database tables. Its guides, kinds and plan stay in `resources/ghostwriter/`, its settings in `resources/addons/ghostwriter-statamic.yaml`, and its working files in `storage/ghostwriter/`, until you delete them. Assets it saved (photos, made images, logo cards, the striped placeholder) stay in your containers.
+Ghostwriter adds no database tables. Its guides, kinds and plan stay in `resources/ghostwriter/`, its settings in `resources/addons/ghostwriter-statamic.yaml`, and its working files in `storage/ghostwriter/`, until you delete them. Assets it saved (photos, made images, and logo cards made before 1.1.0, the striped placeholder) stay in your containers.
 
 Next: [API keys](api-keys.md).

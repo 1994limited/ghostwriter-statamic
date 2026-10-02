@@ -36,9 +36,9 @@ class ImageryController
             ],
         ]);
 
+        // A failure stays on screen until the next run, so a job that failed
+        // while nobody was looking still explains itself.
         $state = $this->payload();
-
-        $this->forgetFailure();
 
         return Inertia::render('ghostwriter::Voice', [
             'blueprint' => $blueprint->toPublishArray(),
@@ -66,22 +66,13 @@ class ImageryController
                 'empty' => 'No guide yet. Choose which collections to look at, then generate it.',
                 'read' => 'Ghostwriter looks at the images used by the newest published entries in each collection you tick, and writes a section for each.',
                 'generate' => 'Generate from your images',
-                'regenerate' => 'Look at the site again',
-                'confirm' => 'Look at the site again and replace the current guide? Any edits you have made to it will be lost.',
-                'scanned' => 'Last written from :count images.',
+                'regenerate' => 'Look at the images again',
+                'confirm' => 'Look at the images again and replace the current guide? Any edits you have made to it will be lost.',
+                'first' => 'Describe the images',
+                'again' => 'Look again and rewrite',
+                'scanned' => 'Last written from :count image.|Last written from :count images.',
             ],
         ]);
-    }
-
-    /**
-     * A failure is reported once. After that the screen starts clean, so an
-     * old error does not greet every visit.
-     */
-    private function forgetFailure(): void
-    {
-        if ($this->state->get()['status'] === ImageryState::FAILED) {
-            $this->state->update(['status' => ImageryState::IDLE, 'error' => null, 'task' => null]);
-        }
     }
 
     public function status(): JsonResponse

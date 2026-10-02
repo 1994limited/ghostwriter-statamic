@@ -42,6 +42,7 @@ class FieldImageTest extends TestCase
             ['handle' => 'title', 'field' => ['type' => 'text']],
             ['handle' => 'cover', 'field' => ['type' => 'assets', 'container' => 'assets', 'max_files' => 1, 'display' => 'Cover', 'folder' => 'covers']],
             ['handle' => 'brochure', 'field' => ['type' => 'assets', 'container' => 'assets', 'validate' => ['mimes:pdf']]],
+            ['handle' => 'gallery', 'field' => ['type' => 'assets', 'container' => 'assets', 'max_files' => 2, 'display' => 'Gallery']],
             ['handle' => 'blocks', 'field' => ['type' => 'replicator', 'sets' => ['content' => ['display' => 'Content', 'sets' => [
                 'grid_left' => ['display' => 'Grid — Left', 'fields' => [
                     ['handle' => 'heading', 'field' => ['type' => 'text']],
@@ -182,11 +183,58 @@ class FieldImageTest extends TestCase
         $this->assertSame(['assets::'.$kept['asset']['path']], $kept['value']);
     }
 
+    public function test_photos_nobody_compared_with_the_site_are_not_called_the_best_match(): void
+    {
+        $this->signIn();
+
+        $photo = fn (string $id) => ['id' => $id, 'urls' => ['small' => "https://images.unsplash.com/{$id}.jpg"], 'user' => ['name' => 'Ada'], 'links' => ['html' => "https://unsplash.com/photos/{$id}"]];
+
+        Http::fake([
+            'api.unsplash.com/search/photos?query=boats*' => Http::response(['results' => [$photo('b1'), $photo('b2'), $photo('b3'), $photo('b4')]]),
+            'api.unsplash.com/search/photos?query=harbour*' => Http::response(['results' => [$photo('h1'), $photo('h2')]]),
+        ]);
+
+        // No other story has a gallery image, so there is nothing to compare with.
+        $request = app(ImageRequests::class)->create(['user' => (string) User::current()->id(), 'mode' => 'find', 'terms' => ['boats', 'harbour'], 'slot' => ['stories', null, 'gallery', null, null, 'A Tale', '', '']]);
+
+        (new FindImages($request['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
+
+        $options = app(ImageRequests::class)->find($request['id'])['options'];
+
+        $this->assertCount(6, $options);
+        $this->assertSame([], array_filter(array_column($options, 'picked')), 'Nothing was judged, so nothing is the best match.');
+        $this->ai->assertNotSent('photo-picker');
+    }
+
+    public function test_a_full_multi_image_field_is_left_alone_and_the_image_kept_in_the_container(): void
+    {
+        $this->signIn();
+
+        $make = fn () => tap($this->postJson(cp_route('ghostwriter.images.start'), ['collection' => 'stories', 'path' => 'gallery', 'mode' => 'make', 'direction' => 'A boat'])->assertOk()->json(),
+            fn (array $started) => (new MakeImage($started['id']))->handle(app(ImageRequests::class), app(FieldImages::class)));
+
+        // Room for one more: it goes in beside the one already there.
+        $added = $this->postJson(cp_route('ghostwriter.images.use', $make()['id']), ['current' => ['assets::grids/one.png']])->assertOk()->json();
+        $this->assertFalse($added['full']);
+        $this->assertCount(2, $added['value']);
+
+        // Full: the field is not touched, and the person is told where the image went.
+        $refused = $this->postJson(cp_route('ghostwriter.images.use', $make()['id']), ['current' => ['assets::grids/one.png', 'assets::grids/two.png']])->assertOk()->json();
+        $this->assertTrue($refused['full']);
+        $this->assertArrayNotHasKey('value', $refused);
+        $this->assertStringContainsString('This field is full', $refused['message']);
+        $this->assertTrue(Storage::disk('assets')->exists($refused['asset']['path']), 'The image is still kept in the container.');
+
+        // A placeholder does not count towards the limit.
+        $placeholder = $this->postJson(cp_route('ghostwriter.images.use', $make()['id']), ['current' => ['assets::grids/one.png', 'assets::'.Placeholders::PATH]])->assertOk()->json();
+        $this->assertFalse($placeholder['full']);
+    }
+
     public function test_the_tools_on_offer_follow_the_keys_and_a_pdf_field_is_refused(): void
     {
         $this->signIn();
 
-        $this->getJson(cp_route('ghostwriter.images.tools'))->assertOk()->assertJsonPath('find', true)->assertJsonPath('make', true);
+        $this->getJson(cp_route('ghostwriter.images.tools'))->assertOk()->assertJsonPath('find', true)->assertJsonPath('make', true)->assertJsonMissingPath('logo_card');
 
         $this->withoutKeys('openai');
         config(['ghostwriter.images.unsplash_key' => null]);
@@ -200,17 +248,13 @@ class FieldImageTest extends TestCase
         Bus::fake();
 
         // Finding and making may be started (nothing is saved yet), but
-        // keeping the result or composing a card into the field may not.
+        // keeping the result in the field may not.
         $this->signInWith(['access ghostwriter', 'view stories entries', 'edit stories entries']);
 
         $started = $this->postJson(cp_route('ghostwriter.images.start'), ['collection' => 'stories', 'path' => 'cover', 'mode' => 'make', 'direction' => 'A lighthouse'])->assertOk()->json();
         (new MakeImage($started['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
 
         $this->postJson(cp_route('ghostwriter.images.use', $started['id']), ['current' => []])->assertForbidden();
-        $this->post(cp_route('ghostwriter.images.logo'), [
-            'collection' => 'stories', 'path' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent('logo.png', $this->png()),
-        ], ['Accept' => 'application/json'])->assertForbidden();
 
         $this->assertSame(['covers/one.png', 'covers/two.png'], Storage::disk('assets')->files('covers'));
     }

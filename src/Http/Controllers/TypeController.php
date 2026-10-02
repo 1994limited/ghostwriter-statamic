@@ -4,6 +4,8 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
@@ -43,22 +45,31 @@ class TypeController
     {
         $type = $this->type($type);
 
+        // A kind with no questions would be the general brief under another name.
+        if (collect($request->input('questions', []))->filter(fn ($question) => trim((string) ($question['label'] ?? '')) !== '')->isEmpty()) {
+            throw ValidationException::withMessages(['questions' => 'A kind of content needs at least one question.']);
+        }
+
         $fields = $this->blueprint($type)->fields()->addValues($request->all());
 
         $fields->validate();
 
         $values = $fields->process()->values()->all();
+        $taken = [];
 
         $this->types->save(ContentType::fromArray($type->handle, [
             'title' => $values['title'],
             'description' => $values['description'] ?? '',
-            'questions' => collect($values['questions'] ?? [])->map(fn (array $question) => array_filter([
-                'handle' => $question['handle'],
-                'label' => $question['label'],
-                'instructions' => $question['instructions'] ?? null,
-                'type' => $question['type'] ?? 'textarea',
-                'required' => (bool) ($question['required'] ?? false),
-            ], fn ($value) => $value !== null && $value !== ''))->values()->all(),
+            'questions' => collect($values['questions'] ?? [])->map(function (array $question) use (&$taken) {
+                return array_filter([
+                    // Kept from before when there is one; made from the wording for a new question.
+                    'handle' => $this->handleFor($question, $taken),
+                    'label' => $question['label'],
+                    'instructions' => $question['instructions'] ?? null,
+                    'type' => $question['type'] ?? 'textarea',
+                    'required' => (bool) ($question['required'] ?? false),
+                ], fn ($value) => $value !== null && $value !== '');
+            })->values()->all(),
             'guidance' => $values['guidance'] ?? '',
             'checklist' => $values['checklist'] ?? [],
             'examples' => $values['examples'] ?? [],
@@ -77,6 +88,26 @@ class TypeController
         $this->types->delete($this->type($type));
 
         return response()->json(['deleted' => true]);
+    }
+
+    /**
+     * A question's handle: the one it had, or one made from its wording,
+     * unique within the kind. Handles are not shown on this screen; changing
+     * one would lose answers already given, so they are left alone.
+     *
+     * @param  array<string, mixed>  $question
+     * @param  array<int, string>  $taken
+     */
+    private function handleFor(array $question, array &$taken): string
+    {
+        $base = trim((string) ($question['handle'] ?? '')) ?: (Str::slug((string) $question['label'], '_') ?: 'question');
+        $handle = $base;
+
+        for ($n = 2; in_array($handle, $taken, true); $n++) {
+            $handle = "{$base}_{$n}";
+        }
+
+        return $taken[] = $handle;
     }
 
     /**
@@ -115,9 +146,11 @@ class TypeController
                 'instructions' => 'Asked before anything is written. Ask only for what cannot be invented: what happened, who for, what resulted, what must be left out.',
                 'mode' => 'stacked',
                 'add_row' => 'Add a question',
+                'min_rows' => 1,
                 'fields' => [
-                    ['handle' => 'label', 'field' => ['type' => 'text', 'display' => 'Question', 'validate' => ['required'], 'width' => 66]],
-                    ['handle' => 'handle', 'field' => ['type' => 'slug', 'display' => 'Handle', 'from' => 'label', 'separator' => '_', 'validate' => ['required'], 'width' => 33]],
+                    ['handle' => 'label', 'field' => ['type' => 'text', 'display' => 'Question', 'validate' => ['required'], 'width' => 100]],
+                    // Kept with each question but not shown: it is made from the wording.
+                    ['handle' => 'handle', 'field' => ['type' => 'text', 'display' => 'Handle', 'visibility' => 'hidden']],
                     ['handle' => 'instructions', 'field' => ['type' => 'text', 'display' => 'Hint', 'width' => 66]],
                     ['handle' => 'type', 'field' => ['type' => 'button_group', 'display' => 'Answer', 'options' => ['text' => 'One line', 'textarea' => 'Paragraph'], 'default' => 'textarea', 'width' => 25]],
                     ['handle' => 'required', 'field' => ['type' => 'toggle', 'display' => 'Required', 'width' => 25]],

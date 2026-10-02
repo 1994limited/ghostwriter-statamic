@@ -17,10 +17,10 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
 use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
+use NineteenNinetyFour\Ghostwriter\Drafts\FormBaseline;
 use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
 use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
@@ -157,7 +157,7 @@ class SessionController
      * The draft as values for the publish form the panel is open on. Nothing
      * is saved: the person reviews the filled-in form and saves it themselves.
      */
-    public function apply(Request $request, string $session, SchemaReader $reader, PatternFinder $patterns, EntryBuilder $builder, ImageStudio $images, EntryMerger $merger, HouseFinish $finish): JsonResponse
+    public function apply(Request $request, string $session, SchemaReader $reader, PatternFinder $patterns, EntryBuilder $builder, ImageStudio $images, EntryMerger $merger, HouseFinish $finish, FormBaseline $baseline): JsonResponse
     {
         $session = $this->session($session);
         $type = $this->type($session->type)->forSession($session);
@@ -180,10 +180,10 @@ class SessionController
 
         if ($original) {
             // Editing an entry: only the writing changes. Its images, links,
-            // settings and block IDs come from the entry, not from what this
-            // kind of entry usually has.
+            // settings and block IDs come from the form as it stands, unsaved
+            // changes included, not from what this kind of entry usually has.
             $built = $builder->build($draft->data, $schema);
-            $built['data'] = $merger->merge($built['data'], $original->data()->all(), $schema);
+            $built['data'] = $merger->merge($built['data'], $baseline->data($original, $request->input('values')), $schema);
         } else {
             $pattern = $patterns->find($type->collection, $schema, $type->blueprint, $type->where, $type->examples);
             $built = $builder->build($draft->data, $schema, $pattern, $type->defaults);
@@ -381,58 +381,6 @@ class SessionController
         $session->images[$validated['key']] = ['status' => 'done', 'error' => null]
             + array_intersect_key($source, ['path' => 1, 'url' => 1, 'credit' => 1])
             + array_intersect_key($session->images[$validated['key']] ?? [], ['query' => 1, 'options' => 1]);
-
-        $this->sessions->save($session);
-
-        return response()->json($this->presenter->detail($session));
-    }
-
-    /**
-     * Compose a logo on a coloured ground as a field's image, at the size
-     * that field's images already are.
-     */
-    public function logoCard(Request $request, string $session, ImageStudio $images, LogoCard $card): JsonResponse
-    {
-        $session = $this->session($session);
-        $type = $this->type($session->type)->forSession($session);
-        $slots = $images->slots($session, $type);
-
-        $validated = $request->validate([
-            'key' => ['required', 'string', Rule::in(array_keys($slots))],
-            'logo' => ['required', 'file', 'max:5120', 'mimes:png,webp,svg', 'mimetypes:image/png,image/webp,image/svg+xml,image/svg'],
-            'colour' => ['nullable', 'string', 'max:7'],
-            'colour_to' => ['nullable', 'string', 'max:7'],
-            'white' => ['nullable', 'boolean'],
-            'everywhere' => ['nullable', 'boolean'],
-        ]);
-
-        $this->ensureCanUploadTo($slots[$validated['key']]['container']);
-
-        [$width, $height] = $images->sizeFor($session, $type, $validated['key']);
-
-        try {
-            $made = $card->compose(
-                (string) file_get_contents($request->file('logo')->getRealPath()),
-                $width,
-                $height,
-                $validated['colour'] ?? null,
-                $validated['colour_to'] ?? null,
-                (bool) ($validated['white'] ?? true),
-                type: (string) $request->file('logo')->guessExtension(),
-            );
-        } catch (InvalidArgumentException $exception) {
-            abort(422, $exception->getMessage());
-        }
-
-        $asset = $images->keep($session, $type, $validated['key'], $made['content'], 'jpg');
-        $record = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => null, 'colour' => $made['colour']];
-
-        // Sites often use the one card in several places: a hero and a thumbnail.
-        foreach (($validated['everywhere'] ?? false) ? $slots : [$slots[$validated['key']]] as $slot) {
-            if ($slot['container'] === $slots[$validated['key']]['container']) {
-                $session->images[$slot['key']] = $record;
-            }
-        }
 
         $this->sessions->save($session);
 

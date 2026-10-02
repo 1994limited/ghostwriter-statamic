@@ -44,9 +44,17 @@ export default {
         },
 
         async remove() {
-            if (!confirm(this.__('Delete this content type? Entries already written are not affected.'))) return;
+            if (!confirm(this.__('Delete this kind of content? Entries already written are not affected.'))) return;
 
-            await this.$axios.delete(this.urls.destroy);
+            try {
+                await this.$axios.delete(this.urls.destroy);
+            } catch (error) {
+                this.$toast.error(error.response?.data?.message ?? this.__('Could not delete it.'));
+
+                return;
+            }
+
+            this.$toast.success(this.__('Kind deleted'));
             router.visit(this.urls.index);
         },
     },

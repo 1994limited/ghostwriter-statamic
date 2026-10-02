@@ -28,7 +28,10 @@ export default {
             adding: { title: '', collection: this.collections[0]?.handle ?? '', notes: '' },
             showDone: false,
             // Which of the suggestions waiting to be looked over are ticked.
-            chosen: [],
+            chosen: this.plan.pending.map((idea, i) => i),
+            // Whether the suggestions are open to look over. Closing them
+            // leaves them waiting; only "Drop them all" throws them away.
+            reviewing: false,
             timer: null,
         };
     },
@@ -40,10 +43,11 @@ export default {
             return this.current.status === 'working';
         },
 
-        // Open ideas, under the collection each would be written in.
+        // Open ideas, under the collection each would be written in, the
+        // newest first so ones just added are in view.
         groups() {
             return this.collections
-                .map((collection) => ({ ...collection, ideas: this.current.ideas.filter((idea) => idea.collection === collection.handle && idea.status === 'open') }))
+                .map((collection) => ({ ...collection, ideas: this.current.ideas.filter((idea) => idea.collection === collection.handle && idea.status === 'open').reverse() }))
                 .filter((group) => group.ideas.length);
         },
 
@@ -58,15 +62,6 @@ export default {
 
         done() {
             return this.current.ideas.filter((idea) => idea.status === 'dismissed' || (idea.status === 'drafted' && idea.finished));
-        },
-
-        reviewing: {
-            get() {
-                return this.current.pending.length > 0;
-            },
-            set(open) {
-                if (!open) this.decide(true);
-            },
         },
 
         options() {
@@ -94,6 +89,9 @@ export default {
 
             if (data.status === 'working') this.poll();
             if (finished && !data.pending.length) this.$toast.info(this.__('Nothing new to suggest this time.'));
+            // Fresh suggestions open to be looked over; ones left waiting from before wait on the card.
+            if (finished && data.pending.length) this.reviewing = true;
+            if (!data.pending.length) this.reviewing = false;
         },
 
         poll() {
@@ -131,7 +129,7 @@ export default {
                 in_form: this.__('Put in the form, not saved'),
                 saved: this.__('Saved as a draft entry'),
                 published: this.__('Published'),
-            }[stage] ?? this.__('Started');
+            }[stage] ?? this.__('In progress');
         },
 
         suggest() {
@@ -149,13 +147,20 @@ export default {
         },
 
         // Ticked suggestions join the plan; unticked ones are kept as
-        // dismissed so they are not suggested again. Closing the box without
-        // deciding drops them all.
+        // dismissed so they are not suggested again. "Drop them all" throws
+        // the lot away; closing the box without deciding leaves them waiting.
         async decide(discard = false) {
             const chosen = discard ? [] : this.chosen;
 
+            const dismissed = this.current.pending.length - chosen.length;
+
             if (await this.request('post', this.urls.accept, { chosen, discard })) {
-                if (!discard) this.$toast.success(this.__(':count added to the plan.', { count: chosen.length }));
+                if (discard) return;
+
+                // With nothing kept, say what did happen rather than "0 added".
+                this.$toast.success(chosen.length
+                    ? this.__n(':count idea added to the plan.|:count ideas added to the plan.', chosen.length)
+                    : this.__n('Dismissed :count suggestion.|Dismissed :count suggestions.', dismissed));
             }
         },
 
@@ -163,8 +168,8 @@ export default {
         clear(status) {
             const count = this.current.ideas.filter((idea) => idea.status === status).length;
             const question = status === 'open'
-                ? this.__('Remove all :count ideas from the list? Started and dismissed ones stay. This cannot be undone.', { count })
-                : this.__('Delete all :count dismissed ideas? Ghostwriter will no longer know not to suggest them again.', { count });
+                ? this.__n('Remove the :count idea from the list? Started and dismissed ones stay. This cannot be undone.|Remove all :count ideas from the list? Started and dismissed ones stay. This cannot be undone.', count)
+                : this.__n('Delete the :count dismissed idea? Ghostwriter will no longer know not to suggest it again.|Delete all :count dismissed ideas? Ghostwriter will no longer know not to suggest them again.', count);
 
             if (!confirm(question)) return;
 
@@ -195,10 +200,21 @@ export default {
 
         <Alert v-if="current.status === 'failed'" variant="error" :heading="__('That did not work')" :text="current.error" class="mb-6" />
 
+        <!-- Suggestions waiting to be looked over: closing the box keeps them -->
+        <Panel v-if="current.pending.length" class="mb-6">
+            <div class="flex items-center justify-between gap-4 px-4 py-3">
+                <p class="text-sm">
+                    <span class="font-medium">{{ __n(':count suggestion waiting|:count suggestions waiting', current.pending.length) }}</span>
+                    <span class="text-gray-500"> · {{ __('Ghostwriter’s ideas for what the site is missing, to keep or dismiss.') }}</span>
+                </p>
+                <Button size="sm" variant="primary" :text="__('Review')" @click="reviewing = true" />
+            </div>
+        </Panel>
+
         <Modal v-model:open="reviewing" :title="__('Ghostwriter suggests')" :icon="ghost">
             <div class="space-y-3 p-1">
                 <Subheading :text="__('Tick the ones worth writing. Unticked ones are kept as dismissed, so they are not suggested again.')" />
-                <div v-for="(idea, i) in current.pending" :key="i" class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                <div v-for="(idea, i) in current.pending" :key="i" class="rounded-lg border border-gray-200 p-3 dark:border-gray-700!">
                     <Checkbox :model-value="chosen.includes(i)" :label="idea.title" @update:model-value="(on) => tick(i, on)" />
                     <div class="ms-6 mt-1 text-xs text-gray-500">{{ idea.collection_title }}<template v-if="idea.type_title"> · {{ idea.type_title }}</template></div>
                     <p v-if="idea.why" class="ms-6 mt-1 text-sm">{{ idea.why }}</p>
@@ -214,7 +230,7 @@ export default {
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="space-y-6 lg:col-span-2">
                 <Panel v-if="started.length" :heading="__('In progress')" :subheading="__('Started, and not yet saved as an entry.')">
-                    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <div class="divide-y divide-gray-200 dark:divide-gray-700!">
                         <div v-for="idea in started" :key="idea.id" class="flex items-center gap-4 p-4">
                             <div class="min-w-0 flex-1">
                                 <Heading :text="idea.title" />
@@ -233,7 +249,7 @@ export default {
                 </Panel>
 
                 <Panel v-for="group in groups" :key="group.handle" :heading="__(group.title)" :subheading="__(':count to write', { count: group.ideas.length })">
-                    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                    <div class="divide-y divide-gray-200 dark:divide-gray-700!">
                         <div v-for="idea in group.ideas" :key="idea.id" class="flex items-start gap-4 p-4">
                             <div class="min-w-0 flex-1">
                                 <div class="flex flex-wrap items-center gap-2">
@@ -256,7 +272,7 @@ export default {
                     <Button size="sm" variant="ghost" :text="showDone ? __('Hide finished and dismissed') : __('Show :count finished and dismissed', { count: done.length })" @click="showDone = !showDone" />
 
                     <Panel v-if="showDone" class="mt-3">
-                        <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <div class="divide-y divide-gray-200 dark:divide-gray-700!">
                             <div v-for="idea in done" :key="idea.id" class="flex items-center gap-4 px-4 py-3">
                                 <div class="min-w-0 flex-1">
                                     <span :class="{ 'line-through': idea.status === 'dismissed' }">{{ idea.title }}</span>
@@ -264,7 +280,7 @@ export default {
                                 </div>
                                 <Badge :color="idea.status === 'drafted' ? 'green' : 'gray'" :text="idea.status === 'drafted' ? stageText(idea.stage) : __('Dismissed')" />
                                 <Button v-if="idea.entry_url" size="sm" variant="ghost" :href="idea.entry_url" :text="__('Open entry')" />
-                                <Button size="sm" variant="ghost" :text="__('Put back')" @click="mark(idea, 'open')" />
+                                <Button v-if="idea.status === 'dismissed'" size="sm" variant="ghost" :text="__('Put back')" @click="mark(idea, 'open')" />
                                 <Button size="sm" variant="ghost" :text="__('Delete')" @click="remove(idea)" />
                             </div>
                         </div>

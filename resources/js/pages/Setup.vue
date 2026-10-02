@@ -25,7 +25,8 @@ export default {
 
     data() {
         const fromHash = Number((window.location.hash.match(/^#step-(\d+)$/) ?? [])[1]);
-        const firstToDo = this.steps.findIndex((step) => !step.done);
+        // Open on the first required step still to do; optional ones wait.
+        const firstToDo = this.steps.findIndex((step) => !step.done && !step.optional);
 
         return {
             current: { steps: this.steps, details: this.details, progress: this.progress },
@@ -33,6 +34,9 @@ export default {
             busy: null,
             timer: null,
             steer: '',
+            // Step 2, chosen in place: which collections it writes for and learns from.
+            writeFor: this.details.collections.filter((c) => c.write_for).map((c) => c.handle),
+            voiceFrom: this.details.collections.filter((c) => c.voice).map((c) => c.handle),
         };
     },
 
@@ -53,6 +57,22 @@ export default {
 
         kinds() {
             return this.current.details.kinds;
+        },
+
+        // Step 2 can be changed here by those who may change the settings,
+        // unless config/ghostwriter.php fixes both lists.
+        choosing() {
+            const details = this.current.details;
+
+            return details.can_change_settings && !(details.collections_locked && details.voice_locked);
+        },
+
+        chosenChanged() {
+            const same = (a, b) => a.length === b.length && a.every((handle) => b.includes(handle));
+            const collections = this.current.details.collections;
+
+            return !same(this.writeFor, collections.filter((c) => c.write_for).map((c) => c.handle))
+                || !same(this.voiceFrom, collections.filter((c) => c.voice).map((c) => c.handle));
         },
     },
 
@@ -122,6 +142,28 @@ export default {
             }
         },
 
+        toggle(list, handle, on) {
+            this[list] = on ? [...this[list], handle] : this[list].filter((h) => h !== handle);
+        },
+
+        async saveCollections() {
+            const payload = {};
+
+            if (!this.current.details.collections_locked) payload.collections = this.writeFor;
+            if (!this.current.details.voice_locked) payload.voice_collections = this.voiceFrom;
+
+            await this.post(this.urls.collections, payload);
+            this.writeFor = this.current.details.collections.filter((c) => c.write_for).map((c) => c.handle);
+            this.voiceFrom = this.current.details.collections.filter((c) => c.voice).map((c) => c.handle);
+            this.$toast.success(this.__('Collections saved'));
+        },
+
+        async learnAll(collection) {
+            if (!confirm(this.__('Learn all :count suggested kinds, one after another? This takes about a minute each.', { count: collection.suggestions.length }))) return;
+
+            await this.post(collection.learn_all_url);
+        },
+
         async hide() {
             if (!confirm(this.__('Hide Get started? It leaves the navigation and the dashboard. A link at the foot of the dashboard brings it back.'))) return;
 
@@ -146,7 +188,7 @@ export default {
     <div class="mx-auto max-w-6xl">
         <Header :title="__('Get started with Ghostwriter')" :icon="ghost">
             <Button :href="urls.index" :text="__('Dashboard')" variant="ghost" />
-            <Button :text="__('Hide Get started')" variant="ghost" @click="hide" />
+            <Button v-if="current.progress.can_toggle" :text="__('Hide Get started')" variant="ghost" @click="hide" />
         </Header>
 
         <p class="mb-6 text-gray-500">{{ __('A few steps take Ghostwriter from installed to writing in your voice. Each can be done here, skipped, or redone at any time.') }}</p>
@@ -154,12 +196,12 @@ export default {
         <div class="grid gap-6 lg:grid-cols-3">
             <!-- The step list -->
             <Panel>
-                <div class="border-b border-gray-200 p-4 dark:border-gray-700">
+                <div class="border-b border-gray-200 p-4 dark:border-gray-700!">
                     <div class="mb-1.5 flex justify-between text-sm">
-                        <span class="font-medium">{{ __(':done of :total done', { done: current.progress.done, total: current.progress.total }) }}</span>
+                        <span class="font-medium">{{ __(':done of :total required steps done', { done: current.progress.done, total: current.progress.total }) }}</span>
                         <span class="text-gray-500">{{ percent }}%</span>
                     </div>
-                    <div class="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div class="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700!">
                         <div class="h-full rounded-full transition-all" style="background: var(--gw-accent, #2b3a64)" :style="{ width: `${percent}%` }"></div>
                     </div>
                 </div>
@@ -167,18 +209,18 @@ export default {
                     <li v-for="(item, i) in current.steps" :key="item.key">
                         <button
                             type="button"
-                            class="flex w-full items-center gap-3 px-4 py-3 text-start hover:bg-gray-50 dark:hover:bg-gray-800"
-                            :class="{ 'bg-gray-50 dark:bg-gray-800': i === index }"
+                            class="flex w-full items-center gap-3 px-4 py-3 text-start hover:bg-gray-50! dark:hover:bg-gray-800!"
+                            :class="{ 'bg-gray-50 dark:bg-gray-800!': i === index }"
                             :aria-current="i === index ? 'step' : null"
                             @click="index = i"
                         >
                             <span
                                 class="flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium"
-                                :class="item.done ? 'text-white' : 'border border-gray-300 text-gray-500 dark:border-gray-600'"
+                                :class="item.done ? 'text-white' : 'border border-gray-300 text-gray-500 dark:border-gray-600!'"
                                 :style="item.done ? 'background: var(--gw-accent, #2b3a64)' : null"
                             >{{ item.done ? '✓' : i + 1 }}</span>
                             <span class="min-w-0 flex-1 truncate text-sm" :class="{ 'font-medium': i === index }">{{ item.title }}</span>
-                            <span class="shrink-0 text-xs" :class="{ 'text-green-700 dark:text-green-400': item.done, 'text-blue-700 dark:text-blue-400': item.working, 'text-gray-500': !item.done && !item.working }">{{ status(item).text }}</span>
+                            <span class="shrink-0 text-xs" :class="{ 'text-green-700 dark:text-green-400!': item.done, 'text-blue-700 dark:text-blue-400!': item.working, 'text-gray-500': !item.done && !item.working }">{{ status(item).text }}</span>
                         </button>
                     </li>
                 </ol>
@@ -195,14 +237,53 @@ export default {
                     <SetupAlert v-if="step.action?.needs_key && !configured" :provider="provider" class="mt-4" />
 
                     <!-- Step 1: the key -->
-                    <div v-if="step.key === 'key'" class="mt-4 rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700">
+                    <div v-if="step.key === 'key'" class="mt-4 rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700!">
                         <p>{{ __('Provider') }}: <strong>{{ current.details.provider }}</strong><span v-if="current.details.key_name"> · {{ __('key') }}: <code>{{ current.details.key_name }}</code></span></p>
                         <p class="mt-1 text-gray-500">{{ __('Change the provider in the settings. Keys only ever live in .env.') }}</p>
                     </div>
 
-                    <!-- Step 2: collections -->
-                    <div v-if="step.key === 'collections'" class="mt-4 space-y-1.5">
-                        <div v-for="collection in current.details.collections" :key="collection.handle" class="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                    <!-- Step 2: collections, chosen here by those who may change the settings -->
+                    <div v-if="step.key === 'collections' && choosing" class="mt-4">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-start text-xs text-gray-500">
+                                    <th class="py-1.5 text-start font-medium">{{ __('Collection') }}</th>
+                                    <th class="w-36 py-1.5 text-start font-medium">{{ __('Write for it') }}</th>
+                                    <th class="w-44 py-1.5 text-start font-medium">{{ __('Learn the voice from it') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700!">
+                                <tr v-for="collection in current.details.collections" :key="collection.handle">
+                                    <td class="py-2">{{ collection.title }} <span class="text-gray-500">· {{ __(':count published', { count: collection.entries }) }}</span></td>
+                                    <td class="py-2">
+                                        <Checkbox
+                                            :model-value="writeFor.includes(collection.handle)"
+                                            :label="__('Write for :collection', { collection: collection.title })"
+                                            solo
+                                            :disabled="current.details.collections_locked || !!busy"
+                                            @update:model-value="(on) => toggle('writeFor', collection.handle, on)"
+                                        />
+                                    </td>
+                                    <td class="py-2">
+                                        <Checkbox
+                                            :model-value="voiceFrom.includes(collection.handle)"
+                                            :label="__('Learn the voice from :collection', { collection: collection.title })"
+                                            solo
+                                            :disabled="current.details.voice_locked || !!busy"
+                                            @update:model-value="(on) => toggle('voiceFrom', collection.handle, on)"
+                                        />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p v-if="current.details.collections_locked || current.details.voice_locked" class="mt-2 text-sm text-gray-500">{{ __('Some of these are set in config/ghostwriter.php, which wins; change them there.') }}</p>
+                        <div class="mt-3 flex items-center gap-3">
+                            <Button size="sm" :text="__('Save these collections')" :disabled="!chosenChanged || !writeFor.length || !voiceFrom.length || !!busy" :loading="busy === urls.collections" @click="saveCollections" />
+                            <span v-if="!writeFor.length || !voiceFrom.length" class="text-sm text-gray-500">{{ __('Tick at least one in each column.') }}</span>
+                        </div>
+                    </div>
+                    <div v-else-if="step.key === 'collections'" class="mt-4 space-y-1.5">
+                        <div v-for="collection in current.details.collections" :key="collection.handle" class="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-gray-700!">
                             <span>{{ collection.title }} <span class="text-gray-500">· {{ __(':count published', { count: collection.entries }) }}</span></span>
                             <span class="text-xs text-gray-500">
                                 <span v-if="collection.write_for">{{ __('Writes here') }}</span><span v-else>{{ __('Not writing here') }}</span>
@@ -214,17 +295,17 @@ export default {
 
                     <!-- Steps 3 and 5: the guides -->
                     <div v-if="step.key === 'voice' || step.key === 'imagery'" class="mt-4">
-                        <div v-if="current.details[step.key].exists" class="gw-prose rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700" v-html="current.details[step.key].excerpt" />
-                        <p v-if="current.details[step.key].scanned" class="mt-2 text-xs text-gray-500">{{ __('Written from :count samples.', { count: current.details[step.key].scanned }) }}</p>
+                        <div v-if="current.details[step.key].exists" class="gw-prose rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700!" v-html="current.details[step.key].excerpt" />
+                        <p v-if="current.details[step.key].scanned" class="mt-2 text-xs text-gray-500">{{ __n('Written from :count sample.|Written from :count samples.', current.details[step.key].scanned) }}</p>
                     </div>
 
                     <!-- Step 4: kinds, with the suggestions inline -->
                     <div v-if="step.key === 'kinds'" class="mt-4 space-y-4">
-                        <div v-for="collection in kinds" :key="collection.handle" class="rounded-md border border-gray-200 p-3 dark:border-gray-700">
+                        <div v-for="collection in kinds" :key="collection.handle" class="rounded-md border border-gray-200 p-3 dark:border-gray-700!">
                             <div class="flex items-center justify-between">
                                 <Heading :text="collection.title" />
                                 <div class="flex gap-2">
-                                    <Button v-if="collection.suggestions.length > 1" size="sm" variant="ghost" :text="__('Learn all :count', { count: collection.suggestions.length })" :disabled="!configured || collection.learning.status === 'working' || !!busy" @click="post(collection.learn_all_url)" />
+                                    <Button v-if="collection.suggestions.length > 1" size="sm" variant="ghost" :text="__('Learn all :count', { count: collection.suggestions.length })" :disabled="!configured || collection.learning.status === 'working' || !!busy" @click="learnAll(collection)" />
                                     <Button size="sm" variant="ghost" :text="__('Suggest kinds')" :disabled="!configured || collection.state === 'working' || !!busy" :loading="busy === collection.suggest_url" @click="post(collection.suggest_url)" />
                                 </div>
                             </div>
@@ -232,13 +313,14 @@ export default {
                             <p v-if="collection.state === 'working'" class="mt-2 text-sm text-gray-500"><span class="animate-pulse">{{ __('Looking over the entries…') }}</span></p>
                             <p v-else-if="collection.learning.status === 'working'" class="mt-2 text-sm text-gray-500"><span class="animate-pulse">{{ __('Learning… about a minute per kind.') }}</span></p>
                             <div v-if="collection.types.length" class="mt-2 flex flex-wrap gap-1.5">
-                                <a v-for="type in collection.types" :key="type.url" :href="type.url" class="rounded-md border border-gray-200 px-2 py-0.5 text-xs hover:border-gray-400 dark:border-gray-700">{{ type.title }}</a>
+                                <a v-for="type in collection.types" :key="type.url" :href="type.url" class="rounded-md border border-gray-200 px-2 py-0.5 text-xs hover:border-gray-400! dark:border-gray-700!">{{ type.title }}</a>
                             </div>
-                            <div v-for="suggestion in collection.suggestions" :key="suggestion.id" class="mt-2 flex items-start gap-3 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800">
+                            <div v-for="suggestion in collection.suggestions" :key="suggestion.id" class="mt-2 flex items-start gap-3 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800!">
                                 <div class="min-w-0 flex-1">
                                     <div class="font-medium">{{ suggestion.title }}</div>
                                     <p class="text-sm">{{ suggestion.description }}</p>
                                     <p class="text-xs text-gray-500">{{ suggestion.why }}</p>
+                                    <p v-if="suggestion.titles?.length" class="mt-0.5 truncate text-xs text-gray-500">{{ __('For example') }}: {{ suggestion.titles.join(' · ') }}</p>
                                 </div>
                                 <Button size="sm" :text="__('Learn this')" :disabled="!configured || collection.learning.status === 'working' || !!busy" :loading="busy === suggestion.learn_url" @click="post(suggestion.learn_url)" />
                                 <Button size="sm" variant="ghost" :text="__('Not this')" :disabled="!!busy" @click="post(suggestion.dismiss_url)" />
@@ -249,7 +331,7 @@ export default {
                     <!-- Step 6: the plan -->
                     <div v-if="step.key === 'plan'" class="mt-4 space-y-2">
                         <Alert v-if="current.details.plan.error" variant="error" :text="current.details.plan.error" />
-                        <p class="text-sm text-gray-500">{{ __(':ideas ideas on the plan, :pending suggestions waiting to be looked over.', { ideas: current.details.plan.ideas, pending: current.details.plan.pending }) }}</p>
+                        <p class="text-sm text-gray-500">{{ __n(':count idea on the plan|:count ideas on the plan', current.details.plan.ideas) }}, {{ __n(':count suggestion waiting to be looked over.|:count suggestions waiting to be looked over.', current.details.plan.pending) }}</p>
                         <Textarea v-if="!step.done" v-model="steer" :rows="2" :placeholder="__('Optional: anything to steer it. “More for agencies.”')" />
                     </div>
 
@@ -258,7 +340,7 @@ export default {
                         <Button v-for="option in step.action.options" :key="option.url" :href="option.url" :icon="ghost" :text="option.label" />
                     </div>
 
-                    <div class="mt-6 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-700">
+                    <div class="mt-6 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-700!">
                         <Button variant="ghost" :text="__('Back')" :disabled="index === 0" @click="back" />
                         <div class="flex gap-2">
                             <Button

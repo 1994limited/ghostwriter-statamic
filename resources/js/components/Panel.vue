@@ -29,6 +29,8 @@ export default {
         entry: { type: String, default: null },
         // An idea from the content plan to open on.
         idea: { type: String, default: null },
+        // What the publish form holds now, for editing an entry from it.
+        formValues: { type: Function, default: () => ({}) },
     },
 
     emits: ['apply'],
@@ -416,12 +418,12 @@ export default {
         },
 
         // Editing an entry: throw the conversation's changes away and start
-        // from the entry as it is saved now.
+        // from the entry as its form holds it now.
         async startAgain() {
-            if (!this.entry || !confirm(this.__('Start again from the entry as saved? Changes asked for in this conversation but not yet put into the entry are dropped.'))) return;
+            if (!this.entry || !confirm(this.__('Start again from the entry as it stands? Changes asked for in this conversation but not yet put into the entry are dropped.'))) return;
 
             try {
-                const { data } = await this.$axios.post(`${this.baseUrl}/entries/${this.entry}/session`, { fresh: true });
+                const { data } = await this.$axios.post(`${this.baseUrl}/entries/${this.entry}/session`, { fresh: true, values: this.formValues() });
 
                 this.receive(data);
             } catch (error) {
@@ -448,7 +450,11 @@ export default {
             this.busy = true;
 
             try {
-                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/apply`), { blueprint: this.blueprint });
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/apply`), {
+                    blueprint: this.blueprint,
+                    // Changes go over the form as it stands, so nothing typed into it is undone.
+                    values: this.session.editing ? this.formValues() : undefined,
+                });
 
                 this.$emit('apply', data);
             } catch (error) {
@@ -502,20 +508,20 @@ export default {
             <div v-else-if="step === 'type'" class="mx-auto max-w-3xl">
                 <div class="mb-4 flex items-center justify-between">
                     <Heading size="lg" :text="__('What are you writing?')" />
-                    <Button size="sm" variant="ghost" :text="__('Teach it a kind')" @click="adding = true" />
+                    <Button size="sm" variant="ghost" :text="__('Teach a kind')" @click="adding = true" />
                 </div>
 
                 <template v-if="info.ideas.length">
                     <div class="mb-2 flex items-baseline justify-between">
                         <Subheading :text="__('From the content plan')" />
-                        <span class="text-sm text-gray-500">{{ __(':count ideas · scroll for more', { count: info.ideas.length }) }}</span>
+                        <span class="text-sm text-gray-500">{{ __n(':count idea|:count ideas · scroll for more', info.ideas.length) }}</span>
                     </div>
                     <div class="-mx-1 mb-8 flex snap-x gap-3 overflow-x-auto px-1 pb-3">
                         <button
                             v-for="idea in info.ideas"
                             :key="idea.id"
                             type="button"
-                            class="flex w-64 shrink-0 snap-start flex-col rounded-lg border border-gray-200 p-4 text-start hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500"
+                            class="flex w-64 shrink-0 snap-start flex-col rounded-lg border border-gray-200 p-4 text-start hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!"
                             :title="idea.why"
                             @click="fromIdea(idea)"
                         >
@@ -530,7 +536,7 @@ export default {
                         v-for="option in learned"
                         :key="option.handle"
                         type="button"
-                        class="rounded-lg border border-gray-200 p-4 text-start hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500"
+                        class="rounded-lg border border-gray-200 p-4 text-start hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!"
                         @click="choose(option)"
                     >
                         <Heading :text="option.title" />
@@ -545,18 +551,18 @@ export default {
                             v-for="kind in info.kinds"
                             :key="kind.label"
                             type="button"
-                            class="rounded-lg border border-gray-200 p-4 text-start hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-500"
+                            class="rounded-lg border border-gray-200 p-4 text-start hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!"
                             @click="choose(general, kind.examples)"
                         >
                             <Heading :text="kind.label" />
-                            <Subheading class="mt-1" :text="__(':count entries built the same way', { count: kind.count })" />
+                            <Subheading class="mt-1" :text="__n(':count entry built this way|:count entries built the same way', kind.count)" />
                         </button>
                     </div>
                 </template>
 
                 <button
                     type="button"
-                    class="w-full rounded-lg border border-dashed border-gray-300 p-4 text-start hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500"
+                    class="w-full rounded-lg border border-dashed border-gray-300 p-4 text-start hover:border-gray-400! dark:border-gray-600! dark:hover:border-gray-500!"
                     @click="choose(general, [])"
                 >
                     <Heading :text="__('Something else')" />
@@ -569,7 +575,7 @@ export default {
                         v-for="item in info.sessions"
                         :key="item.id"
                         type="button"
-                        class="flex w-full items-center justify-between rounded-md px-3 py-2 text-start hover:bg-gray-50 dark:hover:bg-gray-800"
+                        class="flex w-full items-center justify-between rounded-md px-3 py-2 text-start hover:bg-gray-50! dark:hover:bg-gray-800!"
                         @click="open(item.id)"
                     >
                         <span class="truncate">{{ item.title }}</span>
@@ -588,7 +594,7 @@ export default {
                     <Button v-if="!nothingToChoose" size="sm" variant="ghost" :text="__('Change')" @click="type = null" />
                 </div>
 
-                <div class="mb-8 space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                <div class="mb-8 space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700!">
                     <Heading :text="__('Quick brief')" />
                     <Subheading :text="__('Give it a title and anything you already know. Ghostwriter fills in the questions below with its best guess, for you to check and change.')" />
                     <Input v-model="quick.title" :placeholder="__('Working title')" :disabled="guessing" @keydown.enter.stop.prevent="quick.title.trim() && guess()" />
@@ -640,7 +646,7 @@ export default {
                         v-for="item in info.sessions"
                         :key="item.id"
                         type="button"
-                        class="flex w-full items-center justify-between rounded-md px-3 py-2 text-start hover:bg-gray-50 dark:hover:bg-gray-800"
+                        class="flex w-full items-center justify-between rounded-md px-3 py-2 text-start hover:bg-gray-50! dark:hover:bg-gray-800!"
                         @click="open(item.id)"
                     >
                         <span class="truncate">{{ item.title }}</span>
@@ -651,9 +657,9 @@ export default {
 
             <!-- The conversation and the draft -->
             <div v-else class="grid h-full gap-6 lg:grid-cols-5">
-                <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-2 dark:border-gray-700">
+                <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-2 dark:border-gray-700!">
                     <div ref="chat" class="flex-1 space-y-3 overflow-y-auto p-4">
-                        <div v-if="!session.editing" class="rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800">
+                        <div v-if="!session.editing" class="rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800!">
                             <button type="button" class="font-medium underline" @click="showBrief = !showBrief">
                                 {{ showBrief ? __('Hide the brief') : __('Show the brief') }}
                             </button>
@@ -665,17 +671,17 @@ export default {
                             :key="index"
                             class="rounded-lg px-3 py-2 text-sm whitespace-pre-wrap"
                             :class="[
-                                entry.role === 'user' ? 'ms-8 bg-gray-100 dark:bg-gray-800' : 'me-8 border',
+                                entry.role === 'user' ? 'ms-8 bg-gray-100 dark:bg-gray-800!' : 'me-8 border',
                                 entry.role !== 'user' && asking && index === conversation.length - 1
-                                    ? 'border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/40'
-                                    : entry.role !== 'user' ? 'border-gray-200 dark:border-gray-700' : '',
+                                    ? 'border-amber-400 bg-amber-50 dark:border-amber-500! dark:bg-amber-950/40!'
+                                    : entry.role !== 'user' ? 'border-gray-200 dark:border-gray-700!' : '',
                             ]"
-                        ><span v-if="entry.role !== 'user' && asking && index === conversation.length - 1" class="mb-1 block text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">{{ __('Ghostwriter needs your answer') }}</span>{{ entry.content }}<span
+                        ><span v-if="entry.role !== 'user' && asking && index === conversation.length - 1" class="mb-1 block text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400!">{{ __('Ghostwriter needs your answer') }}</span><div v-if="entry.html" class="gw-prose gw-reply whitespace-normal" v-html="entry.html"></div><template v-else>{{ entry.content }}</template><span
                                 v-if="entry.draft"
-                                class="mt-2 flex items-center gap-1.5 border-t border-gray-200 pt-2 text-xs font-medium text-green-700 dark:border-gray-700 dark:text-green-400"
+                                class="mt-2 flex items-center gap-1.5 border-t border-gray-200 pt-2 text-xs font-medium text-green-700 dark:border-gray-700! dark:text-green-400!"
                             ><svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ draftNote(entry.draft) }}</span></div>
 
-                        <div v-if="working" class="me-8 flex items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 dark:border-gray-700" role="status">
+                        <div v-if="working" class="me-8 flex items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 dark:border-gray-700!" role="status">
                             <svg class="size-4 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
                                 <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
@@ -687,13 +693,13 @@ export default {
                         <Alert v-if="session.status === 'failed'" variant="error" :heading="__('That did not work')" :text="session.error" />
                     </div>
 
-                    <div class="space-y-2 border-t p-4" :class="asking ? 'border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950/40' : 'border-gray-200 dark:border-gray-700'">
-                        <div v-if="asking" class="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300">
+                    <div class="space-y-2 border-t p-4" :class="asking ? 'border-amber-400 bg-amber-50 dark:border-amber-500! dark:bg-amber-950/40!' : 'border-gray-200 dark:border-gray-700!'">
+                        <div v-if="asking" class="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300!">
                             <span class="relative flex size-2.5">
                                 <span class="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-60"></span>
                                 <span class="relative inline-flex size-2.5 rounded-full bg-amber-500"></span>
                             </span>
-                            {{ session.draft ? __('Waiting on you. Answer above to carry on.') : __('Waiting on you. Answer the questions above and the draft follows.') }}
+                            {{ session.draft ? __('Your turn: answer above to carry on.') : __('Your turn: answer the questions above and the draft follows.') }}
                         </div>
                         <Textarea
                             ref="composer"
@@ -712,13 +718,13 @@ export default {
                     </div>
                 </div>
 
-                <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-3 dark:border-gray-700">
-                    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2.5 dark:border-gray-700">
+                <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-3 dark:border-gray-700!">
+                    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2.5 dark:border-gray-700!">
                         <div class="flex items-center gap-3 text-sm text-gray-500">
-                            <span>{{ session.draft ? __(':count words', { count: session.words }) : __('Draft') }}</span>
-                            <div v-if="session.draft && !editing" class="flex rounded-md border border-gray-200 text-xs dark:border-gray-700" role="group" :aria-label="__('Draft view')">
-                                <button type="button" class="px-2 py-0.5" :class="view === 'blocks' ? 'bg-gray-100 font-medium dark:bg-gray-800' : ''" @click="setView('blocks')">{{ __('Blocks') }}</button>
-                                <button type="button" class="px-2 py-0.5" :class="view === 'text' ? 'bg-gray-100 font-medium dark:bg-gray-800' : ''" @click="setView('text')">{{ __('Text') }}</button>
+                            <span>{{ session.draft ? __n(':count word|:count words', session.words) : __('Draft') }}</span>
+                            <div v-if="session.draft && !editing" class="flex rounded-md border border-gray-200 text-xs dark:border-gray-700!" role="group" :aria-label="__('Draft view')">
+                                <button type="button" class="px-2 py-0.5" :class="view === 'blocks' ? 'bg-gray-100 font-medium dark:bg-gray-800!' : ''" @click="setView('blocks')">{{ __('Blocks') }}</button>
+                                <button type="button" class="px-2 py-0.5" :class="view === 'text' ? 'bg-gray-100 font-medium dark:bg-gray-800!' : ''" @click="setView('text')">{{ __('Text') }}</button>
                             </div>
                         </div>
                         <div v-if="session.draft" class="flex gap-2">
@@ -750,7 +756,7 @@ export default {
                                 {{ __('Ghostwriter is working. A draft usually takes a minute or two.') }}
                             </template>
                             <template v-else-if="asking">
-                                <span class="mb-2 block text-base font-medium text-amber-700 dark:text-amber-400">{{ __('Ghostwriter has questions for you first') }}</span>
+                                <span class="mb-2 block text-base font-medium text-amber-700 dark:text-amber-400!">{{ __('Ghostwriter has questions for you first') }}</span>
                                 {{ __('They are in the conversation on the left. Answer them there and the draft will appear here.') }}
                                 <span class="mt-3 block"><Button size="sm" :text="__('Just draft it with what you have')" @click="skipQuestions" /></span>
                             </template>

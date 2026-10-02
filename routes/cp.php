@@ -19,6 +19,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('setup', [SetupController::class, 'show'])->name('setup.show');
     Route::get('setup/status', [SetupController::class, 'status'])->name('setup.status');
     Route::post('setup/hide', [SetupController::class, 'hide'])->name('setup.hide');
+    Route::post('setup/collections', [SetupController::class, 'collections'])->name('setup.collections');
 
     Route::get('voice', [VoiceController::class, 'show'])->name('voice.show');
     Route::get('voice/status', [VoiceController::class, 'status'])->name('voice.status');
@@ -28,7 +29,6 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
 
     Route::get('images/tools', [ImagesController::class, 'tools'])->name('images.tools');
     Route::post('images', [ImagesController::class, 'start'])->name('images.start');
-    Route::post('images/logo', [ImagesController::class, 'logo'])->name('images.logo');
     Route::get('images/{id}', [ImagesController::class, 'status'])->name('images.status');
     Route::get('images/{id}/preview', [ImagesController::class, 'preview'])->name('images.preview');
     Route::post('images/{id}/use', [ImagesController::class, 'use'])->name('images.use');
@@ -73,7 +73,6 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('sessions/{session}/photos', [SessionController::class, 'photos'])->name('sessions.photos');
     Route::post('sessions/{session}/photos', [SessionController::class, 'photo'])->name('sessions.photo');
     Route::post('sessions/{session}/images/copy', [SessionController::class, 'copyImage'])->name('sessions.image.copy');
-    Route::post('sessions/{session}/logo-card', [SessionController::class, 'logoCard'])->name('sessions.logo-card');
     Route::post('sessions/{session}/entry', [SessionController::class, 'entry'])->name('sessions.entry');
     Route::delete('sessions/{session}', [SessionController::class, 'destroy'])->name('sessions.destroy');
 });

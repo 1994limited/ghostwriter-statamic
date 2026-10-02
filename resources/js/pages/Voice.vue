@@ -53,8 +53,10 @@ export default {
                 read: 'Ghostwriter reads the newest published entries from each collection you tick.',
                 generate: 'Generate from your content',
                 regenerate: 'Read the site again',
+                first: 'Write the voice guide',
+                again: 'Rescan and rewrite',
                 confirm: 'Read the site again and replace the current guide? Any edits you have made to it will be lost.',
-                scanned: 'Last written from :count entries.',
+                scanned: 'Last written from :count entry.|Last written from :count entries.',
                 ...this.labels,
             };
         },
@@ -202,13 +204,14 @@ export default {
                         <Button
                             class="w-full"
                             :variant="current.exists ? 'default' : 'primary'"
-                            :text="current.exists ? __('Rescan and rewrite') : __('Generate the guide')"
-                            :disabled="!configured || working || selected.length === 0"
+                            :text="current.exists ? __(text.again) : __(text.first)"
+                            :disabled="!configured || working || selected.length === 0 || dirty"
                             :loading="working && current.task === 'scan'"
                             @click="scan"
                         />
+                        <p v-if="dirty && current.exists" class="text-sm text-gray-500">{{ __('Save your edits first.') }}</p>
                         <p v-if="current.scanned.length" class="text-sm text-gray-500">
-                            {{ __(text.scanned, { count: current.scanned.length }) }}
+                            {{ __n(text.scanned, current.scanned.length) }}
                         </p>
                     </div>
                 </Panel>
@@ -220,7 +223,7 @@ export default {
                                 v-for="(entry, index) in current.messages"
                                 :key="index"
                                 class="rounded-lg px-3 py-2 text-sm whitespace-pre-wrap"
-                                :class="entry.role === 'user' ? 'ms-6 bg-gray-100 dark:bg-gray-800' : 'me-6 border border-gray-200 dark:border-gray-700'"
+                                :class="entry.role === 'user' ? 'ms-6 bg-gray-100 dark:bg-gray-800!' : 'me-6 border border-gray-200 dark:border-gray-700!'"
                             >{{ entry.content }}</div>
                         </div>
                         <Textarea v-model="message" :rows="3" :disabled="working" :placeholder="__('e.g. We never say “solutions”. Add that.')" />
