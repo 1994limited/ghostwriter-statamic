@@ -47,7 +47,8 @@ Ghostwriter adds one permission, under **Permissions** in a role: **Write conten
 - People with it see Ghostwriter in the navigation, the **Write with Ghostwriter** and **Edit with Ghostwriter** buttons, the image button on assets fields, and the dashboard widget.
 - Putting a draft into an entry also needs Statamic's own permission to create entries in that collection, and editing an entry through Ghostwriter needs the permission to edit that entry. Ghostwriter never lets anyone change an entry they could not change by hand.
 - Saving an image into an assets field needs the permission to upload to that field's container.
-- A conversation belongs to whoever started it. Nobody else sees it on the dashboard or the widget, or can open it, super users aside.
+- **Conversations are shared** with everyone who has the Ghostwriter permission: from the dashboard, the widget, the content plan, the panel's **Or carry on with** and the entry itself. Anyone with access can also remove a conversation. Each message shows who sent it, and each piece shows who started it and who last changed it. Ghostwriter answers one request at a time: while someone's request runs, others see "Ada is waiting on Ghostwriter" and can't send or edit until it has answered.
+- To keep conversations private instead, set `shared_conversations` to `false` in `config/ghostwriter.php` (or `GHOSTWRITER_SHARED_CONVERSATIONS=false`). Then a conversation belongs to whoever started it: nobody else sees it on the dashboard or the widget, or can open it, super users aside.
 - Ghostwriter's settings screen is seen by whoever may edit the addon's settings (the **Edit Ghostwriter settings** permission, or a super user).
 
 ## The queue

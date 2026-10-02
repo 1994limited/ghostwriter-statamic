@@ -366,6 +366,14 @@ export default {
             }
         },
 
+        // Who started a piece and who last changed it, when conversations are shared.
+        people(item) {
+            return [
+                item.started_by ? this.__('Started by :name', { name: item.started_by }) : null,
+                item.touched_by ? this.__('last changed by :name', { name: item.touched_by }) : null,
+            ].filter(Boolean).join(', ');
+        },
+
         async makeImage({ key, direction, source }) {
             const form = new FormData();
 
@@ -603,7 +611,7 @@ export default {
                         @click="open(item.id)"
                     >
                         <span class="truncate">{{ item.title }}</span>
-                        <span class="text-sm text-gray-500">{{ item.type }} · {{ item.updated_at }}</span>
+                        <span class="text-sm text-gray-500">{{ [item.type, people(item), item.updated_at].filter(Boolean).join(' · ') }}</span>
                     </button>
                 </div>
             </div>
@@ -700,7 +708,7 @@ export default {
                                     ? 'border-amber-400 bg-amber-50 dark:border-amber-500! dark:bg-amber-950/40!'
                                     : entry.role !== 'user' ? 'border-gray-200 dark:border-gray-700!' : '',
                             ]"
-                        ><span v-if="entry.role !== 'user' && asking && index === conversation.length - 1" class="mb-1 block text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400!">{{ __('Ghostwriter needs your answer') }}</span><div v-if="entry.html" class="gw-prose gw-reply whitespace-normal" v-html="entry.html"></div><template v-else>{{ entry.content }}</template><span
+                        ><span v-if="entry.role === 'user' && entry.from" class="mb-1 block text-xs font-medium text-gray-500">{{ entry.mine ? __('You') : entry.from }}</span><span v-if="entry.role !== 'user' && asking && index === conversation.length - 1" class="mb-1 block text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400!">{{ __('Ghostwriter needs your answer') }}</span><div v-if="entry.html" class="gw-prose gw-reply whitespace-normal" v-html="entry.html"></div><template v-else>{{ entry.content }}</template><span
                                 v-if="entry.draft"
                                 class="mt-2 flex items-center gap-1.5 border-t border-gray-200 pt-2 text-xs font-medium text-green-700 dark:border-gray-700! dark:text-green-400!"
                             ><svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ draftNote(entry.draft) }}</span></div>
@@ -710,7 +718,7 @@ export default {
                                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
                                 <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
                             </svg>
-                            <span>{{ progress }}</span>
+                            <span>{{ session.waiting_on ? __(':name is waiting on Ghostwriter', { name: session.waiting_on }) : progress }}</span>
                             <span class="ms-auto tabular-nums">{{ elapsed }}</span>
                         </div>
                         <Alert v-if="working && session.queue_waiting" variant="warning" :text="session.queue_waiting" role="status" />

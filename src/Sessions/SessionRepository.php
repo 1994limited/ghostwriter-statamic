@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Sessions;
 
+use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
@@ -32,13 +33,38 @@ class SessionRepository
     }
 
     /**
-     * The sessions a person may see: their own, or all for a super user.
+     * Whether conversations are shared with everyone who may use
+     * Ghostwriter (`shared_conversations`, on by default), rather than kept
+     * to the person who started each.
+     */
+    public function shared(): bool
+    {
+        return (bool) config('ghostwriter.shared_conversations', true);
+    }
+
+    /**
+     * The sessions a person may see, newest first: everyone's when
+     * conversations are shared; otherwise their own, or all for a super user.
      *
      * @return Collection<int, Session>
      */
     public function visibleTo(?User $user): Collection
     {
-        return $this->all()->filter(fn (Session $session) => $session->belongsTo($user))->values();
+        return $this->all()->filter(fn (Session $session) => $this->canSee($session, $user))->values();
+    }
+
+    /**
+     * Whether a person may open, carry on with, use or remove a session.
+     * Everyone who may use Ghostwriter (the routes see to that) when
+     * conversations are shared; otherwise only its own person.
+     */
+    public function canSee(Session $session, ?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return $this->shared() || $session->belongsTo($user);
     }
 
     public function find(string $id): ?Session
@@ -49,6 +75,41 @@ class SessionRepository
         }
 
         return $this->read($this->path($id));
+    }
+
+    /**
+     * Do something to a session while holding its lock, so two requests
+     * can't both find it idle and start a run, or save over each other.
+     * Read the session again inside: what was read before may be stale.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $work
+     * @return T
+     */
+    public function exclusively(string $id, Closure $work): mixed
+    {
+        // Not a session ID: nothing to lock, and $work will find nothing.
+        if (! preg_match('/^[0-9A-Za-z]{26}$/', $id)) {
+            return $work();
+        }
+
+        File::ensureDirectoryExists($this->directory());
+
+        $handle = @fopen($this->directory().'/'.$id.'.lock', 'c');
+
+        if ($handle === false) {
+            return $work();
+        }
+
+        try {
+            flock($handle, LOCK_EX);
+
+            return $work();
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
     }
 
     public function save(Session $session): Session
@@ -63,7 +124,7 @@ class SessionRepository
 
     public function delete(Session $session): void
     {
-        File::delete($this->path($session->id));
+        File::delete([$this->path($session->id), $this->directory().'/'.$session->id.'.lock']);
     }
 
     private function read(string $path): ?Session

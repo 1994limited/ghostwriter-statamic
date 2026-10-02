@@ -175,6 +175,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Shared conversations
+    |--------------------------------------------------------------------------
+    |
+    | On, everyone with the Ghostwriter permission sees and can carry on with
+    | every piece: from the dashboard, the content plan and the entry. Each
+    | message shows who sent it, and Ghostwriter answers one at a time. Off,
+    | each conversation is its starter's alone (super users aside).
+    |
+    */
+
+    'shared_conversations' => (bool) env('GHOSTWRITER_SHARED_CONVERSATIONS', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Entry writer
     |--------------------------------------------------------------------------
     |

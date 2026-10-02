@@ -141,6 +141,14 @@ export default {
             }
         },
 
+        // Who started a piece and who last changed it, when conversations are shared.
+        people(session) {
+            return [
+                session.started_by ? this.__('Started by :name', { name: session.started_by }) : null,
+                session.touched_by ? this.__('last changed by :name', { name: session.touched_by }) : null,
+            ].filter(Boolean).join(', ');
+        },
+
         statusColor(session) {
             return { failed: 'red', working: 'blue', published: 'green', saved: 'green', changed: 'yellow', in_form: 'yellow' }[session.stage] ?? 'gray';
         },
@@ -304,7 +312,8 @@ export default {
                     <component :is="session.url ? 'Link' : 'div'" :href="session.url" class="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3">
                         <div class="min-w-0">
                             <div class="truncate font-medium">{{ session.title }}</div>
-                            <div class="text-sm text-gray-500">{{ session.type }} · {{ session.updated_at }}</div>
+                            <div class="text-sm text-gray-500">{{ [session.type, people(session), session.updated_at].filter(Boolean).join(' · ') }}</div>
+                            <div v-if="session.waiting_on" class="text-sm text-gray-500">{{ __(':name is waiting on Ghostwriter', { name: session.waiting_on }) }}</div>
                         </div>
                         <Badge :color="statusColor(session)" :text="statusText(session)" />
                     </component>

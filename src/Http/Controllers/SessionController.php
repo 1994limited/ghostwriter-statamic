@@ -68,9 +68,9 @@ class SessionController
             ->values()
             ->all();
 
-        $session = Session::start($type->handle, $answers, User::current()?->id(), $examples);
-        $session->addMessage('user', $this->studio->brief($type, $session));
-        $session->status = Session::WORKING;
+        $session = Session::start($type->handle, $answers, $this->me(), $examples);
+        $session->addMessage('user', $this->studio->brief($type, $session), $this->me());
+        $session->run($this->me());
 
         $this->sessions->save($session);
 
@@ -124,23 +124,24 @@ class SessionController
 
     public function message(Request $request, string $session): JsonResponse
     {
-        $session = $this->session($session);
+        return $this->sessions->exclusively($session, function () use ($request, $session) {
+            $session = $this->session($session);
 
-        $this->ensureConfigured();
+            $this->ensureConfigured();
 
-        abort_if($session->status === Session::WORKING, 409, 'Ghostwriter is still working on the last message.');
+            $this->ensureIdle($session, 'Ghostwriter is still working on the last message.');
 
-        $validated = $request->validate(['message' => ['required', 'string', 'max:50000']]);
+            $validated = $request->validate(['message' => ['required', 'string', 'max:50000']]);
 
-        $session->addMessage('user', $validated['message']);
-        $session->status = Session::WORKING;
-        $session->error = null;
+            $session->addMessage('user', $validated['message'], $this->me());
+            $session->run($this->me());
 
-        $this->sessions->save($session);
+            $this->sessions->save($session);
 
-        RunSessionTurn::start($session->id);
+            RunSessionTurn::start($session->id);
 
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     /**
@@ -148,34 +149,41 @@ class SessionController
      */
     public function retry(string $session): JsonResponse
     {
-        $session = $this->session($session);
+        return $this->sessions->exclusively($session, function () use ($session) {
+            $session = $this->session($session);
 
-        $this->ensureConfigured();
+            $this->ensureConfigured();
 
-        abort_unless($session->status === Session::FAILED, 409, 'There is nothing to try again.');
-        abort_unless(($last = end($session->messages)) !== false && $last['role'] === 'user', 409, 'There is nothing to try again.');
+            abort_unless($session->status === Session::FAILED, 409, 'There is nothing to try again.');
+            abort_unless(($last = end($session->messages)) !== false && $last['role'] === 'user', 409, 'There is nothing to try again.');
 
-        $session->status = Session::WORKING;
-        $session->error = null;
+            // Whoever asks again is the one waiting on it now.
+            $session->run($this->me());
 
-        $this->sessions->save($session);
+            $this->sessions->save($session);
 
-        RunSessionTurn::start($session->id);
+            RunSessionTurn::start($session->id);
 
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     public function draft(Request $request, string $session): JsonResponse
     {
-        $session = $this->session($session);
+        return $this->sessions->exclusively($session, function () use ($request, $session) {
+            $session = $this->session($session);
 
-        $validated = $request->validate(['draft' => ['required', 'string', 'max:120000']]);
+            $this->ensureIdle($session, 'Ghostwriter is still working on the draft. Try again when it has finished.');
 
-        $session->draft = $validated['draft'];
+            $validated = $request->validate(['draft' => ['required', 'string', 'max:120000']]);
 
-        $this->sessions->save($session);
+            $session->draft = $validated['draft'];
 
-        return response()->json($this->presenter->detail($session));
+            $session->touch($this->me());
+            $this->sessions->save($session);
+
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     /**
@@ -229,6 +237,7 @@ class SessionController
 
         // Noted so the session can be shown as handed over, not still in progress.
         $session->appliedAt = now()->toIso8601String();
+        $session->touch($this->me());
         $this->sessions->save($session);
 
         return response()->json([
@@ -270,6 +279,7 @@ class SessionController
 
         $session->images[$validated['key']] = ['status' => 'working', 'error' => null] + ($session->images[$validated['key']] ?? []);
 
+        $session->touch($this->me());
         $this->sessions->save($session);
 
         GenerateImage::start($session->id, $validated['key'], (string) ($validated['direction'] ?? ''), $source);
@@ -284,45 +294,48 @@ class SessionController
      */
     public function editField(Request $request, string $session, HtmlToMarkdown $html): JsonResponse
     {
-        $session = $this->session($session);
+        return $this->sessions->exclusively($session, function () use ($request, $session, $html) {
+            $session = $this->session($session);
 
-        abort_if($session->status === Session::WORKING, 409, 'Ghostwriter is still working on the draft. Try again when it has finished.');
+            $this->ensureIdle($session, 'Ghostwriter is still working on the draft. Try again when it has finished.');
 
-        $draft = $this->parsedDraft($session);
+            $draft = $this->parsedDraft($session);
 
-        $validated = $request->validate([
-            'path' => ['required', 'array', 'min:1'],
-            'path.*' => ['string', 'max:100'],
-            'value' => ['present', 'string', 'max:60000'],
-            'format' => ['nullable', Rule::in(['text', 'html'])],
-        ]);
+            $validated = $request->validate([
+                'path' => ['required', 'array', 'min:1'],
+                'path.*' => ['string', 'max:100'],
+                'value' => ['present', 'string', 'max:60000'],
+                'format' => ['nullable', Rule::in(['text', 'html'])],
+            ]);
 
-        $value = ($validated['format'] ?? 'text') === 'html' ? $html->convert($validated['value']) : trim(str_replace("\r", '', $validated['value']));
+            $value = ($validated['format'] ?? 'text') === 'html' ? $html->convert($validated['value']) : trim(str_replace("\r", '', $validated['value']));
 
-        $data = $draft->data;
-        $node = &$data;
+            $data = $draft->data;
+            $node = &$data;
 
-        foreach ($validated['path'] as $step) {
-            $step = is_numeric($step) && is_array($node) && array_is_list($node) ? (int) $step : $step;
+            foreach ($validated['path'] as $step) {
+                $step = is_numeric($step) && is_array($node) && array_is_list($node) ? (int) $step : $step;
 
-            if (! is_array($node) || ! array_key_exists($step, $node)) {
-                abort(422, 'That part of the draft could not be found.');
+                if (! is_array($node) || ! array_key_exists($step, $node)) {
+                    abort(422, 'That part of the draft could not be found.');
+                }
+
+                $node = &$node[$step];
             }
 
-            $node = &$node[$step];
-        }
+            // Only writing is edited here; a block or a list is changed in YAML.
+            abort_if(! is_scalar($node) && $node !== null, 422, 'Only text can be edited here.');
 
-        // Only writing is edited here; a block or a list is changed in YAML.
-        abort_if(! is_scalar($node) && $node !== null, 422, 'Only text can be edited here.');
+            $node = $value;
+            unset($node);
 
-        $node = $value;
-        unset($node);
+            $session->draft = trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
 
-        $session->draft = trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
+            $session->touch($this->me());
+            $this->sessions->save($session);
 
-        $this->sessions->save($session);
-
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     /**
@@ -371,6 +384,7 @@ class SessionController
         $session->images[$validated['key']] = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $file->photo->credit]
             + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
 
+        $session->touch($this->me());
         $this->sessions->save($session);
 
         return response()->json($this->presenter->detail($session));
@@ -400,6 +414,7 @@ class SessionController
             + array_intersect_key($source, ['path' => 1, 'url' => 1, 'credit' => 1])
             + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
 
+        $session->touch($this->me());
         $this->sessions->save($session);
 
         return response()->json($this->presenter->detail($session));
@@ -430,6 +445,7 @@ class SessionController
 
         $session->entryId = $entry->id();
 
+        $session->touch($this->me());
         $this->sessions->save($session);
 
         return response()->json(['entry_url' => $entry->editUrl()] + $this->presenter->detail($session));
@@ -474,16 +490,40 @@ class SessionController
     }
 
     /**
-     * A session is its starter's: nobody else may read it, write in it or
-     * use its draft, super users aside.
+     * A session is everyone's who may use Ghostwriter when conversations are
+     * shared; otherwise its starter's, and nobody else may read it, write in
+     * it or use its draft, super users aside.
      */
     private function session(string $id): Session
     {
         $session = $this->sessions->find($id) ?? abort(404);
 
-        abort_unless($session->belongsTo(User::current()), 403);
+        abort_unless($this->sessions->canSee($session, User::current()), 403);
 
         return $session;
+    }
+
+    private function me(): ?string
+    {
+        $id = User::current()?->id();
+
+        return $id === null ? null : (string) $id;
+    }
+
+    /**
+     * One run at a time. While someone else's request runs, say whose.
+     */
+    private function ensureIdle(Session $session, string $message): void
+    {
+        if ($session->status !== Session::WORKING) {
+            return;
+        }
+
+        if ($session->runBy !== null && $session->runBy !== $this->me()) {
+            $message = Presenter::name($session->runBy).' is waiting on Ghostwriter. Try again when it has answered.';
+        }
+
+        abort(409, $message);
     }
 
     private function ensureConfigured(): void
