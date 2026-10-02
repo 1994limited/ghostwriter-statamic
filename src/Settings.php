@@ -37,7 +37,15 @@ class Settings
         'image_model' => 'ghostwriter.images.model',
         'placeholder_images' => 'ghostwriter.images.placeholders',
         'openverse' => 'ghostwriter.images.openverse',
+        'stock_on_publish' => 'ghostwriter.stock.on_publish',
+        'stock_default_source' => 'ghostwriter.stock.default_source',
+        'stock_include_editorial' => 'ghostwriter.stock.include_editorial',
     ];
+
+    /** When a page holding an unlicensed preview is published. */
+    public const BLOCK = 'block';
+
+    public const WARN = 'warn';
 
     public function provider(): string
     {
@@ -113,6 +121,118 @@ class Settings
     }
 
     /**
+     * Whether a paid photo library is switched on: it is, unless switched
+     * off on the settings screen.
+     */
+    public function stockLibraryEnabled(string $id): bool
+    {
+        return (bool) ($this->value('stock_'.$id) ?? true);
+    }
+
+    /**
+     * Where "Search in" starts for someone who hasn't chosen yet: "free",
+     * "everything" or a library's ID.
+     */
+    public function stockDefaultSource(): string
+    {
+        return (string) ($this->value('stock_default_source') ?? 'free');
+    }
+
+    /**
+     * Whether "Include editorial images" starts ticked in the image dialog.
+     */
+    public function stockIncludeEditorial(): bool
+    {
+        return filter_var($this->value('stock_include_editorial') ?? false, FILTER_VALIDATE_BOOL);
+    }
+
+    /**
+     * When a page holding an unlicensed preview is published: block (the
+     * default), or warn and let it through.
+     */
+    public function stockOnPublish(): string
+    {
+        return $this->value('stock_on_publish') === self::WARN ? self::WARN : self::BLOCK;
+    }
+
+    /**
+     * The settings screen's Stock photos section, filled in: a row for each
+     * paid library (whether its keys are set, never the keys, and Check
+     * connection), a switch for each one set up, and the libraries "Search
+     * in" can start on.
+     *
+     * @param  array<string, mixed>  $contents
+     * @return array<string, mixed>
+     */
+    public function withStock(array $contents, Stock\StockLibraries $libraries): array
+    {
+        $rows = collect($libraries->rows())->map(function (array $row) {
+            $keys = collect($row['keys'])->map(fn (bool $set, string $variable) => '<code style="font-size:.8rem">'.e($variable).'</code> '.self::pill($set ? __('Set') : __('Not set'), $set))->implode(' ');
+            $status = match (true) {
+                $row['demo'] => __('Charges nothing and calls nobody. Only on local and test sites, never in production.'),
+                ! $row['ready'] => __('Coming: a later version of Ghostwriter adds this library. Its keys can be set now.'),
+                in_array(false, $row['keys'], true) => __('Set both in .env to use it.'),
+                default => null,
+            };
+            $check = $row['demo'] || ($row['ready'] && ! in_array(false, $row['keys'], true))
+                ? '<button type="button" data-ghostwriter-check-connection="'.e($row['id']).'" style="font-size:.8rem;padding:.15rem .6rem;border:1px solid currentColor;border-radius:.375rem;opacity:.85">'.e(__('Check connection')).'</button>'
+                : '';
+
+            return '<li style="margin:.6rem 0;display:flex;flex-direction:column;gap:.3rem">'
+                .'<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center"><strong>'.e($row['label']).'</strong>'.$keys.' '.$check.'</div>'
+                .($status ? '<div style="font-size:.8rem;opacity:.75">'.e($status).'</div>' : '')
+                .'<div data-ghostwriter-connection="'.e($row['id']).'" style="font-size:.8rem" role="status"></div>'
+                .'</li>';
+        })->implode('');
+
+        $switches = collect($libraries->rows())
+            ->filter(fn (array $row) => $row['demo'] || ($row['ready'] && ! in_array(false, $row['keys'], true)))
+            ->map(fn (array $row) => ['handle' => 'stock_'.$row['id'], 'field' => [
+                'type' => 'toggle',
+                'display' => __('Use :library', ['library' => $row['label']]),
+                'instructions' => __('Offer it in the image dialog\'s "Search in".'),
+                'default' => true,
+                'width' => 50,
+            ]])
+            ->values()
+            ->all();
+
+        $sources = ['free' => __('Free libraries')];
+
+        foreach ($libraries->configured() as $id => $library) {
+            $sources[$id] = $library->label();
+        }
+
+        $sources['everything'] = __('Everything');
+
+        foreach ($contents['tabs'] ?? [] as $tab => $content) {
+            foreach ($content['sections'] ?? [] as $i => $section) {
+                if (($section['display'] ?? null) !== 'Stock photos') {
+                    continue;
+                }
+
+                foreach ($section['fields'] ?? [] as $j => $field) {
+                    if (($field['handle'] ?? null) === 'stock_default_source') {
+                        $contents['tabs'][$tab]['sections'][$i]['fields'][$j]['field']['options'] = $sources;
+                    }
+                }
+
+                array_unshift($contents['tabs'][$tab]['sections'][$i]['fields'], [
+                    'handle' => 'stock_libraries',
+                    'field' => ['type' => 'html', 'html' => '<ul style="list-style:none;margin:0;padding:0">'.$rows.'</ul>', 'hide_display' => true],
+                ], ...$switches);
+            }
+        }
+
+        return $contents;
+    }
+
+    private static function pill(string $text, bool $good): string
+    {
+        return '<span style="font-size:.75rem;line-height:1.1rem;padding:0 .4rem;border:1px solid currentColor;border-radius:.25rem;color:'.($good ? '#16a34a' : '#6b7280').'">'.e($text).'</span>';
+    }
+
+    /**
      * Each API key Ghostwriter can use, by the variable that holds it, and
      * whether it is set. Never the key itself.
      *
@@ -135,7 +255,7 @@ class Settings
     public function withKeyStatus(array $contents): array
     {
         $rows = collect($this->keyStatus())
-            ->map(fn (bool $set, string $variable) => '<li style="display:flex;gap:.5rem;align-items:center;margin:.2rem 0"><code style="font-size:.8rem">'.e($variable).'</code><span style="font-size:.75rem;line-height:1.1rem;padding:0 .4rem;border:1px solid currentColor;border-radius:.25rem;color:'.($set ? '#16a34a' : '#6b7280').'">'.($set ? 'Set' : 'Not set').'</span></li>')
+            ->map(fn (bool $set, string $variable) => '<li style="display:flex;gap:.5rem;align-items:center;margin:.2rem 0"><code style="font-size:.8rem">'.e($variable).'</code>'.self::pill($set ? 'Set' : 'Not set', $set).'</li>')
             ->implode('');
 
         foreach ($contents['tabs'] ?? [] as $tab => $content) {

@@ -9,6 +9,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImagesController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PlanController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SessionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SetupController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\StockController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\TypeController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\VoiceController;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\AuthorizeGhostwriter;
@@ -32,6 +33,9 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('images/{id}', [ImagesController::class, 'status'])->name('images.status');
     Route::get('images/{id}/preview', [ImagesController::class, 'preview'])->name('images.preview');
     Route::post('images/{id}/use', [ImagesController::class, 'use'])->name('images.use');
+
+    Route::post('stock/libraries/{library}/check', [StockController::class, 'check'])->name('stock.check');
+    Route::get('stock/demo/{id}/thumb', [StockController::class, 'demoThumb'])->name('stock.demo.thumb');
 
     Route::get('plan', [PlanController::class, 'show'])->name('plan.show');
     Route::get('plan/status', [PlanController::class, 'status'])->name('plan.status');

@@ -7,6 +7,7 @@ import Widget from './components/Widget.vue';
 import Launcher from './components/Launcher.vue';
 import ImageDialog from './components/ImageDialog.vue';
 import ghost from './icon.js';
+import { request } from './stock/request.js';
 
 Statamic.booting(() => {
     Statamic.$inertia.register('ghostwriter::Index', Index);
@@ -67,5 +68,38 @@ Statamic.booting(() => {
                 updateMeta,
             });
         },
+    });
+
+    // "Check connection" on the settings screen's Stock photos rows. The
+    // rows are plain HTML in the blueprint, so the button is handled here.
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest?.('[data-ghostwriter-check-connection]');
+
+        if (!button) return;
+
+        event.preventDefault();
+
+        const id = button.dataset.ghostwriterCheckConnection;
+        const out = document.querySelector(`[data-ghostwriter-connection="${id}"]`);
+        const base = Statamic.$config.get('ghostwriter')?.url;
+
+        if (!out || !base) return;
+
+        button.disabled = true;
+        out.textContent = __('Checking…');
+
+        try {
+            const result = await request(`${base}/stock/libraries/${encodeURIComponent(id)}/check`, { method: 'POST' });
+
+            out.textContent = result.ok
+                ? [__('Connected as :account.', { account: result.account || __('your account') }), ...result.products].join(' · ')
+                : result.message;
+            out.style.color = result.ok ? '#16a34a' : '#dc2626';
+        } catch (error) {
+            out.textContent = error.message;
+            out.style.color = '#dc2626';
+        } finally {
+            button.disabled = false;
+        }
     });
 });

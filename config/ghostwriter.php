@@ -201,6 +201,52 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Stock photos from paid libraries
+    |--------------------------------------------------------------------------
+    |
+    | A paid photo goes into a page as a preview: a labelled stand-in image
+    | in the field, and the library's watermarked comp kept privately for
+    | signed-in editors. A manager then licenses it from your own account
+    | with the library, and the stand-in's file is swapped for the licensed
+    | one. Keys and secrets live only in .env, are read each time and are
+    | never stored or shown. A library is offered only once its keys are
+    | set (and Ghostwriter has its adapter); each can be switched off on
+    | the settings screen.
+    |
+    | Getty Images, iStock and Shutterstock are coming: their keys can be
+    | set now, and they switch on once Ghostwriter ships their adapters.
+    |
+    */
+
+    'stock' => [
+        'keys' => [
+            'getty' => env('GETTY_API_KEY'),
+            'getty_secret' => env('GETTY_API_SECRET'),
+            'shutterstock' => env('SHUTTERSTOCK_API_KEY'),
+            'shutterstock_secret' => env('SHUTTERSTOCK_API_SECRET'),
+        ],
+
+        // "Demo stock (no charge)": a pretend paid library that charges
+        // nothing and calls nobody, to try the whole preview and licence
+        // flow. Null turns it on only when APP_ENV is local; true turns it
+        // on elsewhere too. It never runs in production.
+        'demo' => env('GHOSTWRITER_STOCK_DEMO'),
+
+        // Settings-screen fields too: a value here wins. When a page holding
+        // an unlicensed preview is published: "block" (the default) refuses
+        // it with a message on the image field; "warn" lets it through with
+        // a warning.
+        'on_publish' => env('GHOSTWRITER_STOCK_ON_PUBLISH'),
+        // Where "Search in" starts: "free", "everything" or a library's ID.
+        'default_source' => env('GHOSTWRITER_STOCK_DEFAULT_SOURCE'),
+        'include_editorial' => env('GHOSTWRITER_STOCK_INCLUDE_EDITORIAL'),
+
+        // Previews no page uses any more are removed after this many days.
+        'unused_preview_days' => (int) env('GHOSTWRITER_STOCK_UNUSED_PREVIEW_DAYS', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Shared conversations
     |--------------------------------------------------------------------------
     |
