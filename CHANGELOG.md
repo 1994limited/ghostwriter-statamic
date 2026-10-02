@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 - Unreleased
+## 1.0.0 - 2026-10-02
 
 First release. Ghostwriter learns how your site writes and what its pictures look like, then drafts new entries and edits existing ones in that voice, in a panel beside the entry form. Get started walks through setup, the Overview shows what is in progress, and a widget sits on the Control Panel's dashboard.
 
@@ -30,7 +30,8 @@ First release. Ghostwriter learns how your site writes and what its pictures loo
 - Photos offered for every image field under a draft, and striped placeholders where a new entry is still missing an image (**Mark images still to choose**).
 
 ### Content plan
-- Ideas for entries each collection is missing, reviewed before they join the plan, optionally steered. **Draft this** opens a new entry with the brief filled in.
+- Ideas for entries each collection is missing, reviewed before they join the plan, optionally steered. A new batch joins any still waiting. **Draft this** opens a new entry with the brief filled in.
+- A piece started from the plan shows its stage there; **Back to ideas** returns one not yet saved to the plan, and **Put back** returns a dismissed idea.
 
 ### Teams
 - Conversations are shared with everyone who may use Ghostwriter, showing who sent each message and who started and last changed each piece. Turn this off with `shared_conversations`.
@@ -48,4 +49,4 @@ First release. Ghostwriter learns how your site writes and what its pictures loo
 - PHP 8.3 or later, with GD; Statamic 6.
 - An API key for Anthropic, OpenAI or Gemini.
 - A queue worker (`--timeout=960`), or PHP-FPM on the `sync` queue.
-- Work whose worker was stopped before it finished (a time limit, a restart) shows as failed after a while, ready to try again.
+- Work whose worker was stopped before it finished (a time limit, a restart) shows as failed once its job can no longer be running, ready to try again. This holds for conversations, the plan, the guides, kinds and images.

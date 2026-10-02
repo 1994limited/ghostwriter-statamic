@@ -32,7 +32,7 @@ Ghostwriter tries a busy or rate-limited provider again by itself, up to three a
 
 A reply that runs out of room is asked for once more with twice the room. If it still doesn't fit, the turn fails rather than keep a half-written draft. Ask for a shorter piece, or for one part at a time. The voice guide can fail the same way; read fewer collections, or ask for a shorter guide.
 
-If a worker stops a job partway (its own time limit, say), check its `--timeout` is at least `timeout × 3 + 60`, then try again.
+If a worker stops a job partway (its own time limit, say), the work shows "This stopped before it finished" once its job can no longer be running (`timeout × 3 + 60` seconds, plus two minutes). Check the worker's `--timeout` is at least `timeout × 3 + 60`, then try again.
 
 ## The draft is put in, but something is missing
 
