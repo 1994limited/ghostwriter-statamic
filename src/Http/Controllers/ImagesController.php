@@ -16,6 +16,7 @@ use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
 use NineteenNinetyFour\Ghostwriter\Jobs\MakeImage;
+use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
@@ -289,6 +290,7 @@ class ImagesController
             'mode' => $data['mode'],
             'status' => $data['status'],
             'error' => $data['error'] ?? null,
+            'waiting' => $data['status'] === ImageRequests::WORKING ? app(Waiting::class)->notice('image:'.$data['id']) : null,
             'terms' => $data['terms'] ?? [],
             'options' => $data['options'] ?? [],
             'judged' => (bool) ($data['judged'] ?? false),

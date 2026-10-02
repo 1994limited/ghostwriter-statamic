@@ -39,6 +39,8 @@ Once there is a draft, ask for changes in plain words:
 
 Press **⌘↵** (or **Ctrl+↵**) to send. A spinner with a timer shows while it works; a draft usually takes a minute or two. Ghostwriter's replies are shown formatted, with its lists and bold as it wrote them. Each reply that changed the draft ends with a line such as **Draft updated · 957 → 1,012 words (+55)**.
 
+If a turn fails (the provider is busy, say), the panel says **That didn’t work** with the reason, and **Try again** sends the same message again; there is no need to type it out.
+
 ## The draft
 
 The draft sits on the right, laid out the way the entry is built: its fields, and its page-builder blocks in order.

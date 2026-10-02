@@ -27,7 +27,23 @@ export default {
         return { current: this.values, errors: {}, saving: false };
     },
 
+    mounted() {
+        window.addEventListener('keydown', this.shortcut);
+    },
+
+    beforeUnmount() {
+        window.removeEventListener('keydown', this.shortcut);
+    },
+
     methods: {
+        // ⌘S / Ctrl+S saves, as on Statamic's own forms.
+        shortcut(event) {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                if (!this.saving) this.save();
+            }
+        },
+
         async save() {
             this.saving = true;
             this.errors = {};

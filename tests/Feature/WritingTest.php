@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Queue;
 use NineteenNinetyFour\Ghostwriter\Actions\WriteWithGhostwriter;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\StopReason;
@@ -12,6 +13,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
+use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
@@ -179,6 +181,26 @@ class WritingTest extends TestCase
         $this->postJson(cp_route('ghostwriter.kinds.learn_all', 'articles'))->assertOk()->assertJsonPath('kinds.suggestions', []);
 
         Bus::assertDispatchedAfterResponse(AnalyseCollection::class, fn ($job) => array_column($job->kinds, 'title') === ['Event', 'Award']);
+    }
+
+    public function test_kinds_can_be_suggested_for_every_collection_at_once(): void
+    {
+        Bus::fake([SuggestKinds::class]);
+        $this->signIn();
+        $this->makePostsCollection();
+
+        // One already being looked at is left to finish.
+        app(KindSuggestions::class)->update('posts', ['status' => KindSuggestions::WORKING, 'error' => null]);
+
+        $this->postJson(cp_route('ghostwriter.kinds.suggest_all'))
+            ->assertOk()
+            ->assertJsonPath('collections.articles.kinds.status', KindSuggestions::WORKING)
+            ->assertJsonPath('collections.posts.kinds.status', KindSuggestions::WORKING);
+
+        Bus::assertDispatchedAfterResponse(SuggestKinds::class, fn (SuggestKinds $job) => $job->collections === ['articles']);
+
+        $this->withoutKeys('anthropic');
+        $this->postJson(cp_route('ghostwriter.kinds.suggest_all'))->assertStatus(422);
     }
 
     public function test_learning_several_kinds_carries_on_past_one_that_fails(): void
@@ -591,6 +613,71 @@ class WritingTest extends TestCase
         $this->assertSame(Session::FAILED, $session->status);
         $this->assertSame('The provider is overloaded.', $session->error);
         $this->assertSame(self::DRAFT, $session->draft);
+    }
+
+    public function test_a_failed_turn_can_be_tried_again_with_the_same_message(): void
+    {
+        Bus::fake([RunSessionTurn::class]);
+        $this->signIn();
+        $this->makeType();
+
+        $session = $this->startedSession();
+
+        // Nothing has failed: nothing to try again.
+        $this->postJson(cp_route('ghostwriter.sessions.retry', $session->id))->assertStatus(409);
+
+        $this->ai->respond('writer', fn () => throw new \RuntimeException('The provider is overloaded.'));
+        $this->runTurn($session);
+
+        $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))
+            ->assertJsonPath('status', Session::FAILED)
+            ->assertJsonPath('error', 'The provider is overloaded.');
+
+        $this->postJson(cp_route('ghostwriter.sessions.retry', $session->id))
+            ->assertOk()
+            ->assertJsonPath('status', Session::WORKING)
+            ->assertJsonPath('error', null);
+
+        Bus::assertDispatchedAfterResponse(RunSessionTurn::class, fn (RunSessionTurn $job) => $job->sessionId === $session->id);
+
+        // The same message, not a second copy of it.
+        $this->assertCount(1, app(SessionRepository::class)->find($session->id)->messages);
+    }
+
+    public function test_a_turn_no_worker_has_picked_up_says_so_after_thirty_seconds(): void
+    {
+        Bus::fake([RunSessionTurn::class]);
+        $this->signIn();
+        $this->makeType();
+
+        $session = $this->startedSession();
+        $session->status = Session::IDLE;
+        app(SessionRepository::class)->save($session);
+
+        // A real queue, with no worker.
+        Queue::fake();
+        config(['queue.default' => 'database', 'queue.connections.database.queue' => 'default']);
+
+        $this->postJson(cp_route('ghostwriter.sessions.message', $session->id), ['message' => 'Shorten it.'])
+            ->assertOk()
+            ->assertJsonPath('queue_waiting', null);
+
+        $this->travel(31)->seconds();
+
+        $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))
+            ->assertJsonPath('queue_waiting', 'Still waiting for a queue worker to pick this up. Is `php artisan queue:work` running?');
+
+        // A worker starts it: nothing more to say.
+        $this->ai->respond('writer', '<reply>Shorter.</reply>');
+        $this->runTurn(app(SessionRepository::class)->find($session->id));
+
+        $this->assertNull(app(Waiting::class)->waited('session:'.$session->id));
+
+        // On the sync queue the work runs itself; there is never a worker to wait for.
+        config(['queue.default' => 'sync']);
+        app(Waiting::class)->queued('session:'.$session->id);
+        $this->travel(60)->seconds();
+        $this->assertNull(app(Waiting::class)->notice('session:'.$session->id));
     }
 
     public function test_a_draft_cut_off_twice_is_not_kept(): void

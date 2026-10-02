@@ -143,6 +143,28 @@ class SessionController
         return response()->json($this->presenter->detail($session));
     }
 
+    /**
+     * The last turn failed: run it again, with the same message.
+     */
+    public function retry(string $session): JsonResponse
+    {
+        $session = $this->session($session);
+
+        $this->ensureConfigured();
+
+        abort_unless($session->status === Session::FAILED, 409, 'There is nothing to try again.');
+        abort_unless(($last = end($session->messages)) !== false && $last['role'] === 'user', 409, 'There is nothing to try again.');
+
+        $session->status = Session::WORKING;
+        $session->error = null;
+
+        $this->sessions->save($session);
+
+        RunSessionTurn::start($session->id);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
     public function draft(Request $request, string $session): JsonResponse
     {
         $session = $this->session($session);

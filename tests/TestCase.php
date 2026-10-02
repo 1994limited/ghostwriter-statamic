@@ -47,6 +47,7 @@ abstract class TestCase extends AddonTestCase
         config([
             'ghostwriter.voice.path' => $this->workspace.'/voice.md',
             'ghostwriter.sessions_path' => $this->workspace.'/sessions',
+            'ghostwriter.queued_path' => $this->workspace.'/queued',
             'ghostwriter.plan.path' => $this->workspace.'/ideas.yaml',
             'ghostwriter.images.guide_path' => $this->workspace.'/imagery.md',
             'ghostwriter.types_path' => $this->workspace.'/types',
@@ -115,7 +116,7 @@ abstract class TestCase extends AddonTestCase
 
         $this->app->forgetInstance(StockSearch::class);
         $this->app->forgetInstance(PhotoFinder::class);
-        $this->app->instance(StockSearch::class, new StockSearch($client, new ConfigCredentials, openverse: fn (): bool => (bool) config('ghostwriter.images.openverse', true)));
+        $this->app->instance(StockSearch::class, new StockSearch($client, new ConfigCredentials, openverse: fn (): bool => app(\NineteenNinetyFour\Ghostwriter\Settings::class)->openverse()));
 
         return $client;
     }

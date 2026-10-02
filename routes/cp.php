@@ -48,6 +48,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::patch('imagery', [ImageryController::class, 'update'])->name('imagery.update');
 
     // Used by the panel that opens on an entry's publish form.
+    Route::post('kinds/suggest', [CollectionController::class, 'suggestKindsEverywhere'])->name('kinds.suggest_all');
     Route::get('collections/{collection}', [CollectionController::class, 'show'])->name('collections.show');
     Route::get('collections/{collection}/kinds', [CollectionController::class, 'kinds'])->name('kinds.show');
     Route::post('collections/{collection}/kinds/suggest', [CollectionController::class, 'suggestKinds'])->name('kinds.suggest');
@@ -66,6 +67,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('sessions/{session}', [SessionController::class, 'show'])->name('sessions.show');
     Route::get('sessions/{session}/open', [SessionController::class, 'open'])->name('sessions.open');
     Route::post('sessions/{session}/messages', [SessionController::class, 'message'])->name('sessions.message');
+    Route::post('sessions/{session}/retry', [SessionController::class, 'retry'])->name('sessions.retry');
     Route::patch('sessions/{session}/field', [SessionController::class, 'editField'])->name('sessions.field');
     Route::patch('sessions/{session}/draft', [SessionController::class, 'draft'])->name('sessions.draft');
     Route::post('sessions/{session}/apply', [SessionController::class, 'apply'])->name('sessions.apply');

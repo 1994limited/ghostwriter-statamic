@@ -21,7 +21,8 @@ export default {
     emits: ['make'],
 
     data() {
-        return { directions: {}, sources: {}, found: {}, more: {}, pools: {}, searching: null, choosing: null };
+        // `broken`: thumbnails that would not load, left out of the grid.
+        return { directions: {}, sources: {}, found: {}, more: {}, pools: {}, broken: {}, searching: null, choosing: null };
     },
 
     methods: {
@@ -186,16 +187,18 @@ export default {
                 <div v-if="offered(image).photos.length" class="grid grid-cols-3 items-start gap-3">
                     <div
                         v-for="photo in shown(image)"
+                        v-show="!broken[photo.source + photo.id]"
                         :key="photo.source + photo.id"
                         class="relative flex flex-col overflow-hidden rounded-md border border-gray-200 hover:border-gray-500! dark:border-gray-700!"
                         :class="{ 'animate-pulse': choosing === photo.id }"
                     >
                         <button type="button" class="block text-start" :disabled="choosing !== null" :title="[photo.reason || photo.alt, `${photo.credit} · ${photo.licence}`].filter(Boolean).join('\n')" @click="use(image, photo)">
                             <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
-                            <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" />
+                            <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" @error="broken[photo.source + photo.id] = true" />
                             <span v-if="photo.term" class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
-                            <span class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }}</span>
                         </button>
+                        <a v-if="photo.credit_url" :href="photo.credit_url" target="_blank" rel="noopener noreferrer" class="block truncate px-1.5 text-xs text-gray-500 hover:underline!">{{ photo.credit }}</a>
+                        <span v-else class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }}</span>
                         <div class="px-1.5 py-1.5">
                             <Button size="xs" :text="__('Use this')" :disabled="choosing !== null" @click="use(image, photo)" />
                         </div>

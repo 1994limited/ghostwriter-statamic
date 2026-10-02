@@ -82,7 +82,9 @@ Check [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) for th
 
 ### Openverse (no key)
 
-On by default. Openverse is searched for **public-domain and CC0** work only, so nothing found there comes with conditions. Turn it off with `images.openverse` in [`config/ghostwriter.php`](configuration.md).
+On by default. Openverse is searched for **public-domain and CC0** work only, so nothing found there comes with conditions. Turn it off with **Search Openverse** in the settings, or `images.openverse` (`GHOSTWRITER_OPENVERSE`) in [`config/ghostwriter.php`](configuration.md), which wins over the screen.
+
+The settings screen's **API keys** section lists each key Ghostwriter can use (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `UNSPLASH_ACCESS_KEY`, `PIXABAY_API_KEY`, `PEXELS_API_KEY`) and whether it is set. The keys themselves are never shown or stored there.
 
 ### Unsplash
 

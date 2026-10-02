@@ -71,6 +71,7 @@ class DashboardController
             ])->values(),
             'sessions' => $summaries->take(30)->values(),
             'auto_kinds' => $settings->suggestsKinds(),
+            'suggest_all_url' => cp_route('ghostwriter.kinds.suggest_all'),
         ]);
     }
 

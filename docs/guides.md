@@ -21,7 +21,7 @@ To control how much it reads, see `voice.max_entries` and the other `voice.*` ke
 
 ### Changing it
 
-- **Edit** it directly in the markdown editor, then **Save**.
+- **Edit** it directly in the markdown editor, then **Save**. A note under the editor reminds you that every writing prompt includes the guide as it stands.
 - Or **Ask for a change** in plain words, for example "We never say solutions. Add that.", then **Update the guide**. Ghostwriter rewrites the guide with the change, and says what it did.
 
 The guide is `resources/ghostwriter/voice.md`. Commit it with your project so every environment writes the same way.

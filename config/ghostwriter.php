@@ -92,7 +92,8 @@ return [
         'unsplash_key' => env('UNSPLASH_ACCESS_KEY'),
         'pexels_key' => env('PEXELS_API_KEY'),
         'pixabay_key' => env('PIXABAY_API_KEY'),
-        'openverse' => (bool) env('GHOSTWRITER_OPENVERSE', true),
+        // Settings-screen field too ("Search Openverse"): a value here wins.
+        'openverse' => env('GHOSTWRITER_OPENVERSE'),
 
         // The image style guide: what the site's pictures look like, in words.
         'guide_path' => resource_path('ghostwriter/imagery.md'),

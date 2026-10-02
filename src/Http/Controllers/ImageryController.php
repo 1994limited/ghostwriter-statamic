@@ -10,6 +10,7 @@ use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImageryGuide;
+use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\Blueprint as BlueprintFacade;
 use Statamic\Facades\Entry;
@@ -71,6 +72,7 @@ class ImageryController
                 'first' => 'Describe the images',
                 'again' => 'Look again and rewrite',
                 'scanned' => 'Last written from :count image.|Last written from :count images.',
+                'note' => 'Markdown, with a ## heading for each collection. Read whenever images are searched for, chosen or made.',
             ],
         ]);
     }
@@ -113,7 +115,11 @@ class ImageryController
      */
     private function payload(): array
     {
-        return $this->state->get() + [
+        $state = $this->state->get();
+
+        return $state + [
+            // No worker has picked the job up after a while: say so.
+            'waiting' => ($state['status'] ?? null) === ImageryState::WORKING ? app(Waiting::class)->notice('guide:imagery') : null,
             'document' => $this->guide->get(),
             'exists' => $this->guide->exists(),
             'updated_at' => $this->guide->updatedAt()?->diffForHumans(),

@@ -32,6 +32,8 @@ export default {
             request: null,
             busy: false,
             more: false,
+            // Thumbnails that would not load, left out of the grid.
+            broken: {},
             timer: null,
         };
     },
@@ -245,7 +247,8 @@ export default {
                     <Button :text="working ? __('Looking…') : __('Find photos')" variant="primary" :loading="working || busy" :disabled="working || busy" @click="start('find')" />
                 </div>
                 <Alert v-if="request?.status === 'failed'" variant="error" :text="request.error" />
-                <p v-if="working" class="text-sm text-gray-500"><span class="animate-pulse">{{ __('Choosing searches, running them, and comparing the results with the images already here…') }}</span></p>
+                <p v-if="working" class="text-sm text-gray-500" role="status"><span class="animate-pulse">{{ __('Choosing searches, running them, and comparing the results with the images already here…') }}</span></p>
+                <Alert v-if="working && request.waiting" variant="warning" :text="request.waiting" role="status" />
                 <template v-if="request?.status === 'done' && request.mode === 'find'">
                     <p class="text-sm text-gray-500">{{ __('Searched for: :terms. Choose one to use it.', { terms: request.terms.join('; ') }) }}</p>
                     <p v-if="!request.options.length" class="text-sm">{{ __('Nothing found. Try other words.') }}</p>
@@ -255,15 +258,17 @@ export default {
                     <div class="grid grid-cols-3 items-start gap-3">
                         <div
                             v-for="photo in shown"
+                            v-show="!broken[photo.source + photo.id]"
                             :key="photo.source + photo.id"
                             class="relative flex flex-col overflow-hidden rounded-md border border-gray-200 hover:border-gray-500! dark:border-gray-700!"
                         >
                             <button type="button" class="block text-start disabled:opacity-50!" :disabled="busy" :title="[photo.reason || photo.alt, `${photo.credit} · ${photo.licence}`].filter(Boolean).join('\n')" @click="use(photo)">
                                 <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
-                                <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" />
+                                <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" @error="broken[photo.source + photo.id] = true" />
                                 <span class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
-                                <span class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }} · {{ photo.licence }}</span>
                             </button>
+                            <a v-if="photo.credit_url" :href="photo.credit_url" target="_blank" rel="noopener noreferrer" class="block truncate px-1.5 text-xs text-gray-500 hover:underline!" :title="__('See it on :source', { source: photo.credit })">{{ photo.credit }} · {{ photo.licence }}</a>
+                            <span v-else class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }} · {{ photo.licence }}</span>
                             <div class="px-1.5 py-1.5">
                                 <Button size="xs" :text="__('Use this')" :disabled="busy" @click="use(photo)" />
                             </div>
@@ -282,6 +287,8 @@ export default {
                     <input type="file" accept="image/png,image/jpeg,image/webp" class="ms-1 text-sm" :disabled="working" @change="source = $event.target.files[0] ?? null" />
                 </label>
                 <Alert v-if="request?.status === 'failed'" variant="error" :text="request.error" />
+                <p v-if="working" class="text-sm text-gray-500" role="status"><span class="animate-pulse">{{ __('Making the picture. This can take a minute or two.') }}</span></p>
+                <Alert v-if="working && request.waiting" variant="warning" :text="request.waiting" role="status" />
                 <div v-if="request?.status === 'done' && request.mode === 'make'" class="space-y-2">
                     <img :src="request.preview_url" alt="" class="block h-auto w-full rounded-md border border-gray-200 dark:border-gray-700!" />
                     <div class="flex justify-end gap-2">

@@ -30,6 +30,11 @@ class RunSessionTurn implements ShouldQueue
 
     public function __construct(public string $sessionId) {}
 
+    public function subject(): ?string
+    {
+        return 'session:'.$this->sessionId;
+    }
+
     public function handle(SessionRepository $sessions, TypeRepository $types, Studio $studio, VoiceGuide $guide, ?ImageStudio $images = null): void
     {
         $this->allowTimeToFinish();

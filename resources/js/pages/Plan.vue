@@ -198,7 +198,7 @@ export default {
 
         <SetupAlert v-if="!configured" :provider="provider" />
 
-        <Alert v-if="current.status === 'failed'" variant="error" :heading="__('That did not work')" :text="current.error" class="mb-6" />
+        <Alert v-if="current.status === 'failed'" variant="error" :heading="__('That didn’t work')" :text="current.error" class="mb-6" />
 
         <!-- Suggestions waiting to be looked over: closing the box keeps them -->
         <Panel v-if="current.pending.length" class="mb-6">

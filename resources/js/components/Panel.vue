@@ -57,6 +57,7 @@ export default {
             editing: false,
             raw: '',
             busy: false,
+            retrying: false,
             adding: false,
             showBrief: false,
             // How the draft is shown: in its blocks, or as plain reading text.
@@ -347,6 +348,21 @@ export default {
             } catch (error) {
                 this.message = message;
                 this.fail(error);
+            }
+        },
+
+        // The last turn failed: send the same message again.
+        async retry() {
+            this.retrying = true;
+
+            try {
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/retry`));
+
+                this.receive(data);
+            } catch (error) {
+                this.fail(error);
+            } finally {
+                this.retrying = false;
             }
         },
 
@@ -697,8 +713,12 @@ export default {
                             <span>{{ progress }}</span>
                             <span class="ms-auto tabular-nums">{{ elapsed }}</span>
                         </div>
+                        <Alert v-if="working && session.queue_waiting" variant="warning" :text="session.queue_waiting" role="status" />
 
-                        <Alert v-if="session.status === 'failed'" variant="error" :heading="__('That did not work')" :text="session.error" />
+                        <div v-if="session.status === 'failed'" class="space-y-2">
+                            <Alert variant="error" :heading="__('That didn’t work')" :text="session.error" />
+                            <Button size="sm" :text="__('Try again')" :loading="retrying" :disabled="retrying" @click="retry" />
+                        </div>
                     </div>
 
                     <div class="space-y-2 border-t p-4" :class="asking ? 'border-amber-400 bg-amber-50 dark:border-amber-500! dark:bg-amber-950/40!' : 'border-gray-200 dark:border-gray-700!'">
@@ -773,6 +793,9 @@ export default {
 
                         <template v-else>
                             <Alert v-if="session.draft_problem" variant="warning" :text="session.draft_problem" class="mb-4" />
+                            <p v-else-if="session.applied" class="mb-4 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-500 dark:border-gray-700!">
+                                {{ session.editing ? __('These changes have been put into the form. Using them again replaces what is in the form.') : __('This draft has been put into the form. Using it again replaces what is in the form.') }}
+                            </p>
 
                             <Textarea v-if="editing || session.draft_problem" v-model="raw" elastic :rows="24" class="font-mono text-sm" @focus="editing = true" />
 

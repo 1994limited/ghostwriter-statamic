@@ -2,6 +2,8 @@
 
 namespace NineteenNinetyFour\Ghostwriter;
 
+use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\Credentials;
 use Statamic\Facades\Addon;
 use Statamic\Facades\User;
 
@@ -34,6 +36,7 @@ class Settings
         'image_provider' => 'ghostwriter.images.provider',
         'image_model' => 'ghostwriter.images.model',
         'placeholder_images' => 'ghostwriter.images.placeholders',
+        'openverse' => 'ghostwriter.images.openverse',
     ];
 
     public function provider(): string
@@ -87,6 +90,54 @@ class Settings
     public function placeholderImages(): bool
     {
         return (bool) ($this->value('placeholder_images') ?? true);
+    }
+
+    /**
+     * Whether Openverse, which needs no key, is searched for photographs.
+     */
+    public function openverse(): bool
+    {
+        return (bool) ($this->value('openverse') ?? true);
+    }
+
+    /**
+     * Each API key Ghostwriter can use, by the variable that holds it, and
+     * whether it is set. Never the key itself.
+     *
+     * @return array<string, bool>
+     */
+    public function keyStatus(): array
+    {
+        $credentials = new ConfigCredentials;
+
+        return collect(Credentials::ENV)->mapWithKeys(fn (string $variable, string $service) => [$variable => $credentials->key($service) !== null])->all();
+    }
+
+    /**
+     * The settings screen's blueprint with a read-only list of the API keys
+     * and whether each is set, at the top of the AI provider section.
+     *
+     * @param  array<string, mixed>  $contents
+     * @return array<string, mixed>
+     */
+    public function withKeyStatus(array $contents): array
+    {
+        $rows = collect($this->keyStatus())
+            ->map(fn (bool $set, string $variable) => '<li style="display:flex;gap:.5rem;align-items:center;margin:.2rem 0"><code style="font-size:.8rem">'.e($variable).'</code><span style="font-size:.75rem;line-height:1.1rem;padding:0 .4rem;border:1px solid currentColor;border-radius:.25rem;color:'.($set ? '#16a34a' : '#6b7280').'">'.($set ? 'Set' : 'Not set').'</span></li>')
+            ->implode('');
+
+        foreach ($contents['tabs'] ?? [] as $tab => $content) {
+            foreach ($content['sections'] ?? [] as $i => $section) {
+                if (($section['display'] ?? null) === 'API keys') {
+                    $contents['tabs'][$tab]['sections'][$i]['fields'] = [[
+                        'handle' => 'key_status',
+                        'field' => ['type' => 'html', 'html' => '<ul style="list-style:none;margin:0;padding:0">'.$rows.'</ul>', 'hide_display' => true],
+                    ]];
+                }
+            }
+        }
+
+        return $contents;
     }
 
     /**

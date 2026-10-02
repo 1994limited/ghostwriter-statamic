@@ -35,6 +35,10 @@ tabs:
               instructions: 'Look over each collection for kinds of content worth teaching, the first time it is seen and again once ten more entries have been published. Off, kinds are only suggested when asked.'
               default: true
       -
+        display: API keys
+        instructions: 'Keys live only in your .env file, never on this screen. Whether each one is set:'
+        fields: []
+      -
         display: AI provider
         instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY in your .env file.'
         fields:
@@ -85,4 +89,12 @@ tabs:
               type: text
               display: Image model
               instructions: "Leave blank to use the provider's default model."
+              width: 50
+          -
+            handle: openverse
+            field:
+              type: toggle
+              display: Search Openverse
+              instructions: 'Public-domain and CC0 photographs, with no key needed.'
+              default: true
               width: 50
