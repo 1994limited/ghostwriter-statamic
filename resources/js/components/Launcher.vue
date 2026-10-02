@@ -132,6 +132,21 @@ export default {
             }
         },
 
+        // A draft starts unpublished, so the entry can be saved straight
+        // away (a page holding an unlicensed stock preview couldn't be
+        // published anyway) and an AI draft never goes live by accident.
+        // Only on a new entry, or one that isn't published: switching off
+        // a live entry would take it offline. It is the form's own toggle,
+        // so the editor sees it off and can switch it on.
+        startUnpublished() {
+            if (!Statamic.$config.get('ghostwriter')?.drafts_unpublished) return false;
+            if (this.entry && this.form.values?.published !== false) return false;
+
+            this.form.setFieldValue('published', false);
+
+            return true;
+        },
+
         apply({ values, meta, notes }) {
             // Field by field, so everything the draft does not cover keeps the
             // value and meta it already had. Meta goes first: fields such as
@@ -139,13 +154,16 @@ export default {
             Object.entries(meta).forEach(([handle, value]) => this.form.setFieldMeta(handle, value));
             Object.entries(values).forEach(([handle, value]) => this.form.setFieldValue(handle, value));
 
+            const unpublished = this.startUnpublished();
+
             this.open = false;
 
             const done = this.entry ? this.__('Changes added to the form. Check them over, then save.') : this.__('Draft added to the form. Check it over, then save.');
+            const hint = unpublished ? this.__('Ghostwriter drafts start unpublished. Switch on Published when you\'re ready.') : null;
 
             if (!notes.length) {
                 this.notice = null;
-                this.$toast.success(done);
+                this.$toast.success(hint ? `${done} ${hint}` : done);
 
                 return;
             }
@@ -153,7 +171,7 @@ export default {
             // The notes are a to-do list, so they come as one notice that
             // stays until it is closed. A toast has a fixed height, which a
             // list of notes soon outgrows, so the notice sits above the form.
-            this.notice = { heading: done, notes };
+            this.notice = { heading: done, hint, notes };
 
             this.$nextTick(() => this.$refs.notice?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }));
         },
@@ -178,6 +196,7 @@ export default {
                     <div class="flex items-start gap-3">
                         <div class="min-w-0 flex-1">
                             <strong class="block">{{ notice.heading }}</strong>
+                            <p v-if="notice.hint" class="mt-0.5">{{ notice.hint }}</p>
                             <ul class="mt-1.5 list-disc ps-5">
                                 <li v-for="(note, i) in notice.notes" :key="i">{{ note }}</li>
                             </ul>

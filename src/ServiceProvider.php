@@ -257,6 +257,9 @@ class ServiceProvider extends AddonServiceProvider
             'enabled' => (bool) User::current()?->can('access ghostwriter'),
             'collections' => app(TypeRepository::class)->collections()->map->handle()->values()->all(),
             'url' => cp_route('ghostwriter.index'),
+            // A draft put into a new (or unpublished) entry's form switches
+            // its Published toggle off, for the editor to switch on.
+            'drafts_unpublished' => (bool) config('ghostwriter.drafts_unpublished', true),
         ]]);
 
         Nav::extend(function ($nav): void {
