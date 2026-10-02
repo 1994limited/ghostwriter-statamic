@@ -42,6 +42,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
+use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
 use NineteenNinetyFour\Ghostwriter\Storage\FileGuideStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileImageRequestStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileKindStore;
@@ -196,7 +197,7 @@ class ServiceProvider extends AddonServiceProvider
         $path = __DIR__.'/../resources/blueprints/settings.yaml';
 
         if ($this->getAddon()->hasSettingsBlueprint()) {
-            $this->registerSettingsBlueprint(fn () => app(Settings::class)->withKeyStatus(app(Settings::class)->lockOverridden(YAML::file($path)->parse())));
+            $this->registerSettingsBlueprint(fn () => app(Settings::class)->lockOverridden(app(Settings::class)->withStock(app(Settings::class)->withKeyStatus(YAML::file($path)->parse()), app(StockLibraries::class))));
         }
 
         return $this;
@@ -211,6 +212,12 @@ class ServiceProvider extends AddonServiceProvider
         Permission::group('ghostwriter', 'Ghostwriter', function (): void {
             Permission::register('access ghostwriter')
                 ->label('Write content and edit the voice guide with Ghostwriter');
+
+            // Licensing spends money on the site's own account with a paid
+            // library, so it is a permission of its own, given to nobody by
+            // default (super users have it).
+            Permission::register('license stock images')
+                ->label('License stock images from paid libraries (spends from your account)');
         });
 
         // Tells the panel on the publish form which collections it may open on.
@@ -227,6 +234,7 @@ class ServiceProvider extends AddonServiceProvider
 
             $event->settings->set('show_get_started', null);
             $event->settings->set('key_status', null);
+            $event->settings->set('stock_libraries', null);
 
             // A locked field shows, and so sends back, the config's value.
             // What was saved for it stays, for when the config lets go.

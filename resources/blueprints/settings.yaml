@@ -98,3 +98,35 @@ tabs:
               instructions: 'Public-domain and CC0 photographs, with no key needed.'
               default: true
               width: 50
+      -
+        display: Stock photos
+        instructions: 'Paid photo libraries, licensed from your own account with the library. A paid photo goes into a page as a preview: a labelled stand-in image, with the watermarked photo shown only to signed-in editors. A manager licenses it before the page is published, and the stand-in is replaced with the full image. Keys and secrets live only in your .env file, never on this screen.'
+        fields:
+          -
+            handle: stock_default_source
+            field:
+              type: select
+              display: Default source
+              instructions: 'Where "Search in" starts in the image dialog, until someone chooses another. Each person''s last choice is remembered.'
+              options:
+                free: Free libraries
+              default: free
+              width: 50
+          -
+            handle: stock_include_editorial
+            field:
+              type: toggle
+              display: Include editorial images by default
+              instructions: 'Editorial images (news, events, well-known people) may not be used to sell or promote anything. Most pages are commercial use, so they are left out unless this is on or someone ticks "Include editorial images".'
+              default: false
+              width: 50
+          -
+            handle: stock_on_publish
+            field:
+              type: button_group
+              display: When a page with an unlicensed preview is published
+              instructions: 'Block refuses to publish it, with a message on the image field; saving it unpublished still works. Warn publishes it and says so.'
+              options:
+                block: Block
+                warn: Warn
+              default: block
