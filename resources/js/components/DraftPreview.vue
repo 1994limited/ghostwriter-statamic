@@ -1,8 +1,10 @@
 <!--
     Draws a draft as the server laid it out: each field under its label, and
     page-builder blocks in order under their names. Writing can be changed
-    where it is shown: click a piece of text to edit it, and it is saved back
-    into the draft. In the "text" view only the writing is shown, read
+    where it is shown: every piece of text is always editable in place and
+    can be reached with Tab. It is saved back into the draft when you leave
+    it; Escape puts back what was there, and Enter finishes a one-line field.
+    Rich text stays rich. In the "text" view only the writing is shown, read
     straight through, without the blocks around it.
 -->
 <script>
@@ -19,10 +21,6 @@ export default {
 
     emits: ['edit'],
 
-    data() {
-        return { editing: null, value: '' };
-    },
-
     computed: {
         shown() {
             if (this.view !== 'text') return this.nodes;
@@ -37,36 +35,56 @@ export default {
             return JSON.stringify(node.path ?? node.handle);
         },
 
-        start(node, event) {
-            if (!this.editable || !node.editable || this.editing) return;
+        canEdit(node) {
+            return this.editable && node.editable;
+        },
 
-            this.editing = this.key(node);
-            this.value = node.kind === 'html' ? event.currentTarget.innerHTML : node.text;
+        // What the element holds now: HTML for rich text, the plain words otherwise.
+        read(node, element) {
+            return node.kind === 'html' ? element.innerHTML : element.innerText.replace(/\n$/, '');
+        },
 
-            this.$nextTick(() => {
-                const field = this.$refs[`field-${this.editing}`];
-                const element = Array.isArray(field) ? field[0] : field;
+        // Noted on the way in, so leaving can tell whether anything changed
+        // and Escape can put it back.
+        enter(node, event) {
+            event.target.dataset.was = this.read(node, event.target);
+        },
 
-                element?.focus();
+        leave(node, event) {
+            const element = event.target;
+            const was = element.dataset.was;
+            const value = this.read(node, element);
+
+            delete element.dataset.was;
+
+            if (was === undefined || value === was) return;
+
+            this.$emit('edit', {
+                path: node.path,
+                value,
+                format: node.kind === 'html' ? 'html' : 'text',
+                // Put back what was there, if the change could not be saved.
+                revert: () => (node.kind === 'html' ? (element.innerHTML = was) : (element.innerText = was)),
             });
         },
 
-        finish(node, event) {
-            if (this.editing !== this.key(node)) return;
+        cancel(node, event) {
+            const element = event.target;
 
-            const value = node.kind === 'html' ? event.target.innerHTML : this.value;
-            const before = node.kind === 'html' ? node.html : node.text;
+            if (element.dataset.was !== undefined) {
+                if (node.kind === 'html') element.innerHTML = element.dataset.was;
+                else element.innerText = element.dataset.was;
+            }
 
-            this.editing = null;
-
-            if (value !== before) this.$emit('edit', { path: node.path, value, format: node.kind === 'html' ? 'html' : 'text' });
+            element.blur();
         },
 
-        cancel(node) {
-            this.editing = null;
+        // Enter finishes a one-line field; in anything longer it is a new line.
+        enterKey(node, event) {
+            if (node.kind === 'html' || node.multiline || event.shiftKey) return;
 
-            // A contenteditable keeps what was typed; put the original back.
-            if (node.kind === 'html') this.$forceUpdate();
+            event.preventDefault();
+            event.target.blur();
         },
     },
 };
@@ -80,14 +98,15 @@ export default {
             <!-- Rich text: edited in place as HTML, saved back as markdown. -->
             <div
                 v-if="node.kind === 'html'"
-                :ref="`field-${key(node)}`"
-                class="gw-prose rounded-md"
-                :class="{ 'cursor-text hover:ring-1! hover:ring-gray-300! dark:hover:ring-gray-600!': editable && node.editable && !editing, 'ring-2 ring-blue-400 p-2 outline-none': editing === key(node) }"
-                :contenteditable="editing === key(node)"
-                :title="editable && node.editable && !editing ? __('Click to edit') : null"
-                @click="start(node, $event)"
-                @blur="finish(node, $event)"
-                @keydown.esc.prevent="cancel(node)"
+                class="gw-prose"
+                :class="{ 'gw-editable': canEdit(node) }"
+                :contenteditable="canEdit(node) ? 'true' : null"
+                :role="canEdit(node) ? 'textbox' : null"
+                :aria-multiline="canEdit(node) ? 'true' : null"
+                :aria-label="canEdit(node) ? node.label : null"
+                @focus="enter(node, $event)"
+                @blur="leave(node, $event)"
+                @keydown.esc.stop.prevent="cancel(node, $event)"
                 v-html="node.html"
             />
 
@@ -118,26 +137,21 @@ export default {
                 <DraftPreview :nodes="node.fields" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" />
             </div>
 
-            <!-- Plain text: a box appears in its place while it is edited. -->
-            <template v-else>
-                <textarea
-                    v-if="editing === key(node)"
-                    :ref="`field-${key(node)}`"
-                    v-model="value"
-                    class="w-full rounded-md border border-blue-400 bg-white p-2 text-sm dark:bg-gray-900!"
-                    :rows="node.multiline ? Math.min(12, Math.max(3, value.split('\n').length + 1)) : 1"
-                    @blur="finish(node, $event)"
-                    @keydown.esc.prevent="cancel(node)"
-                    @keydown.enter="node.multiline || finish(node, $event)"
-                />
-                <div
-                    v-else
-                    class="rounded-md whitespace-pre-wrap"
-                    :class="{ 'cursor-text hover:ring-1! hover:ring-gray-300! dark:hover:ring-gray-600!': editable && node.editable && !editing, 'text-lg font-medium': view === 'text' && node.handle === 'title' }"
-                    :title="editable && node.editable && !editing ? __('Click to edit') : null"
-                    @click="start(node, $event)"
-                >{{ node.text }}</div>
-            </template>
+            <!-- Plain text: edited in place as plain words. -->
+            <div
+                v-else
+                class="whitespace-pre-wrap"
+                :class="{ 'gw-editable': canEdit(node), 'text-lg font-medium': view === 'text' && node.handle === 'title' }"
+                :contenteditable="canEdit(node) ? 'plaintext-only' : null"
+                :role="canEdit(node) ? 'textbox' : null"
+                :aria-multiline="canEdit(node) ? String(Boolean(node.multiline)) : null"
+                :aria-label="canEdit(node) ? node.label : null"
+                @focus="enter(node, $event)"
+                @blur="leave(node, $event)"
+                @keydown.esc.stop.prevent="cancel(node, $event)"
+                @keydown.enter="enterKey(node, $event)"
+                v-text="node.text"
+            />
         </div>
     </div>
 </template>

@@ -44,7 +44,7 @@ Press **⌘↵** (or **Ctrl+↵**) to send. A spinner with a timer shows while i
 The draft sits on the right, laid out the way the entry is built: its fields, and its page-builder blocks in order.
 
 - **Blocks / Text** switches between the full layout and just the words. Ghostwriter remembers your choice in this browser.
-- **Click any text to change it.** Headings, lines and rich text are edited where they are shown, and saved as you leave each piece (Escape cancels).
+- **Every piece of writing is editable where it is shown.** Click a heading, a line or a paragraph, or move to it with **Tab**, and type. It is saved when you leave it. **Escape** puts back what was there; **Enter** finishes a one-line field (in longer text it starts a new line). Rich text stays rich: bold, links and lists are kept, and pasting formatted text keeps its formatting.
 - **Edit** opens the whole draft as YAML, to add, move or remove blocks. Most people never need it.
 
 The word count is shown at the top. Below the draft, the **Images** section offers photographs for each image field the entry normally has; see [Images](images.md#images-with-a-draft).
@@ -65,8 +65,12 @@ One notice, which stays until you close it, lists anything still for you to do. 
 
 ## Carrying on later
 
-The conversation is saved. Reopen the entry's create screen with the piece under **In progress** on the dashboard, or **Or carry on with** in the panel, and Ghostwriter picks up where you left off.
+The conversation is saved, and the panel carries on with the piece you were on:
 
-**Start over** goes back to **What are you writing?** to begin a new piece. The earlier conversation isn't deleted; it stays on the dashboard until you remove it.
+- **On the same screen**, after **Use this draft** or closing the panel, **Write with Ghostwriter** opens the same piece again, not a new one.
+- **Reloading the page** opens it too: the address names the piece (`?ghostwriter=…`).
+- **Later**, open it from **In progress** on the dashboard, or **Or carry on with** in the panel. A draft put into the form but not saved stays in both lists.
+
+**Start over** goes back to **What are you writing?** to begin a new piece, and the button opens there from then on. The earlier conversation isn't deleted; it stays on the dashboard until you remove it.
 
 A piece leaves **In progress** once its entry has been saved: an entry with its title, saved in that collection after the piece was started. Putting the draft into the form isn't enough; until the form is saved, the piece stays in progress and can be picked up again.
