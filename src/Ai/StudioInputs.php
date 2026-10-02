@@ -23,7 +23,9 @@ use NineteenNinetyFour\Ghostwriter\Core\Studio\PlanItem;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\PlannedIdea;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\TypeSurvey;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\VoiceSample;
+use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Collection as EntryCollection;
 use Statamic\Facades\Collection as Collections;
 use Statamic\Facades\Entry as Entries;
@@ -130,12 +132,20 @@ class StudioInputs
     }
 
     /**
-     * @param  array<int, array{label: string, entry: string, image: Image}>  $samples
+     * Each with the asset it came from, when known, so the model-input
+     * guard can check its ledger record and file name: the sample sent is
+     * a smaller copy, without the original's embedded credit.
+     *
+     * @param  array<int, array{label: string, entry: string, image: Image, asset?: Asset}>  $samples
      * @return array<int, ImagerySample>
      */
     public function imagerySamples(array $samples): array
     {
-        return array_map(fn (array $sample) => new ImagerySample($sample['label'], $sample['entry'], $sample['image']), array_values($samples));
+        return array_map(function (array $sample) {
+            $asset = $sample['asset'] ?? null;
+
+            return new ImagerySample($sample['label'], $sample['entry'], $sample['image'], $asset ? Ledger::ref($asset) : null, $asset?->basename());
+        }, array_values($samples));
     }
 
     /**

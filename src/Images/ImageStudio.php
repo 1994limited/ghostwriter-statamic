@@ -12,15 +12,18 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\ModelInputGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Photo;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoContext;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFile;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoResults;
+use NineteenNinetyFour\Ghostwriter\Core\Images\ReferenceImage;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Shrinker;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
+use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Entry;
@@ -136,7 +139,7 @@ class ImageStudio
      * A spread of the images one collection uses, for the style guide to be
      * written from: a few from each image field, newest entries first.
      *
-     * @return array<int, array{label: string, entry: string, image: Image}>
+     * @return array<int, array{label: string, entry: string, image: Image, asset: Asset}>
      */
     public function samples(string $collection, int $limit = 10): array
     {
@@ -181,8 +184,14 @@ class ImageStudio
             }
         }
 
+        // The copy a model sees is smaller and loses the original's embedded
+        // credit, so the original is checked here against the guard too.
+        $guard = app(ModelInputGuard::class);
+
         return collect($picked)
-            ->map(fn (array $sample) => ['label' => $sample['label'], 'entry' => $sample['entry'], 'image' => $this->shrinker->small((string) $sample['asset']->contents())])
+            ->map(fn (array $sample) => $sample + ['bytes' => (string) $sample['asset']->contents()])
+            ->filter(fn (array $sample) => $guard->allowsImage($sample['bytes'], Ledger::ref($sample['asset']), $sample['asset']->basename()))
+            ->map(fn (array $sample) => ['label' => $sample['label'], 'entry' => $sample['entry'], 'image' => $this->shrinker->small($sample['bytes']), 'asset' => $sample['asset']])
             ->filter(fn (array $sample) => $sample['image'] !== null)
             ->values()
             ->all();
@@ -322,7 +331,7 @@ class ImageStudio
         $slot = $this->slots($session, $type)[$key]
             ?? throw new InvalidArgumentException('That image field is no longer part of the draft.');
 
-        $references = collect($slot['references'])->take(self::REFERENCES)->map(fn (Asset $asset) => (string) $asset->contents())->filter()->values()->all();
+        $references = self::referenceImages(collect($slot['references'])->take(self::REFERENCES)->all());
 
         return $this->finder->find($this->context($session, $type, $slot), $references, $words !== null && trim($words) !== '' ? $words : null);
     }
@@ -438,10 +447,16 @@ class ImageStudio
         $provider = $this->providers->image()
             ?? throw new InvalidArgumentException('No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
 
-        $references = collect($references)->take(self::REFERENCES);
+        // No image whose licence forbids AI use goes to the image model.
+        $guard = app(ModelInputGuard::class);
+        $references = collect($references)
+            ->filter(fn (Asset $asset) => $guard->allowsAsset(Ledger::ref($asset)))
+            ->map(fn (Asset $asset) => [$asset, (string) $asset->contents()])
+            ->filter(fn (array $pair) => $pair[1] !== '' && $guard->allowsBytes($pair[1]))
+            ->take(self::REFERENCES);
 
         $attachments = $references
-            ->map(fn (Asset $asset) => new Image((string) $asset->contents(), (string) $asset->mimeType()))
+            ->map(fn (array $pair) => new Image($pair[1], (string) $pair[0]->mimeType()))
             ->when($source, fn ($all) => $all->push($source))
             ->values()
             ->all();
@@ -449,8 +464,31 @@ class ImageStudio
         return $provider->image(new ImageRequest(
             $this->prompt($title, $summary, $label, $direction, $references->count(), $source !== null, $style),
             $attachments,
-            $this->shape($references->first()),
+            $this->shape($references->first()[0] ?? null),
         ));
+    }
+
+    /**
+     * Pictures already in a place, as references for a model, each with
+     * the asset it is so the model-input guard can check its ledger record
+     * and name as well as its bytes.
+     *
+     * @param  array<int, Asset>  $assets
+     * @return array<int, ReferenceImage>
+     */
+    public static function referenceImages(array $assets): array
+    {
+        $references = [];
+
+        foreach ($assets as $asset) {
+            $bytes = (string) $asset->contents();
+
+            if ($bytes !== '') {
+                $references[] = new ReferenceImage($bytes, Ledger::ref($asset), $asset->basename());
+            }
+        }
+
+        return $references;
     }
 
     /**
@@ -498,13 +536,18 @@ class ImageStudio
         $photo = $file->photo;
         $fallback = $term !== null && trim($term) !== '' ? $term : $session->title();
 
-        return $this->store($session, $slot, $file->content, $file->extension, [
+        $asset = $this->store($session, $slot, $file->content, $file->extension, [
             'title' => $photo->assetTitle($fallback),
             'alt' => $photo->alt($fallback),
             'credit' => $photo->credit,
             'credit_url' => $photo->creditUrl,
             'licence' => $photo->licence,
         ], $photo->filenameBase($fallback));
+
+        // Where it is used is found when the entry is saved.
+        app(Ledger::class)->recordFree($photo, $asset);
+
+        return $asset;
     }
 
     /**

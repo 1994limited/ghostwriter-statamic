@@ -57,6 +57,7 @@ abstract class TestCase extends AddonTestCase
         config([
             'ghostwriter.voice.path' => $this->workspace.'/voice.md',
             'ghostwriter.sessions_path' => $this->workspace.'/sessions',
+            'ghostwriter.stock_path' => $this->workspace.'/content/stock',
             'ghostwriter.queued_path' => $this->workspace.'/queued',
             'ghostwriter.plan.path' => $this->workspace.'/ideas.yaml',
             'ghostwriter.images.guide_path' => $this->workspace.'/imagery.md',

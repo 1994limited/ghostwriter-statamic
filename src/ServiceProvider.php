@@ -25,6 +25,9 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\WaitingStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\ModelInputGuard;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImages;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImageStore;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\LayoutOptions;
@@ -45,6 +48,7 @@ use NineteenNinetyFour\Ghostwriter\Storage\FileKindStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileLock;
 use NineteenNinetyFour\Ghostwriter\Storage\FilePlanStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileSessionStore;
+use NineteenNinetyFour\Ghostwriter\Storage\FileStockImageStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileWaitingStore;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Addons\SettingsRepository;
@@ -115,6 +119,7 @@ class ServiceProvider extends AddonServiceProvider
             $app->make(PromptLibrary::class),
             Log::channel(config('ghostwriter.log_channel')),
             StudioOptions::statamic(logReplies: (bool) config('ghostwriter.debug.log_replies', false)),
+            $app->make(ModelInputGuard::class),
         ));
 
         // Photo search is core's too: the libraries, choosing the searches,
@@ -133,7 +138,15 @@ class ServiceProvider extends AddonServiceProvider
             $app->make(Providers::class),
             $app->make(PromptLibrary::class),
             Log::channel(config('ghostwriter.log_channel')),
+            guard: $app->make(ModelInputGuard::class),
         ));
+
+        // No image from a library whose licence forbids AI use (Getty,
+        // iStock and the other paid libraries) goes to any model: not as a
+        // reference for photo picking or making, nor as a sample for the
+        // image style guide. The guard knows them by the ledger, their file
+        // names and their embedded credit.
+        $this->app->bind(ModelInputGuard::class, fn ($app) => new ModelInputGuard($app->make(StockImageStore::class), Log::channel(config('ghostwriter.log_channel'))));
 
         // Core's text classes, set up the way Statamic stores entries: a
         // rewritten draft leaves out what it does not hold rather than
@@ -152,6 +165,9 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->bindIf(ImageRequestStore::class, FileImageRequestStore::class);
         $this->app->bindIf(WaitingStore::class, FileWaitingStore::class);
         $this->app->bindIf(Lock::class, FileLock::class);
+        // The stock image ledger: one YAML file per record under content/,
+        // read once per request while unchanged.
+        $this->app->singletonIf(StockImageStore::class, FileStockImageStore::class);
         $this->app->bind(DomainOptions::class, fn ($app) => DomainOptions::statamic(
             shared: (bool) config('ghostwriter.shared_conversations', true),
             jobTimeout: $app->make(Settings::class)->timeout(),
@@ -159,6 +175,7 @@ class ServiceProvider extends AddonServiceProvider
         $clock = fn () => Carbon::now()->toImmutable();
         $this->app->bind(SessionGuard::class, fn ($app) => new SessionGuard($app->make(SessionStore::class), $app->make(Lock::class), $app->make(DomainOptions::class), $clock));
         $this->app->bind(Plan::class, fn ($app) => new Plan($app->make(PlanStore::class), $app->make(Lock::class), Format::Statamic));
+        $this->app->bind(StockImages::class, fn ($app) => new StockImages($app->make(StockImageStore::class), $app->make(Lock::class), $app->make(DomainOptions::class), $clock));
         $this->app->bind(ImageRequests::class, fn ($app) => new ImageRequests($app->make(ImageRequestStore::class), $app->make(Lock::class), $app->make(DomainOptions::class), $clock));
         // The sync queue runs work itself, after the response: nothing to wait for.
         $this->app->bind(Waiting::class, fn ($app) => new Waiting($app->make(WaitingStore::class), $app->make(DomainOptions::class), runsItself: config('queue.default') === 'sync', clock: $clock));
