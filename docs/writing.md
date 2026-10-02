@@ -103,6 +103,6 @@ A piece leaves **In progress** once its entry has been saved. Putting the draft 
 
 ## Sharing conversations
 
-Conversations are shared with everyone who may use Ghostwriter, so a colleague can pick a piece up where you left it. Each message shows who sent it. See [Shared conversations](permissions.md#shared-conversations).
+With Statamic Pro and more than one user, conversations are shared with everyone who may use Ghostwriter, so a colleague can pick a piece up where you left it. Each message shows who sent it. See [Shared conversations](permissions.md#shared-conversations).
 
 Next: [Editing an existing entry](editing.md).

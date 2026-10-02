@@ -41,13 +41,14 @@
         "ext-gd": "*",
         "1994/ghostwriter-core": "^1.0",
         "guzzlehttp/guzzle": "^7.8|^8.0",
+        "guzzlehttp/psr7": "^2.6|^3.0",
         "league/commonmark": "^2.4",
-        "statamic/cms": "^6.0",
+        "statamic/cms": "^6.30",
         "symfony/yaml": "^7.0 || ^8.0"
     },
     "require-dev": {
         "laravel/pint": "^1.20",
-        "orchestra/testbench": "^11.0",
+        "orchestra/testbench": "^10.0|^11.0",
         "phpunit/phpunit": "^12.0"
     },
     "suggest": {

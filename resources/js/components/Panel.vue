@@ -509,7 +509,7 @@ export default {
 </script>
 
 <template>
-    <div class="h-full overflow-y-auto p-6">
+    <div class="h-full overflow-y-auto sm:p-6">
         <div v-if="step === 'loading'" class="py-24 text-center text-gray-500">{{ __('Loading…') }}</div>
 
         <template v-else>
@@ -690,8 +690,8 @@ export default {
             </div>
 
             <!-- The conversation and the draft -->
-            <div v-else class="grid h-full gap-6 lg:grid-cols-5">
-                <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-2 dark:border-gray-700!">
+            <div v-else class="grid h-full gap-6 max-lg:grid-cols-1 lg:grid-cols-5">
+                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 lg:col-span-2 dark:border-gray-700!">
                     <div ref="chat" class="flex-1 space-y-3 overflow-y-auto p-4">
                         <div v-if="!session.editing" class="rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800!">
                             <button type="button" class="font-medium underline" @click="showBrief = !showBrief">
@@ -756,8 +756,8 @@ export default {
                     </div>
                 </div>
 
-                <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-3 dark:border-gray-700!">
-                    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2.5 dark:border-gray-700!">
+                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 lg:col-span-3 dark:border-gray-700!">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700!">
                         <div class="flex items-center gap-3 text-sm text-gray-500">
                             <span>{{ session.draft ? __n(':count word|:count words', session.words) : __('Draft') }}</span>
                             <div v-if="session.draft && !editing" class="flex rounded-md border border-gray-200 text-xs dark:border-gray-700!" role="group" :aria-label="__('Draft view')">

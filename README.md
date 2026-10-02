@@ -20,13 +20,13 @@
 - **Photo search.** Finds free photos for any assets field, ranked by the model against the page's words and the images already in that place, with names, alt text and credits from the library.
 - **Make an image.** Makes a picture in your site's own style, with an OpenAI or Gemini key.
 - **Content plan.** Suggests entries the site is missing, to keep or dismiss, each ready to draft.
-- **Shared conversations.** Everyone with access can carry on a piece, with each message showing who sent it.
+- **Shared conversations.** With Statamic Pro, everyone with access can carry on a piece, with each message showing who sent it.
 
 ## Requirements
 
 - PHP 8.3 or later, with GD
-- Statamic 6
-- An API key for Anthropic (Claude), OpenAI (ChatGPT) or Google (Gemini)
+- Statamic 6.30 or later. Roles, permissions and shared conversations need Statamic Pro; on Core (Solo) the one super user has full access.
+- An API key for Anthropic (Claude), OpenAI (ChatGPT) or Google (Gemini). Its use is billed to your account by that provider, pay as you go (Gemini has a limited free tier). See [API keys](docs/api-keys.md).
 - A queue worker, or PHP-FPM on the `sync` queue
 
 ## Installation

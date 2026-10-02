@@ -64,3 +64,34 @@
 .gw-reply h3 { @apply mt-3 mb-1 text-sm font-semibold; }
 .gw-reply > :first-child { @apply mt-0; }
 .gw-reply > :last-child { @apply mb-0; }
+
+/*
+    The image button on assets fields (a Statamic quick field action). Statamic
+    draws these as a 20px button with a 10px icon, which people miss. Ours
+    takes the height of the field's own menu button, a 16px icon like the
+    Control Panel's other buttons, and its name ("Find a photo") beside it.
+    Colours, borders and dark mode stay Statamic's. Important because
+    Statamic's utilities layer outranks ours (see above).
+*/
+button[data-ui-group-target]:has(svg[data-ghostwriter-field-action]) {
+    width: auto !important;
+    height: 1.625rem !important;
+    padding-inline: 0.5rem !important;
+    gap: 0.375rem !important;
+}
+
+button[data-ui-group-target]:has(svg[data-ghostwriter-field-action]) > div {
+    gap: 0.375rem;
+}
+
+button[data-ui-group-target] svg[data-ghostwriter-field-action] {
+    width: 1rem !important;
+    height: 1rem !important;
+    opacity: 0.8 !important;
+}
+
+button[data-ui-group-target]:has(svg[data-ghostwriter-field-action])::after {
+    content: attr(aria-label);
+    font-size: 0.75rem;
+    line-height: 1;
+}

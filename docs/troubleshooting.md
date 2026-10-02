@@ -43,7 +43,7 @@ Read the notice above the form after **Use this draft**. It lists:
 - fields and blocks the draft used that this blueprint doesn't have, and options that don't exist (left out);
 - blocks that are the same on every entry, where the usual content was used in place of what was drafted.
 
-## No Ghostwriter button on an assets field
+## No Find a photo button on an assets field
 
 The button only appears:
 

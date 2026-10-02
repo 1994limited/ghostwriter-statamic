@@ -44,10 +44,12 @@ Statamic.booting(() => {
     });
 
     // A Ghostwriter button beside each assets field's own controls, on the
-    // forms above. It hands the field's context to the dialog.
+    // forms above. It hands the field's context to the dialog. Statamic draws
+    // quick actions as a 20px button with a 10px icon, easy to miss, so the
+    // icon carries a marker that cp.css uses to draw it larger, with its name.
     Statamic.$fieldActions.add('assets-fieldtype', {
-        title: 'Ghostwriter',
-        icon: ghost,
+        title: __('Find a photo'),
+        icon: ghost.replace('<svg ', '<svg data-ghostwriter-field-action="" '),
         quick: true,
         visible: ({ config }) => {
             const settings = Statamic.$config.get('ghostwriter');

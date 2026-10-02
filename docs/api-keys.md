@@ -2,6 +2,8 @@
 
 Ghostwriter writes with one provider, on your own account. It can also make images with a second provider, and search free photo libraries. Every key goes in your `.env` file. Ghostwriter reads it there each time it needs it, and never stores or shows it.
 
+What the models use is billed to your account by the provider, pay as you go; it isn't included in Ghostwriter's licence. Google's Gemini has a limited free tier, and the photo libraries are free.
+
 | Variable | Service | What for | Free? |
 | --- | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | Anthropic (Claude) | Writing (the default) | No, pay as you go |

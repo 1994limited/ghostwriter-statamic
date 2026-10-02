@@ -4,9 +4,9 @@ This page covers finding and making images: the image button on assets fields, t
 
 ## The image button
 
-Every assets field on an entry's create or edit screen, in a collection Ghostwriter writes for, has a small **Ghostwriter** button (the ghost) beside the field's own controls, for people with the Ghostwriter permission. The field needs a container. On a field that takes only other kinds of file (validated as `mimes:pdf`, say), Ghostwriter says it can't help.
+Every assets field on an entry's create or edit screen, in a collection Ghostwriter writes for, has a **Find a photo** button, with the ghost, beside the field's own controls, for people with the Ghostwriter permission. The field needs a container. On a field that takes only other kinds of file (validated as `mimes:pdf`, say), Ghostwriter says it can't help.
 
-![The Hero image field with the Ghostwriter button beside its own controls](images/image-button.png)
+![The Hero image field with the Find a photo button beside its own controls](images/image-button.png)
 
 Click it to open **Image for** and the field's name, with two tabs: **Find a photo** and **Make one**. Where only one is available, only that tab shows; with neither, the dialog says which keys to add.
 
