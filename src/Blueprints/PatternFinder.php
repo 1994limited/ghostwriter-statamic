@@ -3,7 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Blueprints;
 
 use Illuminate\Support\Collection;
-use NineteenNinetyFour\Ghostwriter\Drafts\EntrySimplifier;
+use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\Entry as Entries;
 

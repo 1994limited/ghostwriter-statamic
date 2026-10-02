@@ -4,18 +4,18 @@ namespace NineteenNinetyFour\Ghostwriter\Images;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
-use Laravel\Ai\Files\Image as ImageFile;
-use Laravel\Ai\Image;
-use Laravel\Ai\Responses\Data\GeneratedImage;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoPicker;
+use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
-use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Limits;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Entry;
@@ -32,9 +32,6 @@ use Statamic\Support\Str;
  */
 class ImageStudio
 {
-    /** Providers that can make images, in the order they are tried. */
-    private const PROVIDERS = ['openai', 'gemini', 'xai'];
-
     private const REFERENCES = 3;
 
     /** Photographs offered for a field, and results considered per search. */
@@ -47,7 +44,7 @@ class ImageStudio
     /** Entries looked through for references when none were picked. */
     private const SAMPLE = 12;
 
-    public function __construct(private Settings $settings, private SchemaReader $reader, private StockSearch $stock, private ImageryGuide $guide) {}
+    public function __construct(private SchemaReader $reader, private StockSearch $stock, private ImageryGuide $guide, private PromptLibrary $prompts, private Providers $providers, private Studio $studio) {}
 
     /**
      * The provider to make images with: the one chosen in settings, or the
@@ -55,17 +52,7 @@ class ImageStudio
      */
     public function provider(): ?string
     {
-        $chosen = $this->settings->imageProvider();
-
-        foreach ($chosen ? [$chosen] : self::PROVIDERS as $provider) {
-            $key = config("ai.providers.{$provider}.key");
-
-            if (is_string($key) && trim($key) !== '') {
-                return $provider;
-            }
-        }
-
-        return null;
+        return $this->providers->imageHandle();
     }
 
     public function configured(): bool
@@ -144,7 +131,7 @@ class ImageStudio
      * A spread of the images one collection uses, for the style guide to be
      * written from: a few from each image field, newest entries first.
      *
-     * @return array<int, array{label: string, entry: string, image: ImageFile}>
+     * @return array<int, array{label: string, entry: string, image: Image}>
      */
     public function samples(string $collection, int $limit = 10): array
     {
@@ -246,7 +233,7 @@ class ImageStudio
             .($canMake ? ' For `make`, one sentence describing the image.' : '')
             ."\n\nInclude a line only for an image that should change, and leave the block out otherwise. Say in your reply what you did about images, in a few words. Images are part of your job here: never say you cannot help with them."
             .($canMake ? '' : ' This site cannot make new images, only find photographs; if asked to generate one, say so and offer to find one.')
-            .' A logo or brand mark is never found or made: if that is what an image should be, tell your colleague to use "Logo card" under Images, which needs the logo file from them.';
+            .' A logo or brand mark is never found or made: if that is what an image should be, tell your colleague to add the logo file to that field themselves.';
     }
 
     /**
@@ -389,9 +376,7 @@ class ImageStudio
     {
         $canRetry = func_num_args() > 4;
 
-        $key = config('ai.providers.'.$this->settings->provider().'.key');
-
-        if (count($candidates) <= self::SHORTLIST || $references === [] || ! is_string($key) || trim($key) === '') {
+        if (count($candidates) <= self::SHORTLIST || $references === [] || ! $this->studio->configured()) {
             return null;
         }
 
@@ -403,7 +388,9 @@ class ImageStudio
             $attachments = $shown->all();
 
             foreach ($thumbs as $i => $response) {
-                if ($response instanceof Response && $response->successful() && ($image = $this->small($response->body()))) {
+                // Only as many as one request can carry. Three references and
+                // three searches of six fit; large originals (no Imagick) may not.
+                if ($response instanceof Response && $response->successful() && ($image = $this->small($response->body())) && Limits::fits([...$attachments, $image])) {
                     $attachments[] = $image;
                     $seen[] = $candidates[$i];
                 }
@@ -415,14 +402,13 @@ class ImageStudio
 
             $list = collect($seen)->map(fn (array $photo, int $i) => ($i + 1).'. from the search "'.$photo['term'].'"')->implode("\n");
 
-            $answer = (new PhotoPicker)->prompt(
+            $answer = $this->studio->ask(
+                'photo-picker',
                 "The page is titled \"{$title}\".\n\nThe first {$shown->count()} image(s) are the references. The ".count($seen)." after them are the candidates, in this order:\n{$list}\n\n"
                 .($style !== '' ? "The site's own description of its images in this section:\n{$style}\n\n" : '')
                 .'Rank the best '.(self::SHORTLIST * 2).'.'
                 .($canRetry ? ' If none of them would belong beside the references, reply instead with the word none, a colon, and three better searches separated by semicolons, each two to four plain words: for example `none: mended pottery gold; restored classic car; old stone bridge`.' : ''),
-                $attachments,
-                provider: $this->settings->provider(),
-                model: $this->settings->model(),
+                images: $attachments,
                 timeout: 60,
             )->text;
 
@@ -473,14 +459,14 @@ class ImageStudio
     /**
      * An image small enough to show a model many of at once.
      */
-    private function small(string $content): ?ImageFile
+    private function small(string $content): ?Image
     {
         if ($content === '' || @getimagesizefromstring($content) === false) {
             return null;
         }
 
         if (! extension_loaded('imagick')) {
-            return strlen($content) < 1_000_000 ? ImageFile::fromBase64(base64_encode($content), (string) getimagesizefromstring($content)['mime']) : null;
+            return strlen($content) < 1_000_000 ? Image::fromString($content) : null;
         }
 
         $image = new \Imagick;
@@ -489,7 +475,7 @@ class ImageStudio
         $image->setImageFormat('jpeg');
         $image->setImageCompressionQuality(75);
 
-        return ImageFile::fromBase64(base64_encode($image->getImageBlob()), 'image/jpeg');
+        return new Image($image->getImageBlob(), 'image/jpeg');
     }
 
     /**
@@ -515,7 +501,7 @@ class ImageStudio
         $summary = $session->draft && preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
         $image = $this->make($slot['references'], $session->title(), $summary, $slot['label'], $direction, $source, $this->guide->for((string) $type->statamicCollection()?->title()));
 
-        return $this->store($session, $slot, $image->content(), Str::after($image->mime(), '/'));
+        return $this->store($session, $slot, $image->data, $image->extension());
     }
 
     /**
@@ -525,30 +511,24 @@ class ImageStudio
      * @param  array<int, Asset>  $references
      * @param  string|null  $source  Path to an image the editor supplied, such as a logo, to be used in the picture.
      */
-    public function make(array $references, string $title, string $summary, string $label, string $direction = '', ?string $source = null, string $style = ''): GeneratedImage
+    public function make(array $references, string $title, string $summary, string $label, string $direction = '', ?string $source = null, string $style = ''): Image
     {
-        $provider = $this->provider()
+        $provider = $this->providers->image()
             ?? throw new InvalidArgumentException('No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
 
         $references = collect($references)->take(self::REFERENCES);
 
         $attachments = $references
-            ->map(fn (Asset $asset) => ImageFile::fromBase64(base64_encode((string) $asset->contents()), $asset->mimeType()))
-            ->when($source, fn ($all) => $all->push(ImageFile::fromPath($source)))
+            ->map(fn (Asset $asset) => new Image((string) $asset->contents(), (string) $asset->mimeType()))
+            ->when($source, fn ($all) => $all->push(Image::fromPath($source)))
             ->values()
             ->all();
 
-        $pending = Image::of($this->prompt($title, $summary, $label, $direction, $references->count(), $source !== null, $style))
-            ->attachments($attachments)
-            ->timeout((int) config('ghostwriter.timeout', 180));
-
-        $pending = match ($this->shape($references->first())) {
-            'portrait' => $pending->portrait(),
-            'square' => $pending->square(),
-            default => $pending->landscape(),
-        };
-
-        return $pending->generate($provider, $this->settings->imageModel())->firstImage();
+        return $provider->image(new ImageRequest(
+            $this->prompt($title, $summary, $label, $direction, $references->count(), $source !== null, $style),
+            $attachments,
+            $this->shape($references->first()),
+        ));
     }
 
     /**
@@ -573,14 +553,18 @@ class ImageStudio
 
             if ($best === null && $second !== []) {
                 $best = $this->oneOfEach($second);
+                $fallback = true;
             }
         }
 
+        // Only photos the model compared with the site's own are marked as
+        // the best match; the top result of each search is just first.
+        $judged = $best !== null && ! isset($fallback);
         $best ??= $this->oneOfEach($candidates);
         $ids = array_map(fn (array $photo) => $photo['source'].$photo['id'], $best);
 
         return [
-            ...array_map(fn (array $photo) => $photo + ['picked' => true], $best),
+            ...array_map(fn (array $photo) => $photo + ['picked' => $judged], $best),
             ...array_values(array_filter($candidates, fn (array $photo) => ! in_array($photo['source'].$photo['id'], $ids, true))),
         ];
     }
@@ -597,7 +581,7 @@ class ImageStudio
      * An image small enough to show a model many of at once. Public for the
      * search-term chooser, which looks at the references too.
      */
-    public function thumbnail(string $content): ?ImageFile
+    public function thumbnail(string $content): ?Image
     {
         return $this->small($content);
     }
@@ -815,10 +799,7 @@ class ImageStudio
 
     private function prompt(string $title, string $summary, string $label, string $direction, int $references, bool $hasSource, string $style = ''): string
     {
-        $published = resource_path('ghostwriter/prompts/image.md');
-        $template = trim((string) File::get(File::exists($published) ? $published : __DIR__.'/../../resources/prompts/image.md'));
-
-        return strtr($template, [
+        return strtr($this->prompts->get('image'), [
             '{{ field }}' => $label,
             '{{ title }}' => $title,
             '{{ summary }}' => $summary !== '' ? $summary : '(none)',

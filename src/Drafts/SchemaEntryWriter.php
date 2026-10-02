@@ -6,6 +6,7 @@ use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use Statamic\Contracts\Auth\User;
 use Statamic\Contracts\Entries\Entry;

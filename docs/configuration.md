@@ -11,12 +11,12 @@
 | **Show Get started** | Brings the setup steps back after they were hidden. Acts when saved; not stored. |
 | **Suggest kinds of content** | Look at each collection for kinds without being asked. |
 | **Provider** | Anthropic, OpenAI or Gemini, for writing. |
-| **Model** | Leave blank for the provider's default. |
-| **Image provider** | OpenAI, Gemini or xAI, for making images. Blank uses whichever has a key. |
+| **Model** | Leave blank for the provider's default. Saving a model name that belongs to another provider ("gpt-…" with Claude chosen, say) shows a warning; it is still saved. |
+| **Image provider** | OpenAI or Gemini, for making images. Blank uses whichever has a key. |
 | **Image model** | Leave blank for the provider's default. |
-| **Striped placeholders** | Placeholders in empty image fields on new entries. |
+| **Mark images still to choose** | A striped placeholder in empty image fields on new entries, where entries usually have an image or the field is required. |
 
-Settings are kept in `resources/addons/ghostwriter-statamic.yaml`. API keys are never set here.
+Settings are kept in `resources/addons/ghostwriter-statamic.yaml`. API keys are never set here. A setting fixed in `config/ghostwriter.php` or `.env` shows locked, with a note saying what it is set to; see below. The time limit for each model call is set in the config only.
 
 ## config/ghostwriter.php
 
@@ -26,21 +26,27 @@ To set any of these in code, or differently per environment, publish the config:
 php artisan vendor:publish --tag=ghostwriter-config
 ```
 
-A value saved on the settings screen takes precedence over the config file.
+A value set in the config file (or its environment variable) wins over the settings screen, which then shows that field locked, with a note saying where it is set. Leave a value `null` (or a list empty) to let the settings screen decide. The settings that work this way are `provider`, `model`, `collections`, `voice.collections`, `suggest_kinds`, `images.provider`, `images.model` and `images.placeholders`.
+
+If you published the config before 1.1.0, its `provider` line reads `env('GHOSTWRITER_PROVIDER', 'anthropic')`, which now fixes the provider to Claude. Change it to `env('GHOSTWRITER_PROVIDER')` to choose the provider on the settings screen again; do the same for `suggest_kinds` and `images.placeholders`.
 
 | Key | Default | |
 | --- | --- | --- |
-| `provider` | `anthropic` | Any provider in `config/ai.php` |
+| `provider` | `null` (the settings screen; Claude if that is blank) | `anthropic`, `openai` or `gemini` |
 | `model` | provider's default | |
-| `timeout` | `180` | Seconds to wait for one response |
+| `timeout` | `300` | Seconds to wait for one response. Queued jobs are allowed three times this plus 60, as busy providers are retried. Set here only, not on the settings screen |
+| `keys.anthropic`, `keys.openai`, `keys.gemini` | from `.env` | API keys. If one is empty, the key in `config/ai.php` is used, if there is one |
+| `base_urls.anthropic`, `base_urls.openai`, `base_urls.gemini` | `null` | A gateway that speaks the provider's own API, instead of the provider's address. Must be `https://`, except on localhost |
+| `anthropic_fallbacks` | `true` | Pass a request Claude declines to the model Anthropic recommends, on models that support it |
+| `log_channel` | `null` (default channel) | Where each call is logged: provider, model, tokens and time, never the words |
 | `collections` | `[]` (all) | Collection handles to write for |
 | `voice.collections` | `[]` (all) | Collection handles read for the voice guide |
 | `voice.max_entries`, `voice.max_chars_per_entry`, `voice.max_chars` | `24`, `6000`, `90000` | How much is read for the voice guide |
-| `suggest_kinds` | `true` | Look for kinds without being asked |
-| `images.provider` | `null` | `openai`, `gemini` or `xai`; `null` uses whichever has a key |
+| `suggest_kinds` | `null` (the settings screen; on if that is blank) | Look for kinds without being asked |
+| `images.provider` | `null` | `openai` or `gemini`; `null` uses whichever has a key |
 | `images.model` | provider's default | |
 | `images.openverse` | `true` | Search Openverse |
-| `images.placeholders` | `true` | Striped placeholders in empty image fields |
+| `images.placeholders` | `null` (the settings screen; on if that is blank) | Mark images still to choose with a striped placeholder in empty image fields |
 | `images.guide_samples` | `10` | Images looked at per collection for the image style guide |
 | `images.unsplash_key`, `images.pixabay_key`, `images.pexels_key` | from `.env` | Photo library keys |
 | `plan.suggestions` | `8` | Ideas asked for each time the plan looks for gaps |
@@ -51,7 +57,9 @@ A value saved on the settings screen takes precedence over the config file.
 | `sessions_path` | `storage/ghostwriter/sessions` | Working state (the rest of `storage/ghostwriter/` sits beside it) |
 | `writer` | `SchemaEntryWriter::class` | The class that turns a draft into an entry; bind your own to take over |
 
-Environment variables for the common ones: `GHOSTWRITER_PROVIDER`, `GHOSTWRITER_MODEL`, `GHOSTWRITER_TIMEOUT`, `GHOSTWRITER_SUGGEST_KINDS`, `GHOSTWRITER_IMAGE_PROVIDER`, `GHOSTWRITER_IMAGE_MODEL`, `GHOSTWRITER_OPENVERSE`, `GHOSTWRITER_PLACEHOLDER_IMAGES`.
+Environment variables for the common ones: `GHOSTWRITER_PROVIDER`, `GHOSTWRITER_MODEL`, `GHOSTWRITER_TIMEOUT`, `GHOSTWRITER_SUGGEST_KINDS`, `GHOSTWRITER_IMAGE_PROVIDER`, `GHOSTWRITER_IMAGE_MODEL`, `GHOSTWRITER_OPENVERSE`, `GHOSTWRITER_PLACEHOLDER_IMAGES`, `GHOSTWRITER_ANTHROPIC_BASE_URL`, `GHOSTWRITER_OPENAI_BASE_URL`, `GHOSTWRITER_GEMINI_BASE_URL`, `GHOSTWRITER_ANTHROPIC_FALLBACKS`, `GHOSTWRITER_LOG_CHANNEL`.
+
+`config/ai.php` from the Laravel AI SDK no longer applies, apart from the keys fallback above.
 
 ## Where things are kept
 
@@ -70,7 +78,7 @@ Ghostwriter adds no database tables. The guides, kinds and plan are project file
 
 ## Overriding prompts
 
-Every prompt Ghostwriter uses is a markdown file in the addon's `resources/prompts/`:
+Every prompt Ghostwriter uses is a markdown file, shipped with Ghostwriter Core (`vendor/1994/ghostwriter-core/resources/prompts/`):
 
 | Prompt | Used for |
 | --- | --- |
@@ -82,9 +90,10 @@ Every prompt Ghostwriter uses is a markdown file in the addon's `resources/promp
 | `imagery-analyst.md` | Writing the image style guide |
 | `planner.md` | Suggesting content plan ideas |
 | `photo-researcher.md` | Choosing photo searches for a field |
+| `photo-picker.md` | Choosing the photographs that suit the site |
 | `image.md` | Making an image |
 
-Publish them, then edit any one; Ghostwriter uses your copy from then on. Keep any `{{ placeholders }}` that are in the original.
+Publish them, then edit any one; Ghostwriter uses your copy from then on. Keep any `{{ placeholders }}` that are in the original. `[[placeholders]]`, such as `[[place]]`, are filled with Statamic's own words (website, section, entry); keep them or write the words in.
 
 ```bash
 php artisan vendor:publish --tag=ghostwriter-prompts

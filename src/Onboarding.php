@@ -5,6 +5,8 @@ namespace NineteenNinetyFour\Ghostwriter;
 use Illuminate\Support\Facades\File;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\Credentials;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
@@ -16,6 +18,7 @@ use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\Types\TypeState;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
+use Statamic\Facades\Addon;
 use Statamic\Facades\Collection as Collections;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
@@ -28,8 +31,6 @@ use Statamic\Facades\User;
  */
 class Onboarding
 {
-    private const KEYS = ['anthropic' => 'ANTHROPIC_API_KEY', 'openai' => 'OPENAI_API_KEY', 'gemini' => 'GEMINI_API_KEY'];
-
     public function __construct(
         private Studio $studio,
         private Settings $settings,
@@ -43,6 +44,7 @@ class Onboarding
         private IdeaRepository $ideas,
         private PlanState $planState,
         private SessionRepository $sessions,
+        private Providers $providers,
     ) {}
 
     /**
@@ -52,7 +54,8 @@ class Onboarding
     {
         $collections = $this->types->collections();
         $configured = $this->studio->configured();
-        $settingsUrl = $this->settings->url();
+        // Only those who may change the settings are sent to them.
+        $settingsUrl = $this->settings->urlForCurrentUser();
 
         $learned = $collections->sum(fn ($collection) => $this->types->forCollection($collection->handle())->count());
         $suggested = $collections->sum(fn ($collection) => count($this->kinds->get($collection->handle())['suggestions']));
@@ -73,7 +76,7 @@ class Onboarding
                 'optional' => false,
                 'detail' => $configured
                     ? 'Writing with '.$this->providerName($this->studio->provider()).'.'
-                    : 'Add '.(self::KEYS[$this->studio->provider()] ?? 'the API key').' to .env, then reload this page.',
+                    : $this->missingKey(),
                 'action' => $settingsLink,
             ],
             [
@@ -169,10 +172,13 @@ class Onboarding
         $forVoice = $this->settings->voiceCollections();
 
         return [
-            'can_change_settings' => (bool) User::current()?->can('edit '.Settings::ADDON.' settings'),
-            'settings_url' => $this->settings->url(),
+            'can_change_settings' => $this->settings->canChange(),
+            'settings_url' => $this->settings->urlForCurrentUser(),
+            // Set in config/ghostwriter.php, so not to be chosen here.
+            'collections_locked' => $this->settings->isOverridden('collections'),
+            'voice_locked' => $this->settings->isOverridden('voice_collections'),
             'provider' => $this->providerName($this->studio->provider()),
-            'key_name' => self::KEYS[$this->studio->provider()] ?? null,
+            'key_name' => $this->keyName($this->studio->provider()),
             'collections' => Collections::all()->map(fn ($collection) => [
                 'handle' => $collection->handle(),
                 'title' => $collection->title(),
@@ -189,6 +195,8 @@ class Onboarding
                 'state' => $this->kinds->get($collection->handle())['status'],
                 'error' => $this->kinds->get($collection->handle())['error'],
                 'suggestions' => array_map(fn (array $kind) => array_intersect_key($kind, array_flip(['id', 'title', 'description', 'why'])) + [
+                    // The entries that show it, so the person can judge it.
+                    'titles' => array_slice(array_values(array_filter(array_map(fn (string $id) => Entry::find($id)?->get('title'), (array) ($kind['examples'] ?? [])))), 0, 3),
                     'learn_url' => cp_route('ghostwriter.kinds.learn', [$collection->handle(), $kind['id']]),
                     'dismiss_url' => cp_route('ghostwriter.kinds.dismiss', [$collection->handle(), $kind['id']]),
                 ], $this->kinds->get($collection->handle())['suggestions']),
@@ -228,29 +236,62 @@ class Onboarding
     }
 
     /**
-     * @return array{done: int, total: int, complete: bool, hidden: bool, next: ?array<string, mixed>}
+     * How far setup has got. Only the required steps are counted, so the bar
+     * reaches the end when setup is complete; the optional ones are offered
+     * as the next step once the required ones are done.
+     *
+     * @return array{done: int, total: int, complete: bool, hidden: bool, can_toggle: bool, next: ?array<string, mixed>}
      */
     public function progress(): array
     {
         $steps = $this->steps();
         $required = array_filter($steps, fn (array $step) => ! $step['optional']);
-        $done = count(array_filter($steps, fn (array $step) => $step['done']));
         $next = null;
 
-        foreach ($steps as $i => $step) {
-            if (! $step['done']) {
-                $next = ['number' => $i + 1, 'key' => $step['key'], 'title' => $step['title'], 'optional' => $step['optional']];
-                break;
+        foreach ([false, true] as $optional) {
+            foreach ($steps as $i => $step) {
+                if ($step['optional'] === $optional && ! $step['done']) {
+                    $next ??= ['number' => $i + 1, 'key' => $step['key'], 'title' => $step['title'], 'optional' => $step['optional']];
+                }
             }
         }
 
         return [
-            'done' => $done,
-            'total' => count($steps),
+            'done' => count(array_filter($required, fn (array $step) => $step['done'])),
+            'total' => count($required),
             'complete' => ! array_filter($required, fn (array $step) => ! $step['done']),
             'hidden' => $this->hidden(),
+            // Hiding Get started hides it for the whole site, so it is for
+            // those who look after Ghostwriter's settings.
+            'can_toggle' => $this->settings->canChange(),
             'next' => $next,
         ];
+    }
+
+    /**
+     * Choose, from Get started, which collections Ghostwriter writes for and
+     * learns the voice from. Every collection ticked is saved as none, which
+     * means all, so a collection added later is included too.
+     *
+     * @param  array<int, string>|null  $write
+     * @param  array<int, string>|null  $voice
+     */
+    public function chooseCollections(?array $write, ?array $voice): void
+    {
+        $all = Collections::all()->map->handle()->values()->all();
+        $tidy = fn (array $chosen) => array_values(array_intersect($all, $chosen));
+        $settings = Addon::get(Settings::ADDON)->settings();
+
+        foreach (['collections' => $write, 'voice_collections' => $voice] as $key => $chosen) {
+            if ($chosen === null || $this->settings->isOverridden($key)) {
+                continue;
+            }
+
+            $chosen = $tidy($chosen);
+            $settings->set($key, count($chosen) === count($all) ? [] : $chosen);
+        }
+
+        $settings->save();
     }
 
     public function hidden(): bool
@@ -267,6 +308,34 @@ class Onboarding
     private function path(): string
     {
         return dirname((string) config('ghostwriter.sessions_path')).'/onboarding.json';
+    }
+
+    /**
+     * What to do when the chosen provider has no key: add it, or, when
+     * another provider's key is already there, choose that one instead.
+     */
+    private function missingKey(): string
+    {
+        $provider = $this->studio->provider();
+        $wanted = $this->keyName($provider);
+        $keys = $this->providers->keyStatus();
+        $others = array_values(array_filter(Providers::TEXT, fn (string $other) => $other !== $provider && ($keys[Credentials::ENV[$other]] ?? false)));
+
+        $advice = $wanted
+            ? "Add {$wanted} to .env, then reload this page."
+            : "\"{$provider}\" is not a provider Ghostwriter can write with. Choose Claude, ChatGPT or Gemini in the settings.";
+
+        return $others === []
+            ? $advice
+            : $advice.' '.Credentials::ENV[$others[0]].' is set already: choose '.$this->providerName($others[0]).' in the settings to write with it.';
+    }
+
+    /**
+     * The .env variable a provider's key is read from.
+     */
+    private function keyName(string $provider): ?string
+    {
+        return in_array($provider, Providers::TEXT, true) ? Credentials::ENV[$provider] : null;
     }
 
     private function providerName(string $provider): string

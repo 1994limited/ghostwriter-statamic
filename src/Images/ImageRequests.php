@@ -5,7 +5,7 @@ namespace NineteenNinetyFour\Ghostwriter\Images;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
-use NineteenNinetyFour\Ghostwriter\Ai\Text;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Utf8;
 
 /**
  * Work the image button has asked for: a search or a picture being made
@@ -56,7 +56,7 @@ class ImageRequests
     public function save(array $data): array
     {
         File::ensureDirectoryExists($this->directory());
-        File::put($this->path($data['id']), json_encode(Text::scrub($data), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        File::put($this->path($data['id']), json_encode(Utf8::scrub($data), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         return $data;
     }

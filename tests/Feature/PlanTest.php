@@ -3,8 +3,10 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Bus;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\Planner;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\StopReason;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextResponse;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestIdeas;
 use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
@@ -33,7 +35,7 @@ class PlanTest extends TestCase
         $ideas->add(['title' => 'Rebuild or repair?', 'collection' => 'articles']);
         $ideas->update($ideas->add(['title' => 'Our office dog', 'collection' => 'articles'])['id'], ['status' => IdeaRepository::DISMISSED]);
 
-        Planner::fake(["<ideas>\n- title: How to brief a web agency\n  collection: articles\n  type: articles\n  why: The cost guide sends readers off to get quotes with nothing on how to ask for one.\n  notes: For an owner about to approach agencies. [Add a brief we thought was good]\n- title: Rebuild or repair?\n  collection: articles\n- title: A page about nothing\n  collection: nowhere\n- title: Slow site, lost sale\n  collection: articles\n  type: made-up\n</ideas>"]);
+        $this->ai->respond('planner', "<ideas>\n- title: How to brief a web agency\n  collection: articles\n  type: articles\n  why: The cost guide sends readers off to get quotes with nothing on how to ask for one.\n  notes: For an owner about to approach agencies. [Add a brief we thought was good]\n- title: Rebuild or repair?\n  collection: articles\n- title: A page about nothing\n  collection: nowhere\n- title: Slow site, lost sale\n  collection: articles\n  type: made-up\n</ideas>");
 
         (new SuggestIdeas(['articles'], 'More for owners.'))->handle(app(Studio::class), app(TypeRepository::class), $ideas, app(VoiceGuide::class), app(PlanState::class));
 
@@ -59,9 +61,38 @@ class PlanTest extends TestCase
         $this->assertSame('suggested', $ideas->all()->firstWhere('title', 'How to brief a web agency')['source']);
 
         // It was shown what exists, what is planned and what was turned down.
-        Planner::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'More for owners.'));
+        $this->ai->assertSent('planner', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'More for owners.'));
 
         $this->assertSame(PlanState::IDLE, app(PlanState::class)->get()['status']);
+    }
+
+    public function test_suggestions_wait_until_they_are_looked_over_or_dropped(): void
+    {
+        $this->signIn();
+
+        app(PlanState::class)->update(['pending' => [
+            ['title' => 'How to brief a web agency', 'collection' => 'articles', 'type' => null, 'why' => 'Asked often.', 'notes' => ''],
+            ['title' => 'Slow site, lost sale', 'collection' => 'articles', 'type' => null, 'why' => '', 'notes' => ''],
+        ]]);
+
+        // Coming back to the plan, they are still there to look over.
+        $this->get(cp_route('ghostwriter.plan.show'))->assertOk()->assertInertia(fn ($page) => $page->has('plan.pending', 2));
+        $this->getJson(cp_route('ghostwriter.plan.status'))->assertJsonCount(2, 'pending');
+
+        // Only dropping them throws them away, and nothing is remembered.
+        $this->postJson(cp_route('ghostwriter.plan.accept'), ['chosen' => [], 'discard' => true])->assertOk()->assertJsonPath('pending', []);
+        $this->assertCount(0, app(IdeaRepository::class)->all());
+    }
+
+    public function test_ideas_cut_off_twice_are_kept_as_far_as_they_got(): void
+    {
+        $this->ai->respond('planner', new TextResponse("<ideas>\n- title: How to brief a web agency\n  collection: articles\n- title: Rebuild or re", StopReason::MaxTokens));
+
+        (new SuggestIdeas(['articles']))->handle(app(Studio::class), app(TypeRepository::class), app(IdeaRepository::class), app(VoiceGuide::class), app(PlanState::class));
+
+        $this->assertCount(2, $this->ai->prompted('planner'));
+        $this->assertSame(PlanState::IDLE, app(PlanState::class)->get()['status']);
+        $this->assertContains('How to brief a web agency', array_column(app(PlanState::class)->get()['pending'], 'title'));
     }
 
     public function test_the_plan_screen_adds_dismisses_and_starts_a_search(): void

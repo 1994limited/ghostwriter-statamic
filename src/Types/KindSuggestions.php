@@ -5,7 +5,7 @@ namespace NineteenNinetyFour\Ghostwriter\Types;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
-use NineteenNinetyFour\Ghostwriter\Ai\Text;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Utf8;
 use Statamic\Contracts\Entries\Collection;
 use Statamic\Facades\Entry;
 
@@ -50,7 +50,7 @@ class KindSuggestions
         $all[$collection] = array_merge($this->get($collection), $changes);
 
         File::ensureDirectoryExists(dirname($this->path()));
-        File::put($this->path(), json_encode(Text::scrub($all), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        File::put($this->path(), json_encode(Utf8::scrub($all), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     /**

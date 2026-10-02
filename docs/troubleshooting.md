@@ -51,10 +51,6 @@ The button only appears:
 
 Making images needs an OpenAI or Gemini key (Gemini needs billing turned on for image models). OpenAI may ask you to verify your organisation first.
 
-## No "Logo card" tab
-
-Logo cards need the Imagick PHP extension. Ask your host to turn it on, or check with `php -m | grep imagick`.
-
 ## Photo search finds little
 
 - Add an Unsplash or Pixabay key: Openverse on its own has a smaller, more archival collection.
@@ -71,7 +67,7 @@ php artisan vendor:publish --tag=ghostwriter-statamic --force
 
 ## Gemini: "quota exceeded" or "model not found" on the free tier
 
-The free tier covers Flash models only, with daily limits. Leave **Model** blank to use the Laravel AI SDK's default Gemini model, which is a Flash model, or set a 3.x Flash model, or turn on billing. Google limits the older 2.5 models to accounts that have used them before. See [API keys](api-keys.md#google-gemini).
+The free tier covers Flash models only, with daily limits. Leave **Model** blank to use Ghostwriter's default Gemini model, which is a Flash model, or set a 3.x Flash model, or turn on billing. Google limits the older 2.5 models to accounts that have used them before. See [API keys](api-keys.md#google-gemini).
 
 ## Seeing what went wrong
 

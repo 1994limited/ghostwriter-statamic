@@ -165,7 +165,7 @@ $record(3.2);
 $stopRecording();
 
 // 5. The image button on a field.
-$card('From any image field, too.', 'Find a photo, make one, or compose a logo card, for that one field.', hold: 2.2);
+$card('From any image field, too.', 'Find a photo or make one, for that one field.', hold: 2.2);
 $ws->navigate($url."/cp/collections/{$collection}/entries/create/default");
 $record(0.5);
 $cp->snooze();

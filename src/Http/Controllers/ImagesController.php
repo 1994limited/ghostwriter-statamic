@@ -11,7 +11,6 @@ use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
 use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
 use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
 use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
@@ -24,8 +23,8 @@ use Statamic\Fields\Field;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The image button on an assets field: find a photograph, have one made,
- * or compose a logo card, for one field on the form being edited.
+ * The image button on an assets field: find a photograph, or have one
+ * made, for one field on the form being edited.
  */
 class ImagesController
 {
@@ -45,7 +44,6 @@ class ImagesController
         return response()->json([
             'find' => $this->stock->sources() !== [],
             'make' => $this->studio->configured(),
-            'logo_card' => LogoCard::available(),
             'suggests' => $this->text->configured(),
         ]);
     }
@@ -146,49 +144,6 @@ class ImagesController
     }
 
     /**
-     * A logo centred on a flat or gradient ground, drawn in code so the
-     * logo comes out exactly as it went in.
-     */
-    public function logo(Request $request, LogoCard $card): JsonResponse
-    {
-        $slot = $this->slot($request);
-
-        $this->ensureCanUploadTo($slot);
-
-        abort_unless(LogoCard::available(), 422, 'Logo cards need the Imagick PHP extension, which this server does not have.');
-
-        $validated = $request->validate([
-            'logo' => ['required', 'file', 'max:5120', 'mimes:png,webp,svg', 'mimetypes:image/png,image/webp,image/svg+xml,image/svg'],
-            'colour' => ['nullable', 'string', 'max:7'],
-            'colour_to' => ['nullable', 'string', 'max:7'],
-            'white' => ['nullable', 'boolean'],
-        ]);
-
-        $reference = $slot->references()[0] ?? null;
-        $width = (int) $reference?->width() ?: 1600;
-        $height = (int) $reference?->height() ?: 1200;
-
-        try {
-            $made = $card->compose(
-                (string) file_get_contents($request->file('logo')->getRealPath()),
-                min($width, 2400),
-                (int) round($height * min($width, 2400) / $width),
-                $validated['colour'] ?? null,
-                $validated['colour_to'] ?? null,
-                (bool) ($validated['white'] ?? true),
-                type: (string) $request->file('logo')->guessExtension(),
-            );
-
-            $name = pathinfo((string) $request->file('logo')->getClientOriginalName(), PATHINFO_FILENAME);
-            $asset = $this->images->keep($slot, $made['content'], 'jpg', ['title' => trim(str_replace(['-', '_'], ' ', $name)) ?: 'Logo']);
-        } catch (InvalidArgumentException $exception) {
-            abort(422, $exception->getMessage());
-        }
-
-        return response()->json($this->kept($slot, $asset, (array) $request->input('current', [])));
-    }
-
-    /**
      * Saving an image into the field's container is uploading to it, and
      * needs the same permission as uploading by hand.
      */
@@ -268,21 +223,35 @@ class ImagesController
     /**
      * The field's new value, with the asset in it, and the meta the form's
      * assets field needs to show it. A placeholder makes way; so does the
-     * picture in a single-image field.
+     * picture in a single-image field. A field that holds several and has
+     * as many as it allows is left as it is: the asset is kept in its
+     * container, and `full` says why it is not in the field.
      *
      * @param  array<int, string>  $current
      * @return array<string, mixed>
      */
     private function kept(FieldSlot $slot, Asset $asset, array $current): array
     {
-        $single = ($slot->field['max_files'] ?? null) === 1;
+        $max = (int) ($slot->field['max_files'] ?? 0);
+        $single = $max === 1;
         $kept = $single ? [] : array_values(array_filter($current, fn ($id) => is_string($id) && ! str_ends_with($id, '::'.Placeholders::PATH) && $id !== Placeholders::PATH));
-        $value = [...$kept, $asset->id()];
+        $about = ['id' => $asset->id(), 'path' => $asset->path(), 'url' => $asset->url(), 'title' => (string) $asset->get('title')];
 
-        $field = $this->formField($slot)->setValue($value)->preProcess();
+        if ($max > 1 && count($kept) >= $max) {
+            $container = AssetContainer::find($slot->field['container'])?->title() ?? $slot->field['container'];
+
+            return [
+                'asset' => $about,
+                'full' => true,
+                'message' => "This field is full: it takes {$max} images. The image is saved in the {$container} container; remove an image from the field to make room, then choose it from there.",
+            ];
+        }
+
+        $field = $this->formField($slot)->setValue([...$kept, $asset->id()])->preProcess();
 
         return [
-            'asset' => ['id' => $asset->id(), 'path' => $asset->path(), 'url' => $asset->url(), 'title' => (string) $asset->get('title')],
+            'asset' => $about,
+            'full' => false,
             'value' => $field->value(),
             'meta' => $field->meta(),
         ];

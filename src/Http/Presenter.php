@@ -4,11 +4,11 @@ namespace NineteenNinetyFour\Ghostwriter\Http;
 
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
+use League\CommonMark\GithubFlavoredMarkdownConverter;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
-use NineteenNinetyFour\Ghostwriter\Drafts\Draft;
-use NineteenNinetyFour\Ghostwriter\Drafts\DraftPreview;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
+use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
 use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
@@ -21,6 +21,8 @@ use Statamic\Facades\Entry;
  */
 class Presenter
 {
+    private ?GithubFlavoredMarkdownConverter $markdown = null;
+
     public function __construct(
         private TypeRepository $types,
         private SchemaReader $reader,
@@ -47,9 +49,10 @@ class Presenter
             'status' => $session->status,
             'has_draft' => $session->draft !== null,
             'stage' => $this->stage($session, $entry),
-            // Done with: the draft has become a saved entry, or the changes
-            // to an existing one have been put into its form.
-            'finished' => $session->status !== Session::WORKING && ($session->source ? $session->appliedAt !== null : $entry !== null),
+            // Done with once its entry is saved: the draft has become an
+            // entry, or the changes put into an existing one's form have
+            // been saved. Put into the form and not saved is not done.
+            'finished' => $session->status !== Session::WORKING && $this->saved($session, $entry),
             'entry_url' => $entry?->editUrl(),
             'delete_url' => cp_route('ghostwriter.sessions.destroy', $session->id),
             'updated_at' => Carbon::parse($session->updatedAt)->diffForHumans(),
@@ -64,10 +67,30 @@ class Presenter
     }
 
     /**
+     * Whether the piece's entry has been saved: for a new piece, that there
+     * is one; for changes to an existing entry, that it was saved after
+     * they were put into its form.
+     */
+    private function saved(Session $session, ?EntryContract $entry): bool
+    {
+        if ($entry === null) {
+            return false;
+        }
+
+        if ($session->source === null) {
+            return true;
+        }
+
+        $modified = $entry->lastModified();
+
+        return $session->appliedAt !== null && $modified !== null && $modified->getTimestamp() >= Carbon::parse($session->appliedAt)->getTimestamp();
+    }
+
+    /**
      * The entry a session's draft became. A draft put into a publish form is
      * saved by the person, not by Ghostwriter, so where no entry is on
-     * record one with the draft's title in the same collection is taken to
-     * be it.
+     * record one with the draft's title in the same collection, saved since
+     * the piece was started, is taken to be it.
      */
     private function entryFor(Session $session, ?ContentType $type): ?EntryContract
     {
@@ -80,9 +103,12 @@ class Presenter
         }
 
         $title = mb_strtolower($session->title());
+        $started = $session->createdAt ? Carbon::parse($session->createdAt)->getTimestamp() : null;
 
         return Entry::query()->where('collection', $type->collection)->get()
-            ->first(fn (EntryContract $entry) => mb_strtolower(trim((string) $entry->get('title'))) === $title);
+            ->first(fn (EntryContract $entry) => mb_strtolower(trim((string) $entry->get('title'))) === $title
+                // An older entry that happens to share the title is not this piece.
+                && ($started === null || ($modified = $entry->lastModified()) === null || $modified->getTimestamp() >= $started));
     }
 
     private function stage(Session $session, ?EntryContract $entry): string
@@ -90,7 +116,11 @@ class Presenter
         return match (true) {
             $session->status === Session::FAILED => 'failed',
             $session->status === Session::WORKING => 'working',
-            $session->source !== null => $session->appliedAt ? 'changed' : 'editing',
+            $session->source !== null => match (true) {
+                $this->saved($session, $entry) => $entry->published() ? 'published' : 'saved',
+                $session->appliedAt !== null => 'changed',
+                default => 'editing',
+            },
             $entry !== null => $entry->published() ? 'published' : 'saved',
             $session->appliedAt !== null => 'in_form',
             $session->draft !== null => 'draft',
@@ -133,15 +163,24 @@ class Presenter
             'title' => $session->title(),
             'status' => $session->status,
             'error' => $session->error,
-            'messages' => $session->messages,
+            // Ghostwriter's replies, rendered as the markdown they are
+            // written in, with any HTML in them escaped.
+            'messages' => array_map(fn (array $message) => $message['role'] === 'assistant'
+                ? $message + ['html' => $this->markdown()->convert((string) $message['content'])->getContent()]
+                : $message, $session->messages),
             'draft' => $session->draft,
             'draft_problem' => $problem,
             'preview' => $preview,
             'words' => $words,
             'usage' => $session->usage,
             'images' => $this->images($session, $type),
-            'image_tools' => ['generate' => $this->images->configured(), 'search' => $this->stock->sources(), 'logo_card' => LogoCard::available()],
+            'image_tools' => ['generate' => $this->images->configured(), 'search' => $this->stock->sources()],
         ];
+    }
+
+    private function markdown(): GithubFlavoredMarkdownConverter
+    {
+        return $this->markdown ??= new GithubFlavoredMarkdownConverter(['html_input' => 'escape', 'allow_unsafe_links' => false]);
     }
 
     /**
@@ -151,7 +190,7 @@ class Presenter
      */
     private function images(Session $session, ?ContentType $type): array
     {
-        if (! $type || (! $this->images->configured() && $this->stock->sources() === [] && ! LogoCard::available())) {
+        if (! $type || (! $this->images->configured() && $this->stock->sources() === [])) {
             return [];
         }
 

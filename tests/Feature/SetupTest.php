@@ -5,10 +5,12 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
+use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Widgets\Ghostwriter;
 use Statamic\Facades\Addon;
+use Statamic\Facades\Collection;
 
 /**
  * Get started: the steps read from the site's state, hiding and showing
@@ -51,22 +53,77 @@ class SetupTest extends TestCase
         $this->assertTrue($steps['kinds']['done']);
         $this->assertSame('1 kind learned.', $steps['kinds']['detail']);
         $this->assertTrue($steps['write']['done']);
+        // Only the required steps are counted, so the bar reaches the end.
         $this->assertSame(5, $after['progress']['done']);
+        $this->assertSame(5, $after['progress']['total']);
         $this->assertTrue($after['progress']['complete'], 'Every required step is done; the optional ones do not count.');
-        $this->assertSame('imagery', $after['progress']['next']['key']);
+        $this->assertSame('imagery', $after['progress']['next']['key'], 'With the required steps done, the optional ones come next.');
+        $this->assertTrue($after['progress']['next']['optional']);
 
         // Without a key, the first step says which to add.
-        config(['ai.providers.anthropic.key' => null]);
+        $this->withoutKeys('anthropic');
         $first = $this->getJson(cp_route('ghostwriter.setup.status'))->json('steps.0');
         $this->assertFalse($first['done']);
         $this->assertStringContainsString('ANTHROPIC_API_KEY', $first['detail']);
     }
 
-    public function test_get_started_can_be_hidden_and_shown_again(): void
+    public function test_the_next_step_is_the_first_required_one_still_to_do(): void
     {
         $this->signIn();
 
+        $progress = $this->getJson(cp_route('ghostwriter.setup.status'))->json('progress');
+
+        $this->assertSame('voice', $progress['next']['key']);
+        $this->assertSame(2, $progress['done']);
+        $this->assertSame(5, $progress['total']);
+        $this->assertFalse($progress['complete']);
+    }
+
+    public function test_only_those_who_look_after_the_settings_may_hide_get_started(): void
+    {
+        $this->signIn();
+
+        $this->assertFalse($this->getJson(cp_route('ghostwriter.setup.status'))->json('progress.can_toggle'));
+        $this->postJson(cp_route('ghostwriter.setup.hide'), ['hidden' => true])->assertForbidden();
+        $this->assertFalse(app(Onboarding::class)->hidden());
+    }
+
+    public function test_collections_are_chosen_in_place_by_those_who_may_change_the_settings(): void
+    {
+        Collection::make('pages')->title('Pages')->save();
+        $saved = fn (string $key) => Addon::get(Settings::ADDON)->settings()->raw()[$key] ?? null;
+
+        $this->signIn();
+        $this->postJson(cp_route('ghostwriter.setup.collections'), ['collections' => ['articles']])->assertForbidden();
+
+        $this->signInAsManager();
+
+        $details = $this->postJson(cp_route('ghostwriter.setup.collections'), ['collections' => ['articles', 'nowhere'], 'voice_collections' => ['pages']])->assertOk()->json('details');
+
+        $this->assertSame(['articles'], $saved('collections'));
+        $this->assertSame(['pages'], $saved('voice_collections'));
+        $this->assertSame(['articles'], collect($details['collections'])->where('write_for', true)->pluck('handle')->all());
+
+        // Every one ticked means all of them, new ones included.
+        $this->postJson(cp_route('ghostwriter.setup.collections'), ['collections' => ['articles', 'pages']])->assertOk();
+        $this->assertEmpty($saved('collections'));
+
+        // None ticked would mean all, so it is refused.
+        $this->postJson(cp_route('ghostwriter.setup.collections'), ['collections' => []])->assertStatus(422);
+
+        // A list set in config wins, is shown locked, and is left alone.
+        config(['ghostwriter.collections' => ['pages']]);
+        $this->assertTrue($this->getJson(cp_route('ghostwriter.setup.status'))->json('details.collections_locked'));
+        $this->postJson(cp_route('ghostwriter.setup.collections'), ['collections' => ['articles']])->assertOk();
+        $this->assertEmpty($saved('collections'));
+    }
+
+    public function test_get_started_can_be_hidden_and_shown_again(): void
+    {
+        $this->signInAsManager();
+
         $this->get(cp_route('ghostwriter.setup.show'))->assertOk();
+        $this->assertTrue($this->getJson(cp_route('ghostwriter.setup.status'))->json('progress.can_toggle'));
         $this->assertFalse(app(Onboarding::class)->hidden());
 
         $this->postJson(cp_route('ghostwriter.setup.hide'), ['hidden' => true])->assertOk()->assertJsonPath('hidden', true);
@@ -81,6 +138,23 @@ class SetupTest extends TestCase
 
         $this->assertFalse(app(Onboarding::class)->hidden());
         $this->assertArrayNotHasKey('show_get_started', array_filter($settings->raw(), fn ($value) => $value !== null));
+    }
+
+    public function test_settings_are_only_linked_for_those_who_may_change_them(): void
+    {
+        $this->signIn();
+
+        $this->get(cp_route('ghostwriter.index'))->assertOk()->assertInertia(fn ($page) => $page->where('settings_url', null));
+
+        $steps = collect($this->getJson(cp_route('ghostwriter.setup.status'))->json('steps'))->keyBy('key');
+        $this->assertNull($steps['key']['action']);
+        $this->assertNull($steps['collections']['action']);
+        $this->assertNull($this->getJson(cp_route('ghostwriter.setup.status'))->json('details.settings_url'));
+
+        $this->signInAsManager();
+
+        $this->get(cp_route('ghostwriter.index'))->assertInertia(fn ($page) => $page->whereType('settings_url', 'string'));
+        $this->assertSame('link', $this->getJson(cp_route('ghostwriter.setup.status'))->json('steps.0.action.type'));
     }
 
     public function test_the_dashboard_widget_shows_progress_and_pieces_for_those_allowed(): void

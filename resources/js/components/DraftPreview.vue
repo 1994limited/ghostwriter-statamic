@@ -82,7 +82,7 @@ export default {
                 v-if="node.kind === 'html'"
                 :ref="`field-${key(node)}`"
                 class="gw-prose rounded-md"
-                :class="{ 'cursor-text hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600': editable && node.editable && !editing, 'ring-2 ring-blue-400 p-2 outline-none': editing === key(node) }"
+                :class="{ 'cursor-text hover:ring-1! hover:ring-gray-300! dark:hover:ring-gray-600!': editable && node.editable && !editing, 'ring-2 ring-blue-400 p-2 outline-none': editing === key(node) }"
                 :contenteditable="editing === key(node)"
                 :title="editable && node.editable && !editing ? __('Click to edit') : null"
                 @click="start(node, $event)"
@@ -92,12 +92,12 @@ export default {
             />
 
             <ul v-else-if="node.kind === 'list'" class="flex flex-wrap gap-1.5">
-                <li v-for="item in node.items" :key="item" class="rounded-md border border-gray-200 px-2 py-0.5 text-sm dark:border-gray-700">{{ item }}</li>
+                <li v-for="item in node.items" :key="item" class="rounded-md border border-gray-200 px-2 py-0.5 text-sm dark:border-gray-700!">{{ item }}</li>
             </ul>
 
             <div v-else-if="node.kind === 'blocks'" :class="view === 'text' ? 'space-y-5' : 'space-y-3'">
-                <div v-for="(block, index) in node.items" :key="index" :class="view === 'text' ? '' : 'rounded-lg border border-gray-200 dark:border-gray-700'">
-                    <div v-if="view === 'blocks'" class="flex items-center justify-between border-b border-gray-200 px-3 py-1.5 text-sm font-medium dark:border-gray-700">
+                <div v-for="(block, index) in node.items" :key="index" :class="view === 'text' ? '' : 'rounded-lg border border-gray-200 dark:border-gray-700!'">
+                    <div v-if="view === 'blocks'" class="flex items-center justify-between border-b border-gray-200 px-3 py-1.5 text-sm font-medium dark:border-gray-700!">
                         <span>{{ block.label }}</span>
                         <span v-if="!block.known" class="text-red-600">{{ __('Unknown block, will be left out') }}</span>
                     </div>
@@ -109,12 +109,12 @@ export default {
             </div>
 
             <div v-else-if="node.kind === 'rows'" class="space-y-2">
-                <div v-for="(row, index) in node.items" :key="index" :class="view === 'text' ? '' : 'rounded-md border border-gray-200 p-2.5 dark:border-gray-700'">
+                <div v-for="(row, index) in node.items" :key="index" :class="view === 'text' ? '' : 'rounded-md border border-gray-200 p-2.5 dark:border-gray-700!'">
                     <DraftPreview :nodes="row" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" />
                 </div>
             </div>
 
-            <div v-else-if="node.kind === 'group'" :class="view === 'text' ? '' : 'border-s-2 border-gray-200 ps-3 dark:border-gray-700'">
+            <div v-else-if="node.kind === 'group'" :class="view === 'text' ? '' : 'border-s-2 border-gray-200 ps-3 dark:border-gray-700!'">
                 <DraftPreview :nodes="node.fields" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" />
             </div>
 
@@ -124,7 +124,7 @@ export default {
                     v-if="editing === key(node)"
                     :ref="`field-${key(node)}`"
                     v-model="value"
-                    class="w-full rounded-md border border-blue-400 bg-white p-2 text-sm dark:bg-gray-900"
+                    class="w-full rounded-md border border-blue-400 bg-white p-2 text-sm dark:bg-gray-900!"
                     :rows="node.multiline ? Math.min(12, Math.max(3, value.split('\n').length + 1)) : 1"
                     @blur="finish(node, $event)"
                     @keydown.esc.prevent="cancel(node)"
@@ -133,7 +133,7 @@ export default {
                 <div
                     v-else
                     class="rounded-md whitespace-pre-wrap"
-                    :class="{ 'cursor-text hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600': editable && node.editable && !editing, 'text-lg font-medium': view === 'text' && node.handle === 'title' }"
+                    :class="{ 'cursor-text hover:ring-1! hover:ring-gray-300! dark:hover:ring-gray-600!': editable && node.editable && !editing, 'text-lg font-medium': view === 'text' && node.handle === 'title' }"
                     :title="editable && node.editable && !editing ? __('Click to edit') : null"
                     @click="start(node, $event)"
                 >{{ node.text }}</div>

@@ -3,10 +3,10 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Bus;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\VoiceAnalyst;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\VoiceEditor;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Content\ContentScanner;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
+use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateVoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\RefineVoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
@@ -43,7 +43,7 @@ class VoiceTest extends TestCase
 
     public function test_generating_writes_the_guide_from_the_samples(): void
     {
-        VoiceAnalyst::fake(["# Tone of voice\n\n## Who is talking, to whom\n\nWe, to you."]);
+        $this->ai->respond('voice-analyst', "# Tone of voice\n\n## Who is talking, to whom\n\nWe, to you.");
 
         (new GenerateVoiceGuide)->handle(app(ContentScanner::class), app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
 
@@ -51,18 +51,17 @@ class VoiceTest extends TestCase
         $this->assertSame(VoiceState::IDLE, app(VoiceState::class)->get()['status']);
         $this->assertCount(2, app(VoiceState::class)->get()['scanned']);
 
-        VoiceAnalyst::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Those high end sales? Vanished.'));
+        $this->ai->assertSent('voice-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Those high end sales? Vanished.'));
     }
 
     public function test_generating_with_nothing_to_read_fails_with_a_reason(): void
     {
-        VoiceAnalyst::fake();
 
         (new GenerateVoiceGuide(['no-such-collection']))->handle(app(ContentScanner::class), app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
 
         $this->assertSame(VoiceState::FAILED, app(VoiceState::class)->get()['status']);
         $this->assertFalse(app(VoiceGuide::class)->exists());
-        VoiceAnalyst::assertNeverPrompted();
+        $this->ai->assertNotSent('voice-analyst');
     }
 
     public function test_refining_applies_the_change_and_records_the_reply(): void
@@ -70,14 +69,14 @@ class VoiceTest extends TestCase
         app(VoiceGuide::class)->save("# Tone of voice\n\nOriginal.");
         app(VoiceState::class)->addMessage('user', 'Ban the word synergy.');
 
-        VoiceEditor::fake(["<reply>Added it.</reply>\n<document>\n# Tone of voice\n\nNever say synergy.\n</document>"]);
+        $this->ai->respond('voice-editor', "<reply>Added it.</reply>\n<document>\n# Tone of voice\n\nNever say synergy.\n</document>");
 
         (new RefineVoiceGuide)->handle(app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
 
         $this->assertStringContainsString('Never say synergy.', app(VoiceGuide::class)->get());
         $this->assertSame('Added it.', app(VoiceState::class)->get()['messages'][1]['content']);
 
-        VoiceEditor::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Original.') && str_contains($prompt->prompt, 'Ban the word synergy.'));
+        $this->ai->assertSent('voice-editor', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Original.') && str_contains($prompt->prompt, 'Ban the word synergy.'));
     }
 
     public function test_a_refinement_that_only_asks_a_question_leaves_the_guide_alone(): void
@@ -85,7 +84,7 @@ class VoiceTest extends TestCase
         app(VoiceGuide::class)->save("# Tone of voice\n\nOriginal.");
         app(VoiceState::class)->addMessage('user', 'Make it better.');
 
-        VoiceEditor::fake(['<reply>Better in what way?</reply>']);
+        $this->ai->respond('voice-editor', '<reply>Better in what way?</reply>');
 
         (new RefineVoiceGuide)->handle(app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
 
@@ -107,7 +106,7 @@ class VoiceTest extends TestCase
     public function test_nothing_is_sent_without_an_api_key(): void
     {
         Bus::fake([GenerateVoiceGuide::class]);
-        config(['ai.providers.anthropic.key' => null]);
+        $this->withoutKeys('anthropic');
         $this->signIn();
 
         $this->postJson(cp_route('ghostwriter.voice.scan'))->assertStatus(422);
@@ -132,5 +131,18 @@ class VoiceTest extends TestCase
 
         $this->get(cp_route('ghostwriter.index'))->assertForbidden();
         $this->postJson(cp_route('ghostwriter.voice.scan'))->assertForbidden();
+    }
+
+    public function test_a_failed_image_style_run_stays_explained_until_the_next(): void
+    {
+        $this->signIn();
+
+        app(ImageryState::class)->update(['status' => ImageryState::FAILED, 'error' => 'Not enough images.', 'task' => 'scan']);
+
+        // Seen once: still there, for whoever comes back to it.
+        $this->get(cp_route('ghostwriter.imagery.show'))->assertOk();
+        $this->getJson(cp_route('ghostwriter.imagery.status'))
+            ->assertJsonPath('status', 'failed')
+            ->assertJsonPath('error', 'Not enough images.');
     }
 }

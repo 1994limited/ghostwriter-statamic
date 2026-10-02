@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.1.0 — unreleased
+
+Ghostwriter now shares its core with the Filament and Craft addons, as the package `1994/ghostwriter-core`: draft handling, the prompts and the connection to the models.
+
+- **Providers.** Ghostwriter has its own connection to Anthropic, OpenAI and Gemini, and no longer needs the Laravel AI SDK (`laravel/ai`). Keys are read from the same variables as before (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`), now through `keys` in `config/ghostwriter.php`. Settings in `config/ai.php` no longer apply, except that a key still set there is used when the variable is empty.
+- Only Anthropic, OpenAI and Gemini are supported. xAI (Grok) can no longer make images; a site that chose it uses whichever image provider has a key.
+- OpenAI-compatible gateways, and gateways for the other two, can be used with `base_urls` in the config.
+- Default models come from Ghostwriter Core when **Model** is blank: Claude Opus 5.5, GPT-6.1 Sol and Gemini 3.8 Flash for writing; GPT Image 2.5 Sunburst and Gemini 3.1 Flash Image for images.
+- **Reliability.** A provider that is busy or limiting requests is tried again automatically, up to three times, following its `retry-after`. Queued jobs are allowed `timeout × 3 + 60` seconds to make room for it; raise your worker's own limit to match.
+- **Cut-off replies.** A reply that runs out of room is asked for once more with twice the room. If a draft, a kind of content or a voice guide still doesn't fit, the turn fails with a message saying so, rather than a half-written one being saved. Ideas, kinds and photo searches keep what came back.
+- **Token limits** are the same in all three addons. Most went up (a draft or a voice guide from 8,000 to 16,000). The photo search and photo picking calls went from 60 and 120 tokens to 2,000, as models that think before answering ran out of room and came back empty, so photo search is more reliable.
+- **Token counts** now include Anthropic's cache-writing tokens and Gemini's thinking tokens, which are billed, so they can be higher than before for the same work.
+- Each call is logged on `log_channel` with the provider, model, tokens and time, never the words.
+- Get started says when another provider's key is set but not chosen.
+- Prompts ship with Ghostwriter Core. `php artisan vendor:publish --tag=ghostwriter-prompts` still publishes them to `resources/ghostwriter/prompts/`, where an edited copy still takes precedence. The photo picker's prompt is now a file too, `photo-picker.md`.
+- **Dark mode.** The "Ghostwriter needs your answer" card was a light amber with near-white text, and a few hover borders didn't change. Statamic's own utilities outranked the addon's dark and hover styles; they now win.
+**Fixes** (from the UX parity audit of the three addons):
+
+- **Editing keeps what you typed.** "Edit with Ghostwriter" now starts from what the entry's form holds, unsaved typing included, and "Use these changes" puts the new writing over the form as it stands. Before, both worked from the entry as last saved, so an image or setting changed in the form and not yet saved was put back.
+- "Learn this" on a suggested kind now finishes on the dashboard: the "Learning…" line stops, the new kind appears, and a failure is shown with its reason. Before, the line ran until the page was reloaded and a failure never showed.
+- The dashboard's settings button, and Get started's "Open the settings", only show to people who may change the settings.
+- Counts read properly in the singular: "1 idea waiting", "1 entry", "1 suggested kind to review", "1 word", and so on, on the dashboard, Get started, the widget, the content plan and the writing panel.
+- Deleting a kind of content says so ("Kind deleted"), and says why when it can't. The confirmation now says "kind of content" rather than "content type".
+- Choosing none of Ghostwriter's plan suggestions says "Dismissed 3 suggestions." rather than "0 added to the plan."
+- An image chosen with the field button for a multi-image field that already holds as many as it allows no longer goes in over the limit. It is kept in the container, and Ghostwriter says so.
+**Changes** (agreed after the UX parity audit, so the three addons work alike):
+
+- **Settings in config win.** A value set in `config/ghostwriter.php` or `.env` (provider, model, collections, voice collections, suggesting kinds, image provider and model, placeholders) now wins over the settings screen, which shows that field locked with a note saying what it is set to. Before, a value saved on the screen silently beat the config, so saving the form once fixed the provider whatever `GHOSTWRITER_PROVIDER` said. **If you published the config before**, its `provider` line reads `env('GHOSTWRITER_PROVIDER', 'anthropic')`, which now fixes the provider to Claude: change it to `env('GHOSTWRITER_PROVIDER')`, and likewise drop the defaults from `suggest_kinds` and `images.placeholders`, to choose them on the screen again.
+- The time limit for each model call is 300 seconds by default (was 180), and is set in the config only.
+- Saving a model name that looks like another provider's ("gpt-…" with Claude chosen) shows a warning. It is still saved.
+- **Get started** counts only the five required steps, so the bar reaches the end, and opens on the first required step still to do. Once they're done, the dashboard keeps a one-line "You're set up" until Get started is hidden. Hiding and showing it is for people who may change the settings, as it applies to everyone.
+- Get started's second step lets people who may change the settings choose the collections to write for and learn the voice from right there.
+- The dashboard widget says when there is no API key yet, with a link to add one; "Write something" stays visible but disabled.
+- Guide buttons say what they do: "Write the voice guide" and "Describe the images" the first time, then "Rescan and rewrite" and "Look again and rewrite". Rescanning waits while there are unsaved edits, as asking for a change already did. A failed image style run stays explained until the next run, as the voice guide's does.
+- "Teach a kind" (was "Teach it a kind"). After **Learn this** in the teach box, it closes and the collection's row shows the kind being learned, then the new kind or why it failed.
+- Suggested kinds on Get started show example entries, as on the dashboard, and "Learn all" there asks first.
+- The kind editor no longer shows each question's handle (it is made from the wording and kept when you reword it), and a kind needs at least one question.
+- After a draft is used, the notes about what is left to do come as one notice listing them all, which stays until it is closed, rather than a toast each.
+- Ghostwriter's replies in the conversation are shown formatted (lists, bold), with any HTML escaped.
+- When Ghostwriter has asked something, the reply box says "Your turn: …" (was "Waiting on you").
+- The image dialog is a little wider (about 48rem) with photos in three columns at the same shape, each with a **Use this** button as well as being clickable. "Best match" is only shown on photos the model compared with the site's own; when there was nothing to compare with, a line says so. The draft panel's photos get **Use this** too.
+- The placeholder setting is called "Mark images still to choose" (was "Striped placeholders").
+- **Content plan:** closing the "Ghostwriter suggests" box no longer throws the suggestions away. They wait, with an "N suggestions waiting" card at the top of the plan whose **Review** opens them again; only **Drop them all** discards them. Every waiting suggestion starts ticked when the plan is opened. Open ideas are listed newest first within each collection. **Put back** is offered only on dismissed ideas, not finished ones.
+- A piece counts as finished only once its entry is saved. Changes put into an existing entry's form stay in progress ("Changes in the form, not saved") until the entry is saved, and an older entry that happens to share a new piece's title no longer marks it finished.
+**Removed:**
+
+- **Logo cards.** The image dialog's "Logo card" tab is gone, along with its routes (the field button's and the writing panel's) and the Imagick drawing code. The image button now offers **Find a photo** and **Make one**. For a logo, add the file to the field yourself, or give it to **Make one** as your own image. Logo cards already saved stay in their containers. Imagick is no longer needed for anything but sending smaller copies of images to the model.
+
+- For developers: `NineteenNinetyFour\Ghostwriter\Drafts\Draft` is now `NineteenNinetyFour\Ghostwriter\Core\Text\Draft`. The old name still works, so a custom `EntryWriter` keeps working; it goes in 2.0. The `Ai\Agents` classes are gone.
+
 ## 1.0.1 — 2026-10-01
 
 Fixes from the pre-release review.

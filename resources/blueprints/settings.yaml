@@ -36,7 +36,7 @@ tabs:
               default: true
       -
         display: AI provider
-        instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file.'
+        instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY in your .env file.'
         fields:
           -
             handle: provider
@@ -70,13 +70,12 @@ tabs:
               options:
                 openai: 'ChatGPT (OpenAI)'
                 gemini: 'Gemini (Google)'
-                xai: 'Grok (xAI)'
               width: 50
           -
             handle: placeholder_images
             field:
               type: toggle
-              display: Striped placeholders
+              display: Mark images still to choose
               instructions: 'When a draft is put into a new entry, image fields it should have but left empty get a shared striped placeholder image, so the layout shows and nothing is missed.'
               default: true
               width: 50

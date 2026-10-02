@@ -3,7 +3,10 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests;
 
 use Illuminate\Support\Facades\File;
-use Laravel\Ai\AiServiceProvider;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\FakeProvider;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\MockHttpClient;
 use NineteenNinetyFour\Ghostwriter\ServiceProvider;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
@@ -23,6 +26,12 @@ abstract class TestCase extends AddonTestCase
 
     protected string $workspace;
 
+    /** Stands in for every model: queue answers on it, and check what was sent. */
+    protected FakeProvider $ai;
+
+    /** Where a model call would go if one got past the fake. None should. */
+    protected MockHttpClient $http;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,20 +47,45 @@ abstract class TestCase extends AddonTestCase
             'ghostwriter.types_path' => $this->workspace.'/types',
             'ghostwriter.collections' => [],
             'ghostwriter.provider' => 'anthropic',
-            'ai.providers.anthropic.key' => 'test-key',
+            // Only the test's own keys, whatever is in the environment.
+            'ghostwriter.keys' => ['anthropic' => 'test-key', 'openai' => null, 'gemini' => null],
+            'ai.providers' => [],
         ]);
+
+        // The addon's settings live in a file the test app keeps between
+        // tests; each test starts with none saved.
+        File::delete(resource_path('addons/ghostwriter-statamic.yaml'));
+
+        $this->http = new MockHttpClient;
+        $this->app->instance(HttpClients::class, $this->http);
+        $this->app->forgetInstance(Providers::class);
+
+        $this->ai = $this->app->make(Providers::class)->fake();
+        $this->app->instance(FakeProvider::class, $this->ai);
+    }
+
+    /**
+     * Take providers' keys away: "anthropic" stands for the writing key,
+     * "openai" for the image key. The fake then answers as a site without
+     * them would, and still records anything sent.
+     */
+    protected function withoutKeys(string ...$providers): void
+    {
+        foreach ($providers as $provider) {
+            config(["ghostwriter.keys.{$provider}" => null]);
+        }
+
+        $this->ai->unconfigured(text: in_array('anthropic', $providers, true), image: in_array('openai', $providers, true));
     }
 
     protected function tearDown(): void
     {
+        $this->assertSame([], $this->http->requests, 'A request reached the network layer.');
+
         File::deleteDirectory($this->workspace);
+        File::delete(resource_path('addons/ghostwriter-statamic.yaml'));
 
         parent::tearDown();
-    }
-
-    protected function getPackageProviders($app)
-    {
-        return [...parent::getPackageProviders($app), AiServiceProvider::class];
     }
 
     /**
@@ -145,6 +179,17 @@ abstract class TestCase extends AddonTestCase
             'guidance' => 'Open on the reader. Two sections.',
             'checklist' => ['Every fact comes from the brief.'],
         ]));
+    }
+
+    /**
+     * Someone who may also change Ghostwriter's settings. A second person
+     * signed in during a test needs Statamic Pro.
+     */
+    protected function signInAsManager(): \Statamic\Contracts\Auth\User
+    {
+        config(['statamic.editions.pro' => true]);
+
+        return $this->signInWith(['access ghostwriter', 'edit 1994/ghostwriter-statamic settings', ...self::WRITER_PERMISSIONS]);
     }
 
     /** What a writer may do, Ghostwriter aside: the Statamic permissions the tests lean on. */

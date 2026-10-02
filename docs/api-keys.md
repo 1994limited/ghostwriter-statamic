@@ -26,7 +26,9 @@ All three write well. Claude is the default and the one Ghostwriter's prompts we
 - **ChatGPT (OpenAI):** a good choice if you also want to make images with the same account.
 - **Gemini (Google):** the only one with a free tier. On the free tier, set the model to a Flash model (see below).
 
-Choose the provider under **Ghostwriter → Settings → Provider**, or with `provider` in [`config/ghostwriter.php`](configuration.md). The provider needs an entry in `config/ai.php`; the Laravel AI SDK's defaults cover all three.
+Choose the provider under **Ghostwriter → Settings → Provider**, or with `provider` in [`config/ghostwriter.php`](configuration.md). Ghostwriter connects to all three itself; nothing else needs setting up.
+
+Keys are read through `keys` in `config/ghostwriter.php`, which takes them from the variables above. A key still set in `config/ai.php`, from before 1.1, is used when the variable is empty.
 
 ## Anthropic (Claude)
 
@@ -67,7 +69,7 @@ OpenAI may ask you to verify your organisation before its image models can be us
    GEMINI_API_KEY=...
    ```
 
-**Using the free tier.** The free tier covers Gemini's Flash models, with daily limits. The Laravel AI SDK's default Gemini model is a Flash model, so to write for free, set **Provider** to Gemini and leave **Model** blank. If you set a model, choose a 3.x Flash model: Google now limits the older 2.5 models to accounts that have used them before. Two things to know:
+**Using the free tier.** The free tier covers Gemini's Flash models, with daily limits. Ghostwriter's default Gemini model is a Flash model, so to write for free, set **Provider** to Gemini and leave **Model** blank. If you set a model, choose a 3.x Flash model: Google now limits the older 2.5 models to accounts that have used them before. Two things to know:
 
 - **Google may use what you send to improve its products.** That includes excerpts of your entries and drafts. For client sites, or anything confidential, turn on billing for the project so the paid terms apply.
 - **Making images is not on the free tier.** Gemini's image model needs billing turned on for the project.
@@ -118,6 +120,6 @@ PEXELS_API_KEY=...
 
 ## Checking it works
 
-Open **Ghostwriter → Get started**. The first step, **Connect a model**, shows the provider it is connected to, or which key is missing. On the image button, only the libraries and options with a key are offered.
+Open **Ghostwriter → Get started**. The first step, **Connect a model**, shows the provider it is connected to, or which key is missing, and says so if another provider's key is set instead. On the image button, only the libraries and options with a key are offered.
 
 Next: [Get started](getting-started.md).

@@ -6,19 +6,15 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Ai\Image;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\ImageryAnalyst;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoPicker;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\PhotoResearcher;
-use NineteenNinetyFour\Ghostwriter\Ai\Agents\Writer;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
 use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
@@ -43,7 +39,7 @@ class ImageTest extends TestCase
     {
         parent::setUp();
 
-        config(['ai.providers.openai.key' => 'test-key', 'filesystems.disks.assets' => ['driver' => 'local', 'root' => $this->workspace.'/assets', 'url' => '/assets']]);
+        config(['ghostwriter.keys.openai' => 'test-key', 'filesystems.disks.assets' => ['driver' => 'local', 'root' => $this->workspace.'/assets', 'url' => '/assets']]);
 
         Storage::fake('assets');
         AssetContainer::make('assets')->disk('assets')->save();
@@ -113,7 +109,7 @@ class ImageTest extends TestCase
 
     public function test_no_image_controls_without_a_provider_that_makes_images(): void
     {
-        config(['ai.providers.openai.key' => null]);
+        $this->withoutKeys('openai');
         $this->signIn();
 
         $session = $this->draftSession();
@@ -129,101 +125,6 @@ class ImageTest extends TestCase
 
     }
 
-    public function test_a_logo_card_is_drawn_at_the_size_the_field_uses(): void
-    {
-        if (! LogoCard::available()) {
-            $this->markTestSkipped('Imagick is not installed.');
-        }
-
-        $this->signIn();
-
-        // A green square on a transparent ground, and a field whose images are 800 by 600.
-        $logo = new \Imagick;
-        $logo->newImage(200, 100, new \ImagickPixel('transparent'), 'png');
-        $draw = new \ImagickDraw;
-        $draw->setFillColor('#2f9e44');
-        $draw->rectangle(40, 20, 160, 80);
-        $logo->drawImage($draw);
-
-        $reference = new \Imagick;
-        $reference->newImage(800, 600, new \ImagickPixel('#cccccc'), 'png');
-        Storage::disk('assets')->put('stories/one.png', $reference->getImageBlob());
-        Storage::disk('assets')->put('stories/two.png', $reference->getImageBlob());
-
-        $session = $this->draftSession();
-
-        $post = fn (array $options) => $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), $options + [
-            'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent('logo.png', $logo->getImageBlob()),
-        ], ['Accept' => 'application/json']);
-
-        // No colour given: the ground takes the logo's own, the logo turns white.
-        $post([])->assertOk()->assertJsonPath('images.0.status', 'done');
-
-        $record = app(SessionRepository::class)->find($session->id)->images['cover'];
-        $card = new \Imagick;
-        $card->readImageBlob(Storage::disk('assets')->get($record['path']));
-
-        $this->assertSame('#2f9e44', $record['colour']);
-        $this->assertSame([800, 600], [$card->getImageWidth(), $card->getImageHeight()]);
-        $this->assertEqualsWithDelta(47, $card->getImagePixelColor(5, 5)->getColor()['r'], 6);
-        $this->assertGreaterThan(245, $card->getImagePixelColor(400, 300)->getColor()['g']);
-        $this->assertGreaterThan(245, $card->getImagePixelColor(400, 300)->getColor()['r']);
-
-        // Two colours make a gradient: the corners differ.
-        $post(['colour' => '#ff0000', 'colour_to' => '#0000ff', 'white' => '0', 'everywhere' => '1'])->assertOk();
-
-        $images = app(SessionRepository::class)->find($session->id)->images;
-        $card = new \Imagick;
-        $card->readImageBlob(Storage::disk('assets')->get($images['cover']['path']));
-
-        $this->assertGreaterThan(200, $card->getImagePixelColor(2, 2)->getColor()['r']);
-        $this->assertGreaterThan(200, $card->getImagePixelColor(797, 597)->getColor()['b']);
-        $this->assertGreaterThan(100, $card->getImagePixelColor(400, 300)->getColor()['g']);
-
-        // "Everywhere" puts the one card in every image field.
-        $this->assertSame($images['cover']['path'], $images['blocks:banner:0:picture']['path']);
-
-        $post(['colour' => 'greenish'])->assertStatus(422);
-    }
-
-    public function test_a_logo_is_only_ever_a_plain_png_webp_or_svg(): void
-    {
-        if (! LogoCard::available()) {
-            $this->markTestSkipped('Imagick is not installed.');
-        }
-
-        $this->signIn();
-
-        $reference = new \Imagick;
-        $reference->newImage(400, 300, new \ImagickPixel('#cccccc'), 'png');
-        Storage::disk('assets')->put('stories/one.png', $reference->getImageBlob());
-        Storage::disk('assets')->put('stories/two.png', $reference->getImageBlob());
-
-        $session = $this->draftSession();
-        $refused = fn (string $name, string $content) => $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
-            'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent($name, $content),
-        ], ['Accept' => 'application/json'])->assertStatus(422);
-
-        // An SVG that pulls in other files or scripts, however it is dressed.
-        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><image href="http://example.com/x.png"/></svg>');
-        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><style>rect { fill: url(http://example.com/x.svg#p) }</style><rect width="1" height="1"/></svg>');
-        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><style>@import url("http://example.com/x.css");</style><rect width="1" height="1"/></svg>');
-        $refused('logo.svg', '<!--'.str_repeat('padding ', 400).'--><svg xmlns="http://www.w3.org/2000/svg"><image href="http://example.com/x.png"/></svg>');
-
-        // An Imagick drawing script, with and without an image's name.
-        $mvg = "push graphic-context\nviewbox 0 0 640 480\nfill 'url(http://example.com/x.jpg)'\npop graphic-context";
-        $refused('logo.mvg', $mvg);
-        $refused('logo.png', $mvg);
-
-        // The addon's own ghost is fine.
-        $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
-            'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#2f9e44"/></svg>'),
-        ], ['Accept' => 'application/json'])->assertOk();
-    }
-
     public function test_an_image_is_not_saved_where_the_person_could_not_upload(): void
     {
         config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
@@ -235,10 +136,6 @@ class ImageTest extends TestCase
 
         $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'unsplash', 'id' => 'abc123'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.image', $session->id), ['key' => 'cover'])->assertForbidden();
-        $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
-            'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent('logo.png', $this->png()),
-        ], ['Accept' => 'application/json'])->assertForbidden();
 
         Bus::assertNotDispatched(GenerateImage::class);
         $this->assertSame(['stories/one.png', 'stories/two.png'], Storage::disk('assets')->files('stories'));
@@ -260,7 +157,7 @@ class ImageTest extends TestCase
             ]]]),
         ]);
 
-        PhotoResearcher::fake(['Lighthouse at dusk.']);
+        $this->ai->respond('photo-query', 'Lighthouse at dusk.');
 
         $this->signIn();
 
@@ -351,7 +248,6 @@ class ImageTest extends TestCase
 
     public function test_an_image_is_made_from_the_sites_own_and_saved_beside_them(): void
     {
-        Image::fake();
 
         $session = $this->draftSession();
 
@@ -364,15 +260,15 @@ class ImageTest extends TestCase
         Storage::disk('assets')->assertExists($image['path']);
 
         // The two existing banner pictures went along as the style to match.
-        Image::assertGenerated(fn ($prompt) => str_contains($prompt->prompt, 'A lighthouse at dusk')
+        $this->ai->assertImageSent(fn (ImageRequest $prompt) => str_contains($prompt->prompt, 'A lighthouse at dusk')
             && str_contains($prompt->prompt, 'Banner: Picture')
             && str_contains($prompt->prompt, 'The first 2 attached image(s)')
-            && count($prompt->attachments) === 2);
+            && count($prompt->references) === 2);
     }
 
     public function test_a_failed_image_is_reported_and_costs_nothing_else(): void
     {
-        Image::fake(fn () => throw new \RuntimeException('The provider said no.'));
+        $this->ai->respondWithImage(fn () => throw new \RuntimeException('The provider said no.'));
 
         $session = $this->draftSession();
 
@@ -423,7 +319,7 @@ class ImageTest extends TestCase
         $this->assertStringNotContainsString('aside', $instructions);
 
         // With no image model, making is not on offer.
-        config(['ai.providers.openai.key' => null]);
+        $this->withoutKeys('openai');
 
         $this->assertStringContainsString('cannot make new images', app(Studio::class)->writerInstructions(app(TypeRepository::class)->find('any:stories'), ''));
     }
@@ -445,7 +341,7 @@ class ImageTest extends TestCase
             'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
         ]);
 
-        Writer::fake([
+        $this->ai->respond('writer',
             '<reply>Here is the draft, with photographs to choose from.</reply>
 <draft>
 '.self::DRAFT.'
@@ -459,11 +355,11 @@ blocks:text:0:aside | find | nobody uses this
 <images>
 cover | fill | lighthouse at dusk; harbour boats; stormy sea
 </images>',
-        ]);
+        );
 
         // Shown the site's covers and the five candidates, the judge likes
         // the fourth, the first and the fifth, in that order.
-        PhotoPicker::fake(['4, 1, 5', '4, 1, 5']);
+        $this->ai->respond('photo-picker', '4, 1, 5', '4, 1, 5');
 
         $session = Session::start('any:stories', ['subject' => 'A new story.']);
         $session->addMessage('user', 'The brief.');
@@ -484,7 +380,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $this->assertSame('harbour boats', $session->images['cover']['options'][0]['term']);
 
         // The judge saw the two existing covers, then the five candidates.
-        PhotoPicker::assertPrompted(fn ($prompt) => count($prompt->attachments) === 7 && str_contains($prompt->prompt, '4. from the search "harbour boats"'));
+        $this->ai->assertSent('photo-picker', fn (TextRequest $prompt) => count($prompt->images) === 7 && str_contains($prompt->prompt, '4. from the search "harbour boats"'));
 
         // Two results is too few to need a judge: they are offered as found.
         $this->assertSame(['harbour1', 'harbour2'], array_column($session->images['blocks:banner:0:picture']['options'], 'id'));
@@ -570,7 +466,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         Storage::disk('assets')->put('stories/three.png', $this->png());
         Entry::make()->collection('stories')->slug('three')->published(true)->data(['title' => 'Three', 'cover' => 'stories/three.png'])->save();
 
-        ImageryAnalyst::fake(['<document>**What they are.** Bright photographs of finished things.</document>']);
+        $this->ai->respond('imagery-analyst', '<document>**What they are.** Bright photographs of finished things.</document>');
 
         (new GenerateImageryGuide(['stories', 'nowhere']))->handle(app(ImageStudio::class), app(Studio::class), app(ImageryGuide::class), app(ImageryState::class));
 
@@ -582,7 +478,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $this->assertSame(ImageryState::IDLE, app(ImageryState::class)->get()['status']);
 
         // The analyst was shown the images, labelled by field and entry.
-        ImageryAnalyst::assertPrompted(fn ($prompt) => count($prompt->attachments) === 5
+        $this->ai->assertSent('imagery-analyst', fn (TextRequest $prompt) => count($prompt->images) === 5
             && str_contains($prompt->prompt, 'Section: Stories')
             && str_contains($prompt->prompt, 'Banner: Picture, on "One"'));
 
@@ -624,7 +520,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
             'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
         ]);
 
-        PhotoPicker::fake(['none: mended pottery gold; restored classic car', '2, 1, 3']);
+        $this->ai->respond('photo-picker', 'none: mended pottery gold; restored classic car', '2, 1, 3');
 
         $session = $this->draftSession();
         $type = app(TypeRepository::class)->find('any:stories');

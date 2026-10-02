@@ -2,7 +2,7 @@
 
 ## What is sent, and where
 
-Ghostwriter only sends anything when someone in the Control Panel asks it to. It sends to the provider you chose, on your own account, through the Laravel AI SDK.
+Ghostwriter only sends anything when someone in the Control Panel asks it to. It sends to the provider you chose, on your own account, directly to that provider's API (or to the gateway set in `base_urls`).
 
 | When | Sent to | What |
 | --- | --- | --- |

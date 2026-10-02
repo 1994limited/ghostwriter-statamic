@@ -5,7 +5,7 @@ namespace NineteenNinetyFour\Ghostwriter\Sessions;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
-use NineteenNinetyFour\Ghostwriter\Ai\Text;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Utf8;
 use Statamic\Contracts\Auth\User;
 
 /**
@@ -56,7 +56,7 @@ class SessionRepository
         $session->updatedAt = Carbon::now()->toIso8601String();
 
         File::ensureDirectoryExists($this->directory());
-        File::put($this->path($session->id), json_encode(Text::scrub($session->toArray()), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        File::put($this->path($session->id), json_encode(Utf8::scrub($session->toArray()), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         return $session;
     }
