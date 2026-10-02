@@ -186,6 +186,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Stock image ledger
+    |--------------------------------------------------------------------------
+    |
+    | A record of every stock photo Ghostwriter put into the site, free or
+    | paid: where it is used, its licence, who licensed it and when, and its
+    | credit line. One YAML file per record, in content/ so it is committed
+    | with the site and travels between environments like entries do.
+    | Records are never deleted.
+    |
+    */
+
+    'stock_path' => base_path('content/ghostwriter/stock'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Shared conversations
     |--------------------------------------------------------------------------
     |

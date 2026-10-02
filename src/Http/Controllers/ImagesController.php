@@ -129,7 +129,7 @@ class ImagesController
             if ($found->mode === ImageRequest::FIND) {
                 $validated = $request->validate(['source' => ['required', 'string'], 'photo' => ['required', 'string', 'max:64'], 'term' => ['nullable', 'string', 'max:200']]);
                 $term = (string) (($validated['term'] ?? null) ?: ($found->terms[0] ?? ''));
-                $asset = $this->images->keepPhoto($slot, $this->stock->fetch($validated['source'], $validated['photo']), $term);
+                $asset = $this->images->keepPhoto($slot, $this->stock->fetch($validated['source'], $validated['photo']), $term, (string) ($found->details['slot'][2] ?? ''));
             } else {
                 $file = $this->requests->file($id, StoredFile::MADE) ?? abort(422, 'That picture is no longer here. Make it again.');
                 $direction = trim((string) ($found->details['direction'] ?? ''));

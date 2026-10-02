@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Stock image ledger.** Every photo Ghostwriter puts into the site from a photo library is recorded: the library and photo, the asset, its licence and credit, who added it and when, and where it is used. One YAML file per record in `content/ghostwriter/stock/` (`ghostwriter.stock_path`), so it is committed with the site. Records are never deleted.
+- Where each ledger image is used is kept up to date as entries are saved (inside Replicator and Bard sets too), as assets are moved or renamed, and when an asset is deleted. `php please ghostwriter:stock-usages` rescans every entry.
+
+### Changed
+- Requires `1994/ghostwriter-core` 1.1.
+- Images from a paid library (and any file named or credited as Getty Images or iStock) are never sent to a model: not as references when finding or making a picture, nor as samples for the image style guide.
+
 ## 1.0.1 - 2026-10-02
 
 ### Changed

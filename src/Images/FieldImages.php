@@ -9,6 +9,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoContext;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFile;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoResults;
+use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use Statamic\Contracts\Assets\Asset;
 
 /**
@@ -23,7 +24,7 @@ use Statamic\Contracts\Assets\Asset;
  */
 class FieldImages
 {
-    public function __construct(private ImageStudio $images, private PhotoFinder $finder, private GuideStore $guides) {}
+    public function __construct(private ImageStudio $images, private PhotoFinder $finder, private GuideStore $guides, private Ledger $ledger) {}
 
     /**
      * Photographs for the slot.
@@ -32,9 +33,7 @@ class FieldImages
      */
     public function find(FieldSlot $slot, array $terms = []): PhotoResults
     {
-        $references = array_values(array_filter(array_map(fn (Asset $asset) => (string) $asset->contents(), $slot->references())));
-
-        return $this->finder->find($this->context($slot), $references, $terms === [] ? null : $terms);
+        return $this->finder->find($this->context($slot), ImageStudio::referenceImages($slot->references()), $terms === [] ? null : $terms);
     }
 
     public function context(FieldSlot $slot): PhotoContext
@@ -61,20 +60,28 @@ class FieldImages
 
     /**
      * Keep a photograph from a library, named, titled and described from
-     * what the library says it shows.
+     * what the library says it shows, and put it in the stock image ledger
+     * as licensed (a free library's photo is), used in this field on the
+     * entry when the entry exists already.
+     *
+     * @param  string|null  $field  The field's path on the form, for the ledger.
      */
-    public function keepPhoto(FieldSlot $slot, PhotoFile $file, string $term = ''): Asset
+    public function keepPhoto(FieldSlot $slot, PhotoFile $file, string $term = '', ?string $field = null): Asset
     {
         $photo = $file->photo;
         $fallback = trim($term) !== '' ? $term : $slot->title;
 
-        return $this->keep($slot, $file->content, $file->extension, [
+        $asset = $this->keep($slot, $file->content, $file->extension, [
             'title' => $photo->assetTitle($fallback),
             'alt' => $photo->alt($fallback),
             'credit' => $photo->credit,
             'credit_url' => $photo->creditUrl,
             'licence' => $photo->licence,
         ], $photo->filenameBase($fallback));
+
+        $this->ledger->recordFree($photo, $asset, $slot->entry ? Ledger::usage($slot->entry, $field ?? $slot->field['handle'], $slot->label()) : null);
+
+        return $asset;
     }
 
     /**
