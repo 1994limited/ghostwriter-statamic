@@ -25,7 +25,7 @@ tabs:
             field:
               type: toggle
               display: Show Get started
-              instructions: 'Bring the Get started steps back to the navigation and the dashboard after they were hidden. Saving with this on shows them again; it is not stored.'
+              instructions: 'Bring the Get started steps back to the navigation and the Overview after they were hidden. Saving with this on shows them again; it is not stored.'
               default: false
           -
             handle: suggest_kinds
