@@ -7,7 +7,6 @@ use Inertia\Response;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
-use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
@@ -19,12 +18,14 @@ use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
 
+/**
+ * The dashboard. Opening it never starts a model call: kinds are looked for
+ * by themselves only on Get started, and here when someone asks.
+ */
 class DashboardController
 {
     public function __invoke(Studio $studio, VoiceGuide $guide, TypeRepository $types, SessionRepository $sessions, Presenter $presenter, Settings $settings, KindSuggestions $suggestions, TypeState $state): Response
     {
-        $this->checkForKinds($studio, $types, $settings, $suggestions);
-
         $summaries = $sessions->visibleTo(User::current())->map(fn ($session) => $presenter->summary($session))->values();
 
         return Inertia::render('ghostwriter::Index', [
@@ -70,33 +71,8 @@ class DashboardController
                 'url' => $collection->createEntryUrl().'?ghostwriter=new',
             ])->values(),
             'sessions' => $summaries->take(30)->values(),
-            'auto_kinds' => $settings->suggestsKinds(),
             'suggest_all_url' => cp_route('ghostwriter.kinds.suggest_all'),
         ]);
-    }
-
-    /**
-     * Collections due a look for kinds of content are checked as the
-     * dashboard opens, when the setting is on: the first time each is seen,
-     * and again once enough has been published there since.
-     */
-    private function checkForKinds(Studio $studio, TypeRepository $types, Settings $settings, KindSuggestions $suggestions): void
-    {
-        if (! $settings->suggestsKinds() || ! $studio->configured()) {
-            return;
-        }
-
-        $due = $types->collections()->filter(fn ($collection) => $suggestions->due($collection))->map->handle()->values()->all();
-
-        if ($due === []) {
-            return;
-        }
-
-        foreach ($due as $handle) {
-            $suggestions->update($handle, ['status' => KindSuggestions::WORKING, 'error' => null]);
-        }
-
-        SuggestKinds::start($due);
     }
 
     /**

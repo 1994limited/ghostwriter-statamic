@@ -102,7 +102,7 @@ php artisan vendor:publish --tag=ghostwriter-config
 | Provider and model | Settings screen, or `provider` / `model` | `anthropic`, the provider's default model |
 | Collections to write for | Settings screen, or `collections` | All |
 | Collections read for the voice | Settings screen, or `voice.collections` | All |
-| Suggest kinds automatically | Settings screen, or `suggest_kinds` | On |
+| Suggest kinds automatically (on Get started) | Settings screen, or `suggest_kinds` | On |
 | Mark images still to choose (striped placeholders) | Settings screen, or `images.placeholders` | On |
 | Image provider and model | Settings screen, or `images.provider` / `images.model` | Whichever has a key |
 | Openverse | `images.openverse` | On |

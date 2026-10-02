@@ -1,7 +1,9 @@
 <!--
     The dialog behind the Ghostwriter button on an assets field: find a
-    photograph, or have a picture made, for that one field, matched to the pictures already in the same place on the site's
-    other entries. The chosen image goes straight into the field.
+    photograph, or have a picture made, for that one field. Photographs are
+    ranked by the words around the field and, where the site's other entries
+    have pictures in the same place, by those too; a made picture follows
+    them. The chosen image goes straight into the field.
 -->
 <script>
 import ghost from '../icon.js';
@@ -51,8 +53,8 @@ export default {
             return this.more ? options : options.slice(0, 3);
         },
 
-        // Whether a model compared these with the page (and the images
-        // already here), or they are just the top result of each search.
+        // Whether a model compared these with the page (and any images
+        // already in this place), or they are just the top result of each search.
         judged() {
             return Boolean(this.request?.judged);
         },
@@ -241,13 +243,13 @@ export default {
 
             <!-- Find a photograph -->
             <div v-if="tab === 'find' && tools?.find" class="space-y-3">
-                <Subheading :text="tools.suggests ? __('Leave the words blank and Ghostwriter chooses what to search for from the page. The best matches against the images already in this place come first.') : __('Type what to search for. Separate several searches with semicolons.')" />
+                <Subheading :text="tools.suggests ? __('Leave the words blank and Ghostwriter chooses what to search for from the page. The photos that best suit the page’s words, and the images already in this place on other entries when there are any, come first.') : __('Type what to search for. Separate several searches with semicolons.')" />
                 <div class="flex gap-2">
                     <Input v-model="words" class="flex-1" :placeholder="__('e.g. mended pottery gold; restored classic car')" :disabled="working" @keydown.enter.stop.prevent="start('find')" />
                     <Button :text="working ? __('Looking…') : __('Find photos')" variant="primary" :loading="working || busy" :disabled="working || busy" @click="start('find')" />
                 </div>
                 <Alert v-if="request?.status === 'failed'" variant="error" :text="request.error" />
-                <p v-if="working" class="text-sm text-gray-500" role="status"><span class="animate-pulse">{{ __('Choosing searches, running them, and comparing the results with the images already here…') }}</span></p>
+                <p v-if="working" class="text-sm text-gray-500" role="status"><span class="animate-pulse">{{ __('Choosing searches, running them, and comparing the results with the page and any images already in this place…') }}</span></p>
                 <Alert v-if="working && request.waiting" variant="warning" :text="request.waiting" role="status" />
                 <template v-if="request?.status === 'done' && request.mode === 'find'">
                     <p class="text-sm text-gray-500">{{ __('Searched for: :terms. Choose one to use it.', { terms: request.terms.join('; ') }) }}</p>

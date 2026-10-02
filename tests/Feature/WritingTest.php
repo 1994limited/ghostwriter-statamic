@@ -16,6 +16,7 @@ use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
 use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
+use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
@@ -223,34 +224,105 @@ class WritingTest extends TestCase
         $this->assertSame('event-2', app(TypeRepository::class)->handleFor('Event', 'articles'));
     }
 
-    public function test_the_dashboard_checks_a_collection_for_kinds_the_first_time_and_after_ten_more_entries(): void
+    public function test_get_started_checks_a_collection_for_kinds_the_first_time_and_after_ten_more_entries(): void
     {
         Bus::fake([SuggestKinds::class]);
         $this->signIn();
 
-        $this->get(cp_route('ghostwriter.index'))->assertOk();
+        $this->get(cp_route('ghostwriter.setup.show'))->assertOk();
         Bus::assertDispatchedAfterResponse(SuggestKinds::class, fn ($job) => $job->collections === ['articles']);
         $this->assertSame(KindSuggestions::WORKING, app(KindSuggestions::class)->get('articles')['status']);
 
         // Checked, with three entries: not again until ten more are published.
         app(KindSuggestions::class)->store('articles', [], 3);
         Bus::fake([SuggestKinds::class]);
-        $this->get(cp_route('ghostwriter.index'))->assertOk();
+        $this->get(cp_route('ghostwriter.setup.show'))->assertOk();
         Bus::assertNotDispatchedAfterResponse(SuggestKinds::class);
 
         foreach (range(4, 13) as $n) {
             $this->makeArticle("more-{$n}", "More {$n}", 'Another paragraph long enough to be read as a sample of writing.');
         }
 
-        $this->get(cp_route('ghostwriter.index'))->assertOk();
+        $this->get(cp_route('ghostwriter.setup.show'))->assertOk();
         Bus::assertDispatchedAfterResponse(SuggestKinds::class);
 
         // Switched off, nothing happens by itself.
         config(['ghostwriter.suggest_kinds' => false]);
         app(KindSuggestions::class)->update('articles', ['status' => KindSuggestions::IDLE, 'checked_at' => null]);
         Bus::fake([SuggestKinds::class]);
-        $this->get(cp_route('ghostwriter.index'))->assertOk();
+        $this->get(cp_route('ghostwriter.setup.show'))->assertOk();
         Bus::assertNotDispatchedAfterResponse(SuggestKinds::class);
+    }
+
+    public function test_opening_the_dashboard_never_starts_suggesting_kinds(): void
+    {
+        Bus::fake();
+        $this->signIn();
+
+        // A collection never looked at, and one with plenty new since: the
+        // dashboard waits for a click all the same.
+        $this->makePostsCollection();
+        app(KindSuggestions::class)->store('posts', [], 0);
+        foreach (range(1, 12) as $n) {
+            $this->makeArticle("more-{$n}", "More {$n}", 'Another paragraph long enough to be read as a sample of writing.');
+        }
+
+        $this->get(cp_route('ghostwriter.index'))->assertOk();
+
+        Bus::assertNotDispatched(SuggestKinds::class);
+        Bus::assertNotDispatchedAfterResponse(SuggestKinds::class);
+        $this->assertNotSame(KindSuggestions::WORKING, app(KindSuggestions::class)->get('articles')['status']);
+
+        // Asked for, it starts.
+        $this->postJson(cp_route('ghostwriter.kinds.suggest', 'articles'))->assertOk();
+        Bus::assertDispatchedAfterResponse(SuggestKinds::class);
+    }
+
+    public function test_a_shared_piece_is_deleted_only_by_its_starter_or_a_manager(): void
+    {
+        Bus::fake([SuggestKinds::class, RunSessionTurn::class]);
+        config(['statamic.editions.pro' => true]);
+        $this->setTestRoles([
+            'tester' => ['access cp', 'access ghostwriter', ...self::WRITER_PERMISSIONS],
+            'manager' => ['access cp', 'access ghostwriter', 'edit '.Settings::ADDON.' settings', ...self::WRITER_PERMISSIONS],
+        ]);
+        $this->makeType();
+
+        $ada = tap(User::make()->email('ada@example.com')->set('name', 'Ada Lovelace')->assignRole('tester'))->save();
+        $bob = tap(User::make()->email('bob@example.com')->set('name', 'Bob Byte')->assignRole('tester'))->save();
+        $mia = tap(User::make()->email('mia@example.com')->set('name', 'Mia Manager')->assignRole('manager'))->save();
+
+        $piece = function () use ($ada) {
+            $session = $this->sessionWithDraft(self::DRAFT);
+            $session->userId = (string) $ada->id();
+
+            return app(SessionRepository::class)->save($session)->id;
+        };
+
+        $first = $piece();
+        $deleteUrl = function () use (&$first) {
+            return collect($this->get(cp_route('ghostwriter.index'))->viewData('page')['props']['sessions'])->firstWhere('id', $first)['delete_url'] ?? null;
+        };
+
+        // Bob may carry it on, but is not offered, nor allowed, to delete it.
+        $this->actingAs($bob);
+        $this->getJson(cp_route('ghostwriter.sessions.show', $first))->assertOk();
+        $this->assertNull($deleteUrl());
+        $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $first))->assertForbidden();
+        $this->assertNotNull(app(SessionRepository::class)->find($first));
+
+        // Ada started it: she may.
+        $this->actingAs($ada);
+        $this->assertNotNull($deleteUrl());
+        $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $first))->assertOk();
+        $this->assertNull(app(SessionRepository::class)->find($first));
+
+        // So may someone who manages Ghostwriter.
+        $first = $piece();
+        $this->actingAs($mia);
+        $this->assertNotNull($deleteUrl());
+        $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $first))->assertOk();
+        $this->assertNull(app(SessionRepository::class)->find($first));
     }
 
     public function test_the_panel_is_told_about_its_collection(): void

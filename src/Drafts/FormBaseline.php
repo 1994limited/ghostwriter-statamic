@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Drafts;
 
 use Statamic\Contracts\Entries\Entry;
+use Statamic\Fields\Blueprint;
 
 /**
  * What an entry holds as far as editing goes: what its publish form holds
@@ -21,18 +22,28 @@ class FormBaseline
      */
     public function data(Entry $entry, mixed $values): array
     {
-        $saved = $entry->data()->all();
+        return array_merge($entry->data()->all(), $this->values($entry->blueprint(), $values));
+    }
 
+    /**
+     * Just what the form sent, as it would be saved: for a new entry, which
+     * has nothing saved to fall back on.
+     *
+     * @param  mixed  $values  The publish form's values, as the form holds them.
+     * @return array<string, mixed>
+     */
+    public function values(Blueprint $blueprint, mixed $values): array
+    {
         if (! is_array($values) || $values === []) {
-            return $saved;
+            return [];
         }
 
         $values = array_diff_key($values, array_flip(self::NOT_DATA));
 
         // The form holds each field the way its fieldtype shows it; process
         // turns that back into what would be saved, as saving the form would.
-        $processed = $entry->blueprint()->fields()->addValues($values)->process()->values()->all();
+        $processed = $blueprint->fields()->addValues($values)->process()->values()->all();
 
-        return array_merge($saved, array_intersect_key($processed, $values));
+        return array_intersect_key($processed, $values);
     }
 }

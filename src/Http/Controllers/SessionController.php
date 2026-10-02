@@ -221,6 +221,17 @@ class SessionController
             $pattern = $patterns->find($type->collection, $schema, $type->blueprint, $type->where, $type->examples);
             $built = $builder->build($draft->data, $schema, $pattern, $type->defaults);
 
+            // An image already chosen in the form stays: no placeholder,
+            // nor anything the model entries suggest, goes over it. One
+            // chosen in the panel still goes in below.
+            $form = $baseline->values($blueprint, $request->input('values'));
+
+            foreach ($schema as $spec) {
+                if ($spec['type'] === 'assets' && ! empty($form[$spec['handle']])) {
+                    $built['data'][$spec['handle']] = $form[$spec['handle']];
+                }
+            }
+
             // What the model entries agree on place by place, and a striped
             // placeholder where an image is still to come. The entry has no
             // ID yet, so links to itself wait.
@@ -235,10 +246,12 @@ class SessionController
         // form receives exactly what it would have loaded from a saved entry.
         $fields = $blueprint->fields()->addValues($data)->preProcess();
 
-        // Noted so the session can be shown as handed over, not still in progress.
-        $session->appliedAt = now()->toIso8601String();
-        $session->touch($this->me());
-        $this->sessions->save($session);
+        // Noted so the session can be shown as handed over, not still in
+        // progress, on the session as it stands now.
+        $this->sessions->update($session->id, function (Session $session) {
+            $session->appliedAt = now()->toIso8601String();
+            $session->touch($this->me());
+        });
 
         return response()->json([
             'values' => $fields->values()->only(array_keys($data))->all(),
@@ -253,38 +266,42 @@ class SessionController
      */
     public function image(Request $request, string $session, ImageStudio $images): JsonResponse
     {
-        $session = $this->session($session);
-        $type = $this->type($session->type)->forSession($session);
+        // Under the lock, so the image's record is not lost to a turn or
+        // another request saving at the same moment.
+        return $this->sessions->exclusively($session, function () use ($request, $session, $images) {
+            $session = $this->session($session);
+            $type = $this->type($session->type)->forSession($session);
 
-        abort_unless($images->configured(), 422, 'No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
+            abort_unless($images->configured(), 422, 'No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
 
-        $validated = $request->validate([
-            'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
-            'direction' => ['nullable', 'string', 'max:2000'],
-            'source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
-        ]);
+            $validated = $request->validate([
+                'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
+                'direction' => ['nullable', 'string', 'max:2000'],
+                'source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
+            ]);
 
-        abort_if(($session->images[$validated['key']]['status'] ?? null) === 'working', 409, 'That image is already being made.');
+            abort_if(($session->images[$validated['key']]['status'] ?? null) === 'working', 409, 'That image is already being made.');
 
-        $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
+            $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
 
-        $source = null;
+            $source = null;
 
-        if ($upload = $request->file('source')) {
-            $directory = storage_path('ghostwriter/uploads');
-            File::ensureDirectoryExists($directory);
+            if ($upload = $request->file('source')) {
+                $directory = storage_path('ghostwriter/uploads');
+                File::ensureDirectoryExists($directory);
 
-            $source = $upload->move($directory, Str::ulid().'.'.$upload->extension())->getPathname();
-        }
+                $source = $upload->move($directory, Str::ulid().'.'.$upload->extension())->getPathname();
+            }
 
-        $session->images[$validated['key']] = ['status' => 'working', 'error' => null] + ($session->images[$validated['key']] ?? []);
+            $session->images[$validated['key']] = ['status' => 'working', 'error' => null] + ($session->images[$validated['key']] ?? []);
 
-        $session->touch($this->me());
-        $this->sessions->save($session);
+            $session->touch($this->me());
+            $this->sessions->save($session);
 
-        GenerateImage::start($session->id, $validated['key'], (string) ($validated['direction'] ?? ''), $source);
+            GenerateImage::start($session->id, $validated['key'], (string) ($validated['direction'] ?? ''), $source);
 
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     /**
@@ -381,11 +398,15 @@ class SessionController
 
         $asset = $images->keep($session, $type, $validated['key'], $file, $validated['term'] ?? null);
 
-        $session->images[$validated['key']] = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $file->photo->credit]
-            + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
+        // Fetching took a while: the choice is written to the session as it
+        // stands now, so a turn that saved meanwhile is not undone, nor
+        // undoes it.
+        $session = $this->sessions->update($session->id, function (Session $session) use ($validated, $asset, $file) {
+            $session->images[$validated['key']] = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $file->photo->credit]
+                + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
 
-        $session->touch($this->me());
-        $this->sessions->save($session);
+            $session->touch($this->me());
+        }) ?? abort(404);
 
         return response()->json($this->presenter->detail($session));
     }
@@ -396,28 +417,30 @@ class SessionController
      */
     public function copyImage(Request $request, string $session, ImageStudio $images): JsonResponse
     {
-        $session = $this->session($session);
-        $slots = $images->slots($session, $this->type($session->type)->forSession($session));
+        return $this->sessions->exclusively($session, function () use ($request, $session, $images) {
+            $session = $this->session($session);
+            $slots = $images->slots($session, $this->type($session->type)->forSession($session));
 
-        $validated = $request->validate([
-            'key' => ['required', 'string', Rule::in(array_keys($slots))],
-            'from' => ['required', 'string', 'different:key', Rule::in(array_keys($slots))],
-        ]);
+            $validated = $request->validate([
+                'key' => ['required', 'string', Rule::in(array_keys($slots))],
+                'from' => ['required', 'string', 'different:key', Rule::in(array_keys($slots))],
+            ]);
 
-        $source = $session->images[$validated['from']] ?? [];
+            $source = $session->images[$validated['from']] ?? [];
 
-        abort_unless(($source['status'] ?? null) === 'done' && ! empty($source['path']), 422, 'That field has no image yet.');
-        abort_unless($slots[$validated['key']]['container'] === $slots[$validated['from']]['container'], 422, 'Those two fields keep their images in different places.');
+            abort_unless(($source['status'] ?? null) === 'done' && ! empty($source['path']), 422, 'That field has no image yet.');
+            abort_unless($slots[$validated['key']]['container'] === $slots[$validated['from']]['container'], 422, 'Those two fields keep their images in different places.');
 
-        // The field keeps the photographs it was offered, in case of a change of mind.
-        $session->images[$validated['key']] = ['status' => 'done', 'error' => null]
-            + array_intersect_key($source, ['path' => 1, 'url' => 1, 'credit' => 1])
-            + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
+            // The field keeps the photographs it was offered, in case of a change of mind.
+            $session->images[$validated['key']] = ['status' => 'done', 'error' => null]
+                + array_intersect_key($source, ['path' => 1, 'url' => 1, 'credit' => 1])
+                + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
 
-        $session->touch($this->me());
-        $this->sessions->save($session);
+            $session->touch($this->me());
+            $this->sessions->save($session);
 
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     /**
@@ -443,17 +466,21 @@ class SessionController
             $entry->data($images->place($entry->data()->all(), $session, $reader->read($blueprint)))->save();
         }
 
-        $session->entryId = $entry->id();
-
-        $session->touch($this->me());
-        $this->sessions->save($session);
+        $session = $this->sessions->update($session->id, function (Session $session) use ($entry) {
+            $session->entryId = $entry->id();
+            $session->touch($this->me());
+        }) ?? $session;
 
         return response()->json(['entry_url' => $entry->editUrl()] + $this->presenter->detail($session));
     }
 
     public function destroy(string $session): JsonResponse
     {
-        $this->sessions->delete($this->session($session));
+        $session = $this->session($session);
+
+        abort_unless($this->sessions->canDelete($session, User::current()), 403, 'Only the person who started this piece, or someone who manages Ghostwriter, can delete it.');
+
+        $this->sessions->delete($session);
 
         return response()->json(['deleted' => true]);
     }

@@ -20,7 +20,7 @@ Click it to choose an image for that one field: **Find a photo** or **Make one**
 
 Searches free photo libraries: Openverse (no key needed) and Unsplash, Pixabay and Pexels when you've added their keys. See [API keys](api-keys.md#free-photo-libraries).
 
-1. Type what the picture should show, or leave it empty and Ghostwriter chooses three searches from the block and page. Separate your own searches with semicolons.
+1. Type what the picture should show, or leave it empty and Ghostwriter chooses three searches from the block and page. Separate your own searches with semicolons. The photos that best suit the page's words come first, matched to the images already in that place on other entries when there are any.
 2. **Find photos.** "Searched for: …" shows the searches run. The model looks at each result beside the words around the field and what the library says the photo shows, and leaves out clear misses. Where other entries have images in that place, it matches their style too. The best ones are marked **Best match**; the rest that fit follow under **View more**.
    - With no other images in that place, the photos are still judged against the page, and a line says so: "Compared with the page; there are no other images here to match."
    - If none fit, the model names better searches and a **second round** runs. If that finds nothing either, the top results come back with a line saying none fitted.
@@ -64,7 +64,9 @@ Under a draft in the writing panel, the **Images** section lists each image fiel
 - Asking in the conversation works too: "find images for this" offers options, "add the images" puts the best match straight in.
 - **Make image** appears here too, with the same keys as on the field button, and can be given an image of your own to build the picture around.
 
-Chosen images go into the form with **Use this draft**, in the field's container and folder.
+Chosen images go into the form with **Use this draft**, in the field's container and folder. On a new entry, an image you already chose in the form yourself is kept: no placeholder goes over it. One chosen under the draft takes its place.
+
+Images can be chosen, copied or made while Ghostwriter is working on a message; when it finishes, those choices are kept.
 
 ## Placeholders
 

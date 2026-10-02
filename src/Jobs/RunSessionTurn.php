@@ -46,6 +46,9 @@ class RunSessionTurn implements ShouldQueue
             return;
         }
 
+        // Images can be chosen while the writer works; see save().
+        $imagesBefore = $session->images;
+
         try {
             $type = $types->find($session->type)
                 ?? throw new InvalidArgumentException("The content type \"{$session->type}\" no longer exists.");
@@ -98,6 +101,41 @@ class RunSessionTurn implements ShouldQueue
             $session->error = $exception->getMessage();
         }
 
-        $sessions->save($session);
+        $this->save($sessions, $session, $imagesBefore);
+    }
+
+    /**
+     * What the turn did, saved onto the session as it stands now, under its
+     * lock. The draft and the conversation wait for the turn, but images can
+     * be chosen, copied or made while it runs: those choices are kept, and
+     * the turn's own image changes only land on fields nobody touched since
+     * it began. A piece removed meanwhile stays removed.
+     *
+     * @param  array<string, mixed>  $imagesBefore  The session's images as the turn found them.
+     */
+    private function save(SessionRepository $sessions, Session $turn, array $imagesBefore): void
+    {
+        $sessions->update($this->sessionId, function (Session $latest) use ($turn, $imagesBefore) {
+            foreach (array_keys($turn->images + $imagesBefore) as $key) {
+                $changedByTurn = ($turn->images[$key] ?? null) !== ($imagesBefore[$key] ?? null);
+                $changedSince = ($latest->images[$key] ?? null) !== ($imagesBefore[$key] ?? null);
+
+                if (! $changedByTurn || $changedSince) {
+                    continue;
+                }
+
+                if (array_key_exists($key, $turn->images)) {
+                    $latest->images[$key] = $turn->images[$key];
+                } else {
+                    unset($latest->images[$key]);
+                }
+            }
+
+            $latest->draft = $turn->draft;
+            $latest->messages = $turn->messages;
+            $latest->usage = $turn->usage;
+            $latest->status = $turn->status;
+            $latest->error = $turn->error;
+        });
     }
 }

@@ -73,7 +73,7 @@ The conversation is saved, and the panel carries on with the piece you were on:
 - **Reloading the page** opens it too: the address names the piece (`?ghostwriter=…`).
 - **Later**, open it from **In progress** on the dashboard, or **Or carry on with** in the panel. A draft put into the form but not saved stays in both lists.
 
-Conversations are shared with everyone who has Ghostwriter access (unless your site [keeps them private](installation.md#permissions)), so a colleague can pick a piece up where you left it. Their messages are labelled with their name, and the lists say who started each piece and who last changed it. Ghostwriter works on one request at a time: while a colleague's request runs, the panel says "Ada is waiting on Ghostwriter" and sending waits until it has answered.
+Conversations are shared with everyone who has Ghostwriter access (unless your site [keeps them private](installation.md#permissions)), so a colleague can pick a piece up where you left it. Only the person who started a piece, or someone who can change Ghostwriter's settings, can remove it. Their messages are labelled with their name, and the lists say who started each piece and who last changed it. Ghostwriter works on one request at a time: while a colleague's request runs, the panel says "Ada is waiting on Ghostwriter" and sending waits until it has answered.
 
 **Start over** goes back to **What are you writing?** to begin a new piece, and the button opens there from then on. The earlier conversation isn't deleted; it stays on the dashboard until you remove it.
 

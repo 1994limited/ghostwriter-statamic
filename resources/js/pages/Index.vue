@@ -23,7 +23,6 @@ export default {
         plan: { type: Object, required: true },
         collections: { type: Array, required: true },
         sessions: { type: Array, required: true },
-        auto_kinds: { type: Boolean, default: true },
         suggest_all_url: { type: String, default: null },
         setup: { type: Object, required: true },
         counts: { type: Object, required: true },
@@ -131,7 +130,7 @@ export default {
             }
         },
 
-        // Ask for kinds now, rather than waiting for the automatic check.
+        // Ask for kinds in one collection. Nothing is looked for by itself here.
         async suggest(collection) {
             try {
                 const { data } = await this.$axios.post(collection.suggest_url);
@@ -317,7 +316,7 @@ export default {
                         </div>
                         <Badge :color="statusColor(session)" :text="statusText(session)" />
                     </component>
-                    <Button size="sm" variant="ghost" :text="__('Remove')" @click="remove(session)" />
+                    <Button v-if="session.delete_url" size="sm" variant="ghost" :text="__('Remove')" @click="remove(session)" />
                 </li>
             </ul>
         </Panel>
@@ -335,7 +334,7 @@ export default {
                             </div>
                             <Badge :color="statusColor(session)" :text="statusText(session)" />
                         </component>
-                        <Button size="sm" variant="ghost" :text="__('Remove')" @click="remove(session)" />
+                        <Button v-if="session.delete_url" size="sm" variant="ghost" :text="__('Remove')" @click="remove(session)" />
                     </li>
                 </ul>
             </Panel>

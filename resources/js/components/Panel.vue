@@ -483,8 +483,10 @@ export default {
             try {
                 const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/apply`), {
                     blueprint: this.blueprint,
-                    // Changes go over the form as it stands, so nothing typed into it is undone.
-                    values: this.session.editing ? this.formValues() : undefined,
+                    // Changes go over the form as it stands, so nothing typed
+                    // into it is undone; on a new entry, so an image already
+                    // chosen in the form is kept.
+                    values: this.formValues(),
                 });
 
                 this.$emit('apply', data);

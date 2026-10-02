@@ -54,10 +54,10 @@ class GenerateImage implements ShouldQueue
         }
 
         // The conversation may have moved on while the image was being made,
-        // so only this image's record is written to the latest session.
-        $session = $sessions->find($this->sessionId) ?? $session;
-        $session->images[$this->key] = $result + ['direction' => $this->direction, 'credit' => null] + ($session->images[$this->key] ?? []);
-
-        $sessions->save($session);
+        // so only this image's record is written to the session as it stands
+        // now, under its lock. A piece removed meanwhile stays removed.
+        $sessions->update($this->sessionId, function ($session) use ($result) {
+            $session->images[$this->key] = $result + ['direction' => $this->direction, 'credit' => null] + ($session->images[$this->key] ?? []);
+        });
     }
 }

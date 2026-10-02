@@ -17,6 +17,15 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Prompts ship with Ghostwriter Core. `php artisan vendor:publish --tag=ghostwriter-prompts` still publishes them to `resources/ghostwriter/prompts/`, where an edited copy still takes precedence. The photo picker's prompt is now a file too, `photo-picker.md`.
 - **Dark mode.** The "Ghostwriter needs your answer" card was a light amber with near-white text, and a few hover borders didn't change. Statamic's own utilities outranked the addon's dark and hover styles; they now win.
 
+**Follow-ups from the wave 2 reviews** (F1, F2, F4, Q1, Q3):
+
+- **Locked settings show the value that applies.** A field set in `config/ghostwriter.php` or `.env` showed the value saved on the settings screen beside the note saying what config sets it to, so the Openverse switch could read on while config had it off. It now shows the config's value. What was saved on the screen is kept, and comes back if the line is taken out of the config.
+- **Images chosen while Ghostwriter works are kept.** A photo picked, copied or made while a message was being answered could be undone when the answer was saved. The answer is now saved onto the piece as it stands, under its lock: images chosen meanwhile stay, and the writer's own image requests only land on fields nobody touched since. A piece removed meanwhile stays removed.
+- **Use this draft keeps an image you chose in the form.** On a new entry, an image already in an assets field is no longer replaced by the striped placeholder (or by the model entries' defaults). One chosen under the draft still goes in.
+- **Deleting a shared piece.** With `shared_conversations` on, only the person who started a piece, or someone who can change Ghostwriter's settings, sees **Remove** and can delete it. Everyone else can still carry it on.
+- **Kinds are suggested by themselves only on Get started.** Opening the dashboard no longer starts any model calls; there, kinds are suggested when someone clicks **Suggest kinds** or **Suggest kinds everywhere**. The **Suggest kinds of content** setting now governs Get started's own look.
+- The field image dialog says photos are ranked by the page's words, and by the images already in that place when there are any, rather than by those images alone.
+
 **Photo search** now comes from Ghostwriter Core 0.2.0 (`1994/ghostwriter-core ~0.2.0`), the same in all three addons (decisions D2 and D4):
 
 - Photos are judged even where no other entry has an image in that place: the model checks each one against the block's and page's words and what the library says it shows, and leaves out clear misses. Before, those photos weren't compared at all.

@@ -141,8 +141,9 @@ return [
 
     'types_path' => resource_path('ghostwriter/types'),
 
-    // Whether each collection is looked over for kinds of content worth
-    // teaching, the first time it is seen and again as entries are published.
+    // Whether Get started looks over each collection for kinds of content
+    // worth teaching by itself, the first time it is seen and again as
+    // entries are published. Elsewhere kinds are only suggested on a click.
     // On unless turned off here or on the settings screen; a value here wins.
     'suggest_kinds' => env('GHOSTWRITER_SUGGEST_KINDS'),
 

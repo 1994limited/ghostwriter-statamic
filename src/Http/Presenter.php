@@ -57,7 +57,8 @@ class Presenter
             // been saved. Put into the form and not saved is not done.
             'finished' => $session->status !== Session::WORKING && $this->saved($session, $entry),
             'entry_url' => $entry?->editUrl(),
-            'delete_url' => cp_route('ghostwriter.sessions.destroy', $session->id),
+            // Shared pieces are deleted by their starter or a manager only.
+            'delete_url' => app(SessionRepository::class)->canDelete($session, User::current()) ? cp_route('ghostwriter.sessions.destroy', $session->id) : null,
             'updated_at' => Carbon::parse($session->updatedAt)->diffForHumans(),
             ...$this->people($session),
             // Sessions are resumed where they were started: on the entry
