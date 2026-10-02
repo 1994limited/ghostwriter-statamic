@@ -4,7 +4,6 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
@@ -146,45 +145,52 @@ class ImageTest extends TestCase
     {
         config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
 
-        Http::fake([
-            'api.unsplash.com/search/photos*' => Http::response(['results' => [[
+        $library = $this->photoLibrary([
+            'api.unsplash.com/search/photos*' => ['results' => [[
                 'id' => 'abc123', 'urls' => ['small' => 'https://images.unsplash.com/small.jpg'],
                 'user' => ['name' => 'Ada'], 'links' => ['html' => 'https://unsplash.com/photos/abc123'],
-            ]]]),
-            'api.openverse.org/*' => Http::response(['results' => [[
+            ]]],
+            'api.openverse.org/thumb.jpg' => $this->png(),
+            'api.openverse.org/*' => ['results' => [[
                 'id' => 'c0ffee', 'thumbnail' => 'https://api.openverse.org/thumb.jpg', 'url' => 'https://example.org/full.jpg',
                 'creator' => 'Bo', 'license' => 'cc0', 'foreign_landing_url' => 'https://example.org/page',
-            ]]]),
+            ]]],
+            'images.unsplash.com/*' => $this->png(),
         ]);
 
-        $this->ai->respond('photo-query', 'Lighthouse at dusk.');
+        $this->ai->respond('photo-researcher', 'Lighthouse at dusk.');
+        $this->ai->respond('photo-picker', "1: a lighthouse\n2: also a lighthouse");
 
         $this->signIn();
 
         $response = $this->getJson(cp_route('ghostwriter.sessions.photos', [$this->draftSession()->id, 'key' => 'cover']))->assertOk();
 
-        // With nothing typed, the model names something photographable.
-        $response->assertJsonPath('query', 'lighthouse at dusk');
-        $this->assertSame(['unsplash', 'openverse'], array_column($response->json('photos'), 'source'));
-        $this->assertSame('Ada on Unsplash', $response->json('photos.0.credit'));
-        $this->assertSame('CC0', $response->json('photos.1.licence'));
+        // With nothing typed, the model chooses what to search for from the draft.
+        $response->assertJsonPath('query', 'lighthouse at dusk')->assertJsonPath('judged', true)->assertJsonPath('with_references', true);
+        $this->assertSame(['unsplash', 'openverse'], array_column($response->json('options'), 'source'));
+        $this->assertSame('Ada on Unsplash', $response->json('options.0.credit'));
+        $this->assertSame('CC0', $response->json('options.1.licence'));
+        $this->ai->assertSent('photo-researcher', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Page title: A New Story') && str_contains($prompt->prompt, 'Summary: What happened next.'));
 
         // Openverse is only ever asked for work free of conditions.
-        Http::assertSent(fn ($request) => str_contains($request->url(), 'openverse') && $request['license'] === 'cc0,pdm');
+        $this->assertNotEmpty(array_filter($this->photoRequests($library), fn (string $address) => str_contains($address, 'api.openverse.org/v1/images/') && str_contains($address, 'license=cc0,pdm')));
     }
 
     public function test_a_chosen_photograph_is_saved_with_its_credit(): void
     {
-        config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
+        config(['ghostwriter.images.unsplash_key' => 'unsplash-key', 'ghostwriter.images.pixabay_key' => 'pixabay-key']);
 
-        Http::fake([
-            'api.unsplash.com/photos/abc123' => Http::response([
-                'urls' => ['raw' => 'https://images.unsplash.com/photo-1?ixid=1'],
+        $library = $this->photoLibrary([
+            'api.unsplash.com/photos/abc123' => [
+                'id' => 'abc123',
+                'urls' => ['small' => 'https://images.unsplash.com/small.jpg', 'raw' => 'https://images.unsplash.com/photo-1?ixid=1'],
                 'user' => ['name' => 'Ada'],
                 'links' => ['html' => 'https://unsplash.com/photos/abc123', 'download_location' => 'https://api.unsplash.com/photos/abc123/download'],
-            ]),
-            'api.unsplash.com/photos/abc123/download' => Http::response([]),
-            'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+            ],
+            'api.unsplash.com/photos/abc123/download' => [],
+            'images.unsplash.com/*' => $this->png(),
+            'pixabay.com/api/*' => ['hits' => [['id' => 42, 'webformatURL' => 'https://pixabay.com/get/small.png', 'largeImageURL' => 'https://pixabay.com/get/large.png', 'user' => 'Cy', 'pageURL' => 'https://pixabay.com/photos/42', 'tags' => 'red boat, harbour']]],
+            'pixabay.com/get/*' => $this->png(),
         ]);
 
         $this->signIn();
@@ -198,24 +204,22 @@ class ImageTest extends TestCase
 
         $path = app(SessionRepository::class)->find($session->id)->images['cover']['path'];
 
+        // The library says nothing about this one, so it is named after the piece.
         $this->assertStringStartsWith('stories/a-new-story-', $path);
         Storage::disk('assets')->assertExists($path);
         $this->assertSame('Ada on Unsplash', AssetContainer::find('assets')->asset($path)->get('credit'));
 
         // Unsplash was told the photograph was used.
-        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/photos/abc123/download'));
+        $this->assertContains('api.unsplash.com/photos/abc123/download', $this->photoRequests($library));
 
-        // Pixabay works the same way, looked up again by ID.
-        config(['ghostwriter.images.pixabay_key' => 'pixabay-key']);
-
-        Http::fake([
-            'pixabay.com/api/*' => Http::response(['hits' => [['id' => 42, 'largeImageURL' => 'https://pixabay.com/get/large.png', 'user' => 'Cy', 'pageURL' => 'https://pixabay.com/photos/42']]]),
-            'pixabay.com/get/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
-        ]);
-
-        $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'pixabay', 'id' => '42'])
+        // Pixabay works the same way, looked up again by ID, and named from its tags.
+        $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'pixabay', 'id' => '42', 'term' => 'harbour boats'])
             ->assertOk()
             ->assertJsonPath('images.0.credit', 'Cy on Pixabay');
+
+        $path = app(SessionRepository::class)->find($session->id)->images['cover']['path'];
+        $this->assertStringStartsWith('stories/red-boat-harbour-', $path);
+        $this->assertSame('Red boat, harbour', AssetContainer::find('assets')->asset($path)->get('title'));
 
         // A source that is not switched on, or a file that is not an image.
         $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'pexels', 'id' => '1'])->assertStatus(422);
@@ -333,12 +337,12 @@ class ImageTest extends TestCase
             'user' => ['name' => 'Ada'], 'links' => ['html' => "https://unsplash.com/photos/{$id}"],
         ];
 
-        Http::fake([
-            'api.unsplash.com/search/photos?query=lighthouse*' => Http::response(['results' => [$photo('light1'), $photo('light2')]]),
-            'api.unsplash.com/search/photos?query=harbour*' => Http::response(['results' => [$photo('harbour1'), $photo('harbour2')]]),
-            'api.unsplash.com/search/photos?query=stormy*' => Http::response(['results' => [$photo('storm1')]]),
-            'api.unsplash.com/photos/harbour2' => Http::response($photo('harbour2')),
-            'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+        $this->photoLibrary([
+            'api.unsplash.com/search/photos?query=lighthouse*' => ['results' => [$photo('light1'), $photo('light2')]],
+            'api.unsplash.com/search/photos?query=harbour*' => ['results' => [$photo('harbour1'), $photo('harbour2')]],
+            'api.unsplash.com/search/photos?query=stormy*' => ['results' => [$photo('storm1')]],
+            'api.unsplash.com/photos/harbour2' => $photo('harbour2'),
+            'images.unsplash.com/*' => $this->png(),
         ]);
 
         $this->ai->respond('writer',
@@ -358,8 +362,9 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         );
 
         // Shown the site's covers and the five candidates, the judge likes
-        // the fourth, the first and the fifth, in that order.
-        $this->ai->respond('photo-picker', '4, 1, 5', '4, 1, 5');
+        // the fourth, the first and the fifth, in that order; for the banner,
+        // the second of two; and the same again when asked to fill the cover.
+        $this->ai->respond('photo-picker', "4: harbour\n1: lighthouse\n5: sea", '2: boats', "4: harbour\n1: lighthouse\n5: sea");
 
         $session = Session::start('any:stories', ['subject' => 'A new story.']);
         $session->addMessage('user', 'The brief.');
@@ -376,18 +381,21 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $this->assertSame('Here is the draft, with photographs to choose from.', end($session->messages)['content']);
         $this->assertSame(['cover', 'blocks:banner:0:picture'], array_keys($session->images));
         $this->assertSame('lighthouse at dusk; harbour boats; stormy sea', $session->images['cover']['query']);
-        $this->assertSame(['harbour2', 'light1', 'storm1', 'light2', 'harbour1'], array_column($session->images['cover']['options'], 'id'));
+        // Only the ones that fit are offered, best first, and marked.
+        $this->assertSame(['harbour2', 'light1', 'storm1'], array_column($session->images['cover']['options'], 'id'));
         $this->assertSame('harbour boats', $session->images['cover']['options'][0]['term']);
+        $this->assertTrue($session->images['cover']['options'][0]['picked']);
+        $this->assertTrue($session->images['cover']['judged']);
 
         // The judge saw the two existing covers, then the five candidates.
         $this->ai->assertSent('photo-picker', fn (TextRequest $prompt) => count($prompt->images) === 7 && str_contains($prompt->prompt, '4. from the search "harbour boats"'));
 
-        // Two results is too few to need a judge: they are offered as found.
-        $this->assertSame(['harbour1', 'harbour2'], array_column($session->images['blocks:banner:0:picture']['options'], 'id'));
+        // A field with two results is judged too.
+        $this->assertSame(['harbour2'], array_column($session->images['blocks:banner:0:picture']['options'], 'id'));
         $this->assertSame('empty', $session->images['cover']['status']);
 
         $this->signIn();
-        $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))->assertJsonPath('images.0.options.0.credit', 'Ada on Unsplash');
+        $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))->assertJsonPath('images.0.options.0.credit', 'Ada on Unsplash')->assertJsonPath('images.0.judged', true);
 
         // "Add the images for me": the best match goes straight in.
         $session->addMessage('user', 'Please add the cover image for me.');
@@ -399,7 +407,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         $this->assertSame('done', $session->images['cover']['status']);
         Storage::disk('assets')->assertExists($session->images['cover']['path']);
-        $this->assertSame(['light1', 'storm1', 'light2', 'harbour1'], array_column($session->images['cover']['options'], 'id'));
+        $this->assertSame(['light1', 'storm1'], array_column($session->images['cover']['options'], 'id'));
         $this->assertSame(self::DRAFT, $session->draft);
     }
 
@@ -513,11 +521,11 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         $photo = fn (string $id) => ['id' => $id, 'urls' => ['small' => "https://images.unsplash.com/{$id}.jpg"], 'user' => ['name' => 'Ada'], 'links' => ['html' => "https://unsplash.com/photos/{$id}"]];
 
-        Http::fake([
-            'api.unsplash.com/search/photos?query=scaffolding*' => Http::response(['results' => array_map($photo, ['scaf1', 'scaf2', 'scaf3', 'scaf4'])]),
-            'api.unsplash.com/search/photos?query=mended*' => Http::response(['results' => array_map($photo, ['pot1', 'pot2', 'pot3', 'pot4'])]),
-            'api.unsplash.com/search/photos*' => Http::response(['results' => []]),
-            'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+        $this->photoLibrary([
+            'api.unsplash.com/search/photos?query=scaffolding*' => ['results' => array_map($photo, ['scaf1', 'scaf2', 'scaf3', 'scaf4'])],
+            'api.unsplash.com/search/photos?query=mended*' => ['results' => array_map($photo, ['pot1', 'pot2', 'pot3', 'pot4'])],
+            'api.unsplash.com/search/photos*' => ['results' => []],
+            'images.unsplash.com/*' => $this->png(),
         ]);
 
         $this->ai->respond('photo-picker', 'none: mended pottery gold; restored classic car', '2, 1, 3');
@@ -525,11 +533,26 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $session = $this->draftSession();
         $type = app(TypeRepository::class)->find('any:stories');
 
-        $photos = app(ImageStudio::class)->shortlist($session, $type, 'cover', 'scaffolding building');
+        $results = app(ImageStudio::class)->photos($session, $type, 'cover', 'scaffolding building');
 
-        // The second round's picks lead; the first round's are still there to look through.
-        $this->assertSame(['pot2', 'pot1', 'pot3', 'pot4', 'scaf1', 'scaf2', 'scaf3', 'scaf4'], array_column($photos, 'id'));
-        $this->assertSame('mended pottery gold', $photos[0]['term']);
+        // The second round's picks are what is offered.
+        $this->assertSame(['pot2', 'pot1', 'pot3'], array_map(fn ($photo) => $photo->id, $results->photos));
+        $this->assertSame('mended pottery gold', $results->photos[0]->term);
+        $this->assertTrue($results->retried);
+        $this->assertFalse($results->noneFit);
+        $this->assertSame(['scaffolding building', 'mended pottery gold', 'restored classic car'], $results->terms);
+
+        // Nothing fits after the second round either: everything found is
+        // offered, unranked, and nothing is called the best match.
+        $this->ai->reset('photo-picker');
+        $this->ai->respond('photo-picker', 'none: mended pottery gold; restored classic car', 'none: something else');
+
+        $offered = ImageStudio::offered(app(ImageStudio::class)->photos($session, $type, 'cover', 'scaffolding building'));
+
+        $this->assertTrue($offered['none_fit']);
+        $this->assertFalse($offered['judged']);
+        $this->assertCount(8, $offered['options']);
+        $this->assertSame([], array_filter(array_column($offered['options'], 'picked')));
     }
 
     private function draftSession(): Session

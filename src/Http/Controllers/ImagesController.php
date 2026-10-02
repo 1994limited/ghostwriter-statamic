@@ -7,12 +7,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
+use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
 use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
 use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
-use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
 use NineteenNinetyFour\Ghostwriter\Jobs\MakeImage;
 use Statamic\Contracts\Assets\Asset;
@@ -59,7 +60,7 @@ class ImagesController
         if ($mode === 'find') {
             abort_if($this->stock->sources() === [], 422, 'No photo library is switched on. Turn on Openverse in the settings, or add an Unsplash, Pexels or Pixabay key.');
 
-            $terms = FieldImages::terms((string) $request->input('words', ''));
+            $terms = PhotoFinder::terms((string) $request->input('words', ''));
 
             abort_if($terms === [] && ! $this->text->configured() && $slot->title === '', 422, 'Type what the picture should show.');
 
@@ -120,15 +121,8 @@ class ImagesController
         try {
             if ($data['mode'] === 'find') {
                 $validated = $request->validate(['source' => ['required', 'string'], 'photo' => ['required', 'string', 'max:64'], 'term' => ['nullable', 'string', 'max:200']]);
-                $photo = $this->stock->fetch($validated['source'], $validated['photo']);
-                $term = (string) ($validated['term'] ?: ($data['terms'][0] ?? ''));
-
-                $asset = $this->images->keep($slot, $photo['content'], $photo['extension'], [
-                    'title' => ucfirst($term) ?: $slot->title,
-                    'credit' => $photo['credit'],
-                    'credit_url' => $photo['credit_url'],
-                    'licence' => $photo['licence'],
-                ]);
+                $term = (string) (($validated['term'] ?? null) ?: ($data['terms'][0] ?? ''));
+                $asset = $this->images->keepPhoto($slot, $this->stock->fetch($validated['source'], $validated['photo']), $term);
             } else {
                 abort_unless(! empty($data['file']) && File::exists($data['file']), 422, 'That picture is no longer here. Make it again.');
 
@@ -297,6 +291,9 @@ class ImagesController
             'error' => $data['error'] ?? null,
             'terms' => $data['terms'] ?? [],
             'options' => $data['options'] ?? [],
+            'judged' => (bool) ($data['judged'] ?? false),
+            'none_fit' => (bool) ($data['none_fit'] ?? false),
+            'with_references' => (bool) ($data['with_references'] ?? false),
             'preview_url' => ! empty($data['file']) ? cp_route('ghostwriter.images.preview', $data['id']) : null,
             'status_url' => cp_route('ghostwriter.images.status', $data['id']),
             'use_url' => cp_route('ghostwriter.images.use', $data['id']),

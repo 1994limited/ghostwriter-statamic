@@ -13,6 +13,7 @@ use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
@@ -21,7 +22,6 @@ use NineteenNinetyFour\Ghostwriter\Drafts\FormBaseline;
 use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
@@ -38,6 +38,9 @@ use Symfony\Component\Yaml\Yaml;
 
 class SessionController
 {
+    /** What a field keeps of the photographs it was offered, once one is chosen. */
+    private const OFFERED = ['query' => 1, 'options' => 1, 'judged' => 1, 'none_fit' => 1, 'with_references' => 1];
+
     public function __construct(
         private SessionRepository $sessions,
         private TypeRepository $types,
@@ -313,13 +316,9 @@ class SessionController
             'query' => ['nullable', 'string', 'max:200'],
         ]);
 
-        $query = trim((string) ($validated['query'] ?? '')) ?: $this->studio->photoQuery($session);
-
-        return response()->json([
-            'query' => $query,
-            // The three that best match the site's own images come first.
-            'photos' => $images->shortlist($session, $type, $validated['key'], $query),
-        ]);
+        // Without words, the searches are chosen from the draft. The photos
+        // that suit the page and the site's own images come first.
+        return response()->json(ImageStudio::offered($images->photos($session, $type, $validated['key'], $validated['query'] ?? null)));
     }
 
     /**
@@ -334,24 +333,21 @@ class SessionController
             'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
             'source' => ['required', 'string', Rule::in($stock->sources())],
             'id' => ['required', 'string', 'max:64'],
+            'term' => ['nullable', 'string', 'max:200'],
         ]);
 
         $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
 
         try {
-            $photo = $stock->fetch($validated['source'], $validated['id']);
+            $file = $stock->fetch($validated['source'], $validated['id']);
         } catch (InvalidArgumentException $exception) {
             abort(422, $exception->getMessage());
         }
 
-        $asset = $images->keep($session, $type, $validated['key'], $photo['content'], $photo['extension'], [
-            'credit' => $photo['credit'],
-            'credit_url' => $photo['credit_url'],
-            'licence' => $photo['licence'],
-        ]);
+        $asset = $images->keep($session, $type, $validated['key'], $file, $validated['term'] ?? null);
 
-        $session->images[$validated['key']] = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $photo['credit']]
-            + array_intersect_key($session->images[$validated['key']] ?? [], ['query' => 1, 'options' => 1]);
+        $session->images[$validated['key']] = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $file->photo->credit]
+            + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
 
         $this->sessions->save($session);
 
@@ -380,7 +376,7 @@ class SessionController
         // The field keeps the photographs it was offered, in case of a change of mind.
         $session->images[$validated['key']] = ['status' => 'done', 'error' => null]
             + array_intersect_key($source, ['path' => 1, 'url' => 1, 'credit' => 1])
-            + array_intersect_key($session->images[$validated['key']] ?? [], ['query' => 1, 'options' => 1]);
+            + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
 
         $this->sessions->save($session);
 

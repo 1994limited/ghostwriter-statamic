@@ -4,7 +4,6 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
@@ -107,16 +106,18 @@ class FieldImageTest extends TestCase
 
         // Run the job: with no words typed, the scout chooses from the block and the page.
         $this->ai->respond('photo-researcher', 'lighthouse at dusk; coastal path; harbour boats');
-        $this->ai->respond('photo-picker', '2, 1');
+        $this->ai->respond('photo-picker', "2: a lighthouse at dusk, like the others\n1: a lighthouse by day");
 
-        $photo = fn (string $id) => ['id' => $id, 'urls' => ['small' => "https://images.unsplash.com/{$id}.jpg"], 'user' => ['name' => 'Ada'], 'links' => ['html' => "https://unsplash.com/photos/{$id}"]];
+        $photo = fn (string $id, ?string $alt = null) => ['id' => $id, 'urls' => ['small' => "https://images.unsplash.com/{$id}.jpg", 'raw' => "https://images.unsplash.com/{$id}?x=1"], 'user' => ['name' => 'Ada'], 'links' => ['html' => "https://unsplash.com/photos/{$id}", 'download_location' => "https://api.unsplash.com/photos/{$id}/download"], 'alt_description' => $alt];
 
-        Http::fake([
-            'api.unsplash.com/search/photos?query=lighthouse*' => Http::response(['results' => [$photo('light1'), $photo('light2')]]),
-            'api.unsplash.com/search/photos?query=coastal*' => Http::response(['results' => [$photo('path1')]]),
-            'api.unsplash.com/search/photos?query=harbour*' => Http::response(['results' => [$photo('harb1')]]),
-            'api.unsplash.com/search/photos*' => Http::response(['results' => []]),
-            'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
+        $library = $this->photoLibrary([
+            'api.unsplash.com/search/photos?query=lighthouse*' => ['results' => [$photo('light1'), $photo('light2', 'a white lighthouse on a cliff at dusk')]],
+            'api.unsplash.com/search/photos?query=coastal*' => ['results' => [$photo('path1')]],
+            'api.unsplash.com/search/photos?query=harbour*' => ['results' => [$photo('harb1')]],
+            'api.unsplash.com/search/photos*' => ['results' => []],
+            'api.unsplash.com/photos/light2' => $photo('light2', 'a white lighthouse on a cliff at dusk'),
+            'api.unsplash.com/photos/light2/download' => [],
+            'images.unsplash.com/*' => $this->png(),
         ]);
 
         $blank = app(ImageRequests::class)->create(['user' => (string) User::current()->id(), 'mode' => 'find', 'terms' => [], 'slot' => ['stories', null, 'blocks.0.picture', 'grid_left', null, 'A Tale', 'A lighthouse keeper', 'All about the coast.']]);
@@ -127,26 +128,35 @@ class FieldImageTest extends TestCase
 
         $this->assertSame('done', $found['status']);
         $this->assertSame(['lighthouse at dusk', 'coastal path', 'harbour boats'], $found['terms']);
-        $this->assertSame(['light2', 'light1', 'path1', 'harb1'], array_column($found['options'], 'id'));
+        // Judged: only the ones that fit, best first, and those marked.
+        $this->assertSame(['light2', 'light1'], array_column($found['options'], 'id'));
         $this->assertTrue($found['options'][0]['picked']);
+        $this->assertTrue($found['judged']);
+        $this->assertTrue($found['with_references']);
+        $this->assertFalse($found['none_fit']);
+
+        $status = $this->getJson(cp_route('ghostwriter.images.status', $blank['id']))->assertOk();
+        $status->assertJsonPath('judged', true)->assertJsonPath('terms', ['lighthouse at dusk', 'coastal path', 'harbour boats']);
 
         $this->ai->assertSent('photo-researcher', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'The picture goes in: Grid — Left: Picture') && str_contains($prompt->prompt, 'A lighthouse keeper'));
+        // The picker sees the grid pictures already on the other stories, and what the library says each photo shows.
+        $this->ai->assertSent('photo-picker', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'The first 2 image(s) are the references') && str_contains($prompt->prompt, 'a white lighthouse on a cliff at dusk'));
 
-        // Picking one: it is kept in the field's folder with its credit, and the
-        // field's new value and meta come back for the form.
-        Http::fake([
-            'api.unsplash.com/photos/light2' => Http::response(['urls' => ['raw' => 'https://images.unsplash.com/light2?x=1']] + $photo('light2')),
-            'api.unsplash.com/photos/light2/download' => Http::response([]),
-            'images.unsplash.com/*' => Http::response($this->png(), 200, ['Content-Type' => 'image/png']),
-        ]);
+        // Picking one: it is kept in the field's folder, named and titled from
+        // what the library says it shows, with its credit; the field's new
+        // value and meta come back for the form.
 
         $kept = $this->postJson(cp_route('ghostwriter.images.use', $blank['id']), ['source' => 'unsplash', 'photo' => 'light2', 'term' => 'lighthouse at dusk', 'current' => ['assets::'.Placeholders::PATH]])
             ->assertOk()
             ->json();
 
-        $this->assertStringStartsWith('grids/lighthouse-at-dusk-', $kept['asset']['path']);
-        $this->assertSame('Lighthouse at dusk', $kept['asset']['title']);
-        $this->assertSame('Ada on Unsplash', AssetContainer::find('assets')->asset($kept['asset']['path'])->get('credit'));
+        $this->assertStringStartsWith('grids/a-white-lighthouse-on-a-cliff-at-dusk-', $kept['asset']['path']);
+        $this->assertSame('A white lighthouse on a cliff at dusk', $kept['asset']['title']);
+        $asset = AssetContainer::find('assets')->asset($kept['asset']['path']);
+        $this->assertSame('Ada on Unsplash', $asset->get('credit'));
+        // The container's blueprint has an alt field, so the alt text goes in it.
+        $this->assertSame('A white lighthouse on a cliff at dusk', $asset->get('alt'));
+        $this->assertContains('api.unsplash.com/photos/light2/download', $this->photoRequests($library));
         // The placeholder made way; the field's meta knows the new asset.
         $this->assertSame(['assets::'.$kept['asset']['path']], $kept['value']);
         $this->assertArrayHasKey('data', $kept['meta']);
@@ -186,24 +196,55 @@ class FieldImageTest extends TestCase
     public function test_photos_nobody_compared_with_the_site_are_not_called_the_best_match(): void
     {
         $this->signIn();
+        $this->withoutKeys('anthropic');
 
         $photo = fn (string $id) => ['id' => $id, 'urls' => ['small' => "https://images.unsplash.com/{$id}.jpg"], 'user' => ['name' => 'Ada'], 'links' => ['html' => "https://unsplash.com/photos/{$id}"]];
 
-        Http::fake([
-            'api.unsplash.com/search/photos?query=boats*' => Http::response(['results' => [$photo('b1'), $photo('b2'), $photo('b3'), $photo('b4')]]),
-            'api.unsplash.com/search/photos?query=harbour*' => Http::response(['results' => [$photo('h1'), $photo('h2')]]),
+        $this->photoLibrary([
+            'api.unsplash.com/search/photos?query=boats*' => ['results' => [$photo('b1'), $photo('b2'), $photo('b3'), $photo('b4')]],
+            'api.unsplash.com/search/photos?query=harbour*' => ['results' => [$photo('h1'), $photo('h2')]],
         ]);
 
-        // No other story has a gallery image, so there is nothing to compare with.
+        // No model: the top result of each search comes first, unmarked.
         $request = app(ImageRequests::class)->create(['user' => (string) User::current()->id(), 'mode' => 'find', 'terms' => ['boats', 'harbour'], 'slot' => ['stories', null, 'gallery', null, null, 'A Tale', '', '']]);
 
         (new FindImages($request['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
 
-        $options = app(ImageRequests::class)->find($request['id'])['options'];
+        $found = app(ImageRequests::class)->find($request['id']);
 
-        $this->assertCount(6, $options);
-        $this->assertSame([], array_filter(array_column($options, 'picked')), 'Nothing was judged, so nothing is the best match.');
+        $this->assertCount(6, $found['options']);
+        $this->assertSame(['b1', 'h1', 'b2'], array_slice(array_column($found['options'], 'id'), 0, 3));
+        $this->assertSame([], array_filter(array_column($found['options'], 'picked')), 'Nothing was judged, so nothing is the best match.');
+        $this->assertFalse($found['judged']);
         $this->ai->assertNotSent('photo-picker');
+    }
+
+    public function test_photos_are_judged_against_the_page_when_there_are_no_images_to_match(): void
+    {
+        $this->signIn();
+
+        $photo = fn (string $id, string $alt) => ['id' => $id, 'urls' => ['small' => "https://images.unsplash.com/{$id}.jpg"], 'user' => ['name' => 'Ada'], 'links' => ['html' => "https://unsplash.com/photos/{$id}"], 'alt_description' => $alt];
+
+        $this->photoLibrary([
+            'api.unsplash.com/search/photos?query=boats*' => ['results' => [$photo('b1', 'fishing boats in a harbour'), $photo('b2', 'a toy boat in a bath')]],
+            'api.unsplash.com/search/photos?query=harbour*' => ['results' => [$photo('h1', 'a harbour wall at low tide')]],
+            'images.unsplash.com/*' => $this->png(),
+        ]);
+
+        // The gallery is empty on every other story, so there is nothing to match;
+        // the model still checks each photo against the page's words.
+        $this->ai->respond('photo-picker', "1: boats in a harbour\n3: the harbour wall");
+
+        $request = app(ImageRequests::class)->create(['user' => (string) User::current()->id(), 'mode' => 'find', 'terms' => ['boats', 'harbour'], 'slot' => ['stories', null, 'gallery', null, null, 'A Tale', '', 'A day in the fishing harbour.']]);
+
+        (new FindImages($request['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
+
+        $found = app(ImageRequests::class)->find($request['id']);
+
+        $this->assertSame(['b1', 'h1'], array_column($found['options'], 'id'), 'The toy boat is left out.');
+        $this->assertTrue($found['judged']);
+        $this->assertFalse($found['with_references']);
+        $this->ai->assertSent('photo-picker', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'There are no reference images') && str_contains($prompt->prompt, 'a toy boat in a bath'));
     }
 
     public function test_a_full_multi_image_field_is_left_alone_and_the_image_kept_in_the_container(): void

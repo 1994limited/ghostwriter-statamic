@@ -2,16 +2,18 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Images;
 
-use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
-use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
-use NineteenNinetyFour\Ghostwriter\Core\Ai\Limits;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Photo;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoContext;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFile;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoResults;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Shrinker;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
@@ -34,17 +36,17 @@ class ImageStudio
 {
     private const REFERENCES = 3;
 
-    /** Photographs offered for a field, and results considered per search. */
-    private const SHORTLIST = 3;
-
-    private const PER_TERM = 6;
-
     private const RASTER = ['jpg', 'jpeg', 'png', 'webp'];
 
     /** Entries looked through for references when none were picked. */
     private const SAMPLE = 12;
 
-    public function __construct(private SchemaReader $reader, private StockSearch $stock, private ImageryGuide $guide, private PromptLibrary $prompts, private Providers $providers, private Studio $studio) {}
+    private Shrinker $shrinker;
+
+    public function __construct(private SchemaReader $reader, private PhotoFinder $finder, private ImageryGuide $guide, private PromptLibrary $prompts, private Providers $providers)
+    {
+        $this->shrinker = new Shrinker;
+    }
 
     /**
      * The provider to make images with: the one chosen in settings, or the
@@ -177,7 +179,7 @@ class ImageStudio
         }
 
         return collect($picked)
-            ->map(fn (array $sample) => ['label' => $sample['label'], 'entry' => $sample['entry'], 'image' => $this->small((string) $sample['asset']->contents())])
+            ->map(fn (array $sample) => ['label' => $sample['label'], 'entry' => $sample['entry'], 'image' => $this->shrinker->small((string) $sample['asset']->contents())])
             ->filter(fn (array $sample) => $sample['image'] !== null)
             ->values()
             ->all();
@@ -190,7 +192,7 @@ class ImageStudio
     public function describe(ContentType $type): string
     {
         $blueprint = $type->statamicBlueprint();
-        $canFind = $this->stock->sources() !== [];
+        $canFind = $this->finder->canFind();
         $canMake = $this->configured();
 
         if (! $blueprint || (! $canFind && ! $canMake)) {
@@ -286,7 +288,7 @@ class ImageStudio
             return $current;
         }
 
-        return ['query' => $words, 'options' => $this->shortlist($session, $type, $key, $words)] + $current + ['status' => 'empty'];
+        return self::offered($this->photos($session, $type, $key, $words)) + $current + ['status' => 'empty'];
     }
 
     /**
@@ -294,188 +296,103 @@ class ImageStudio
      */
     private function fill(Session $session, ContentType $type, string $key, string $words): array
     {
-        $options = $this->shortlist($session, $type, $key, $words);
-        $best = $options[0] ?? throw new InvalidArgumentException("No photograph was found for \"{$words}\".");
-        $photo = $this->stock->fetch($best['source'], $best['id']);
-
-        $asset = $this->keep($session, $type, $key, $photo['content'], $photo['extension'], [
-            'credit' => $photo['credit'],
-            'credit_url' => $photo['credit_url'],
-            'licence' => $photo['licence'],
-        ]);
+        $results = $this->photos($session, $type, $key, $words);
+        $best = $results->picked()[0] ?? $results->first() ?? throw new InvalidArgumentException("No photograph was found for \"{$words}\".");
+        $asset = $this->keep($session, $type, $key, $this->finder->stock()->fetch($best->source, $best->id), $best->term);
 
         // The rest stay on offer, in case the first is not the one.
-        return ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $photo['credit'], 'query' => $words, 'options' => array_slice($options, 1)];
+        $rest = array_values(array_filter($results->photos, fn (Photo $photo) => $photo->key() !== $best->key()));
+
+        return ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $best->credit]
+            + self::offered(new PhotoResults($rest, $results->terms, $results->judged, $results->noneFit, $results->retried, $results->withReferences));
     }
 
     /**
-     * Photographs worth offering: each search term is run, and the three
-     * results that sit best beside the images the field already holds come
-     * first, followed by the rest.
+     * Photographs for one of the draft's image fields, found and judged by
+     * core: against the draft's words, and the pictures already in that
+     * place on the site's other entries when there are any.
      *
-     * @param  string  $words  One or more searches, separated by semicolons.
-     * @return array<int, array<string, mixed>>
+     * @param  string|null  $words  Searches, separated by semicolons; null to have them chosen from the draft.
      */
-    public function shortlist(Session $session, ContentType $type, string $key, string $words): array
+    public function photos(Session $session, ContentType $type, string $key, ?string $words = null): PhotoResults
     {
-        $terms = array_slice(array_values(array_filter(array_map('trim', explode(';', $words)))), 0, self::SHORTLIST);
-        $shape = $this->shapeFor($session, $type, $key);
-        $references = ($this->slots($session, $type)[$key] ?? [])['references'] ?? [];
-        $style = $this->guide->for((string) $type->statamicCollection()?->title());
+        $slot = $this->slots($session, $type)[$key]
+            ?? throw new InvalidArgumentException('That image field is no longer part of the draft.');
 
-        $candidates = $this->candidates($terms, $shape);
-        $retry = null;
-        $best = $this->judged($candidates, $references, $session->title(), $style, $retry);
+        $references = collect($slot['references'])->take(self::REFERENCES)->map(fn (Asset $asset) => (string) $asset->contents())->filter()->values()->all();
 
-        // The judge found nothing that belongs and said what to look for
-        // instead. One more round with its searches, then settle.
-        if ($best === null && $retry) {
-            $second = $this->candidates($retry, $shape);
-            $best = $this->judged($second, $references, $session->title(), $style);
-            $candidates = [...$second, ...$candidates];
-
-            if ($best === null && $second !== []) {
-                $best = $this->oneOfEach($second);
-            }
-        }
-
-        $best ??= $this->oneOfEach($candidates);
-        $ids = array_map(fn (array $photo) => $photo['source'].$photo['id'], $best);
-
-        // The pick comes first; the rest follow for anyone who wants to look further.
-        return [...$best, ...array_values(array_filter($candidates, fn (array $photo) => ! in_array($photo['source'].$photo['id'], $ids, true)))];
+        return $this->finder->find($this->context($session, $type, $slot), $references, $words !== null && trim($words) !== '' ? $words : null);
     }
 
     /**
-     * @param  array<int, string>  $terms
-     * @return array<int, array<string, mixed>>
-     */
-    private function candidates(array $terms, string $shape): array
-    {
-        $candidates = [];
-
-        foreach ($terms as $term) {
-            foreach (array_slice($this->stock->search($term, $shape), 0, self::PER_TERM) as $photo) {
-                $candidates[$photo['source'].$photo['id']] ??= $photo + ['term' => $term];
-            }
-        }
-
-        return array_values($candidates);
-    }
-
-    /**
-     * Ask the model, which can see both, which candidates match the site's
-     * own images. Null when there is nothing to compare with or no model.
+     * Search results as a field in the session keeps them, and as the panel reads them.
      *
-     * @param  array<int, array<string, mixed>>  $candidates
-     * @param  array<int, Asset>  $references
-     * @param  array<int, string>|null  $retry  Set to the searches the judge would try instead, when nothing fits.
-     * @return array<int, array<string, mixed>>|null
+     * @return array{query: string, options: array<int, array<string, mixed>>, judged: bool, none_fit: bool, with_references: bool}
      */
-    private function judged(array $candidates, array $references, string $title, string $style = '', ?array &$retry = null): ?array
+    public static function offered(PhotoResults $results): array
     {
-        $canRetry = func_num_args() > 4;
+        return [
+            'query' => implode('; ', $results->terms),
+            'options' => array_map(fn (Photo $photo) => $photo->toArray(), $results->photos),
+            'judged' => $results->judged,
+            'none_fit' => $results->noneFit,
+            'with_references' => $results->withReferences,
+        ];
+    }
 
-        if (count($candidates) <= self::SHORTLIST || $references === [] || ! $this->studio->configured()) {
-            return null;
-        }
-
+    /**
+     * Where in the draft a picture goes, in words: the block it sits in, the
+     * rest of the draft, and the shape of the pictures already there.
+     *
+     * @param  array{key: string, label: string, container: string, multiple: bool, references: array<int, Asset>}  $slot
+     */
+    private function context(Session $session, ContentType $type, array $slot): PhotoContext
+    {
         try {
-            $shown = collect($references)->take(self::REFERENCES)->map(fn (Asset $asset) => $this->small((string) $asset->contents()))->filter()->values();
-            $thumbs = Http::pool(fn ($pool) => array_map(fn (array $photo) => $pool->timeout(15)->withOptions(['allow_redirects' => ['max' => 3, 'protocols' => ['https']]])->get($photo['thumb']), $candidates));
-
-            $seen = [];
-            $attachments = $shown->all();
-
-            foreach ($thumbs as $i => $response) {
-                // Only as many as one request can carry. Three references and
-                // three searches of six fit; large originals (no Imagick) may not.
-                if ($response instanceof Response && $response->successful() && ($image = $this->small($response->body())) && Limits::fits([...$attachments, $image])) {
-                    $attachments[] = $image;
-                    $seen[] = $candidates[$i];
-                }
-            }
-
-            if ($shown->isEmpty() || count($seen) <= self::SHORTLIST) {
-                return null;
-            }
-
-            $list = collect($seen)->map(fn (array $photo, int $i) => ($i + 1).'. from the search "'.$photo['term'].'"')->implode("\n");
-
-            $answer = $this->studio->ask(
-                'photo-picker',
-                "The page is titled \"{$title}\".\n\nThe first {$shown->count()} image(s) are the references. The ".count($seen)." after them are the candidates, in this order:\n{$list}\n\n"
-                .($style !== '' ? "The site's own description of its images in this section:\n{$style}\n\n" : '')
-                .'Rank the best '.(self::SHORTLIST * 2).'.'
-                .($canRetry ? ' If none of them would belong beside the references, reply instead with the word none, a colon, and three better searches separated by semicolons, each two to four plain words: for example `none: mended pottery gold; restored classic car; old stone bridge`.' : ''),
-                images: $attachments,
-                timeout: 60,
-            )->text;
-
-            if ($canRetry && preg_match('/^\s*none\b[:\s]*(.*)$/isu', $answer, $none)) {
-                $retry = array_slice(array_values(array_filter(array_map(fn (string $term) => trim($term, " \t\n\r`.\"'"), explode(';', $none[1])))), 0, self::SHORTLIST) ?: null;
-
-                return null;
-            }
-
-            preg_match_all('/\d+/', $answer, $m);
-
-            $ranked = collect($m[0])->map(fn (string $n) => $seen[(int) $n - 1] ?? null)->filter()->unique(fn (array $photo) => $photo['source'].$photo['id'])->values();
-
-            // The best from each search first, so the three on offer differ;
-            // then whatever ranked next.
-            $chosen = $ranked->unique('term')->concat($ranked)->unique(fn (array $photo) => $photo['source'].$photo['id'])->take(self::SHORTLIST)->values()->all();
-
-            return $chosen ?: null;
-        } catch (\Throwable $exception) {
-            report($exception);
-
-            return null;
+            $draft = $session->draft !== null ? Draft::parse($session->draft)->data : [];
+        } catch (InvalidArgumentException) {
+            $draft = [];
         }
+
+        $block = '';
+        $parts = explode(':', $slot['key']);
+
+        if (count($parts) === 4) {
+            [$field, $set, $n] = $parts;
+            $block = self::words(collect((array) ($draft[$field] ?? []))->filter(fn ($item) => is_array($item) && ($item['type'] ?? null) === $set)->values()->get((int) $n, []));
+        }
+
+        $summary = is_string($found = $draft['summary'] ?? $draft['excerpt'] ?? $draft['description'] ?? $draft['intro'] ?? null) ? $found : '';
+
+        return PhotoContext::make(
+            title: $session->title(),
+            label: $slot['label'],
+            blockText: mb_substr($block, 0, 6000),
+            pageText: mb_substr(self::words($draft), 0, 6000),
+            summary: $summary,
+            shape: $this->shape($slot['references'][0] ?? null),
+            style: $this->guide->for((string) $type->statamicCollection()?->title()),
+        );
     }
 
     /**
-     * Without a judge, the top result of each search is as fair as any.
-     *
-     * @param  array<int, array<string, mixed>>  $candidates
-     * @return array<int, array<string, mixed>>
+     * The writing in part of a draft, however it is nested.
      */
-    private function oneOfEach(array $candidates): array
+    private static function words(mixed $value): string
     {
-        $byTerm = collect($candidates)->groupBy('term');
-        $picked = collect();
-
-        for ($i = 0; $picked->count() < self::SHORTLIST && $i < self::PER_TERM; $i++) {
-            foreach ($byTerm as $photos) {
-                if ($photos->has($i) && $picked->count() < self::SHORTLIST) {
-                    $picked->push($photos[$i]);
-                }
-            }
+        if (is_string($value)) {
+            return trim($value);
         }
 
-        return $picked->all();
-    }
-
-    /**
-     * An image small enough to show a model many of at once.
-     */
-    private function small(string $content): ?Image
-    {
-        if ($content === '' || @getimagesizefromstring($content) === false) {
-            return null;
+        if (! is_array($value)) {
+            return '';
         }
 
-        if (! extension_loaded('imagick')) {
-            return strlen($content) < 1_000_000 ? Image::fromString($content) : null;
-        }
-
-        $image = new \Imagick;
-        $image->readImageBlob($content);
-        $image->thumbnailImage(512, 512, true);
-        $image->setImageFormat('jpeg');
-        $image->setImageCompressionQuality(75);
-
-        return new Image($image->getImageBlob(), 'image/jpeg');
+        return collect($value)
+            ->reject(fn ($item, $key) => in_array($key, ['id', 'type', 'enabled'], true))
+            ->map(fn ($item) => self::words($item))
+            ->filter()
+            ->implode("\n");
     }
 
     /**
@@ -532,58 +449,11 @@ class ImageStudio
     }
 
     /**
-     * Photographs for a field on a form, chosen the same way as for a draft:
-     * each search run, and the best beside the references first. Public so
-     * the image button on a field can use it without a session.
-     *
-     * @param  array<int, string>  $terms
-     * @param  array<int, Asset>  $references
-     * @return array<int, array<string, mixed>>
-     */
-    public function shortlistFor(array $terms, array $references, string $shape, string $title, string $style = ''): array
-    {
-        $candidates = $this->candidates(array_slice($terms, 0, self::SHORTLIST), $shape);
-        $retry = null;
-        $best = $this->judged($candidates, $references, $title, $style, $retry);
-
-        if ($best === null && $retry) {
-            $second = $this->candidates($retry, $shape);
-            $best = $this->judged($second, $references, $title, $style);
-            $candidates = [...$second, ...$candidates];
-
-            if ($best === null && $second !== []) {
-                $best = $this->oneOfEach($second);
-                $fallback = true;
-            }
-        }
-
-        // Only photos the model compared with the site's own are marked as
-        // the best match; the top result of each search is just first.
-        $judged = $best !== null && ! isset($fallback);
-        $best ??= $this->oneOfEach($candidates);
-        $ids = array_map(fn (array $photo) => $photo['source'].$photo['id'], $best);
-
-        return [
-            ...array_map(fn (array $photo) => $photo + ['picked' => $judged], $best),
-            ...array_values(array_filter($candidates, fn (array $photo) => ! in_array($photo['source'].$photo['id'], $ids, true))),
-        ];
-    }
-
-    /**
      * landscape, portrait or square, going by a picture already there.
      */
     public function shapeOf(?Asset $reference): string
     {
         return $this->shape($reference);
-    }
-
-    /**
-     * An image small enough to show a model many of at once. Public for the
-     * search-term chooser, which looks at the references too.
-     */
-    public function thumbnail(string $content): ?Image
-    {
-        return $this->small($content);
     }
 
     /**
@@ -612,16 +482,24 @@ class ImageStudio
     }
 
     /**
-     * Save a photograph found elsewhere as the image for a field.
-     *
-     * @param  array<string, mixed>  $meta  Credit and licence, kept on the asset.
+     * Save a photograph found in a library as the image for a field, named
+     * and described from what the library says it shows.
      */
-    public function keep(Session $session, ContentType $type, string $key, string $content, string $extension, array $meta = []): Asset
+    public function keep(Session $session, ContentType $type, string $key, PhotoFile $file, ?string $term = null): Asset
     {
         $slot = $this->slots($session, $type)[$key]
             ?? throw new InvalidArgumentException('That image field is no longer part of the draft.');
 
-        return $this->store($session, $slot, $content, $extension, $meta);
+        $photo = $file->photo;
+        $fallback = $term !== null && trim($term) !== '' ? $term : $session->title();
+
+        return $this->store($session, $slot, $file->content, $file->extension, [
+            'title' => $photo->assetTitle($fallback),
+            'alt' => $photo->alt($fallback),
+            'credit' => $photo->credit,
+            'credit_url' => $photo->creditUrl,
+            'licence' => $photo->licence,
+        ], $photo->filenameBase($fallback));
     }
 
     /**
@@ -630,20 +508,37 @@ class ImageStudio
      * @param  array<string, mixed>  $slot
      * @param  array<string, mixed>  $meta
      */
-    private function store(Session $session, array $slot, string $content, string $extension, array $meta = []): Asset
+    private function store(Session $session, array $slot, string $content, string $extension, array $meta = [], ?string $name = null): Asset
     {
-        $container = AssetContainer::find($slot['container'])
-            ?? throw new InvalidArgumentException("The asset container \"{$slot['container']}\" no longer exists.");
-
         $reference = $slot['references'][0] ?? null;
         $folder = $reference ? trim(dirname($reference->path()), './') : 'ghostwriter';
-        $extension = $extension === 'jpeg' ? 'jpg' : $extension;
-        $path = ltrim($folder.'/'.(Str::slug($session->title()) ?: 'image').'-'.Str::lower(Str::random(6)).'.'.$extension, '/');
+
+        return self::saveAsset($slot['container'], $folder, $name ?: (Str::slug($session->title()) ?: 'image'), $content, $extension, $meta);
+    }
+
+    /**
+     * Put a picture in a container as a new asset, under a name that cannot
+     * clash. Title, credit and the like are kept on the asset; alt text only
+     * where the container's blueprint has an `alt` field to show it in.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public static function saveAsset(string $handle, string $folder, string $name, string $content, string $extension, array $meta = []): Asset
+    {
+        $container = AssetContainer::find($handle)
+            ?? throw new InvalidArgumentException("The asset container \"{$handle}\" no longer exists.");
+
+        $extension = $extension === 'jpeg' ? 'jpg' : (string) preg_replace('/[^a-z0-9]/', '', strtolower($extension));
+        $path = ltrim(trim($folder, '/').'/'.(Str::slug($name) ?: 'image').'-'.Str::lower(Str::random(6)).'.'.$extension, '/');
+
+        if (! $container->blueprint()?->hasField('alt')) {
+            unset($meta['alt']);
+        }
 
         $container->disk()->put($path, $content);
 
         $asset = $container->makeAsset($path);
-        $asset->data(array_filter($meta))->save();
+        $asset->data(array_filter($meta, fn ($value) => $value !== null && $value !== ''))->save();
 
         return $asset;
     }

@@ -2,68 +2,48 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Images;
 
-use InvalidArgumentException;
-use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoContext;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFile;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoResults;
 use Statamic\Contracts\Assets\Asset;
-use Statamic\Facades\AssetContainer;
-use Statamic\Support\Str;
 
 /**
  * What the image button on a field can do: find a photograph, have one
  * made, and keep the result as an asset in the field's own container and
  * folder. Everything is matched to the pictures already in that place on
  * the site's other entries.
+ *
+ * Finding is core's PhotoFinder: it chooses searches from the words around
+ * the field (or runs the ones typed), judges the results against the page
+ * and the pictures already there, and runs a second round when none fit.
  */
 class FieldImages
 {
-    public function __construct(private ImageStudio $images, private StockSearch $stock, private ImageryGuide $guide, private Studio $studio) {}
+    public function __construct(private ImageStudio $images, private PhotoFinder $finder, private ImageryGuide $guide) {}
 
     /**
-     * Three searches for a photograph that suits the slot, chosen by the
-     * model from the words around it. Without a model, the page's title.
+     * Photographs for the slot.
      *
-     * @return array<int, string>
+     * @param  array<int, string>  $terms  What the person typed; empty to have searches chosen from the page.
      */
-    public function searchTerms(FieldSlot $slot): array
+    public function find(FieldSlot $slot, array $terms = []): PhotoResults
     {
-        if (! $this->studio->configured()) {
-            return array_values(array_filter([mb_strtolower($slot->title)]));
-        }
+        $references = array_values(array_filter(array_map(fn (Asset $asset) => (string) $asset->contents(), $slot->references())));
 
-        $style = $this->guide->for($slot->collection->title());
-        $prompt = "Page title: {$slot->title}\n\nThe picture goes in: {$slot->label()}\n\n"
-            .($slot->blockText !== '' ? "Words in that part of the page:\n\n{$slot->blockText}\n\n" : '')
-            ."The whole page:\n\n".($slot->pageText !== '' ? $slot->pageText : '(nothing written yet)')
-            .($style !== '' ? "\n\nThe site's own description of its images in this section:\n\n{$style}" : '');
-
-        $answer = $this->studio->ask('photo-researcher', $prompt, timeout: 60)->text;
-
-        return self::terms($answer) ?: array_values(array_filter([mb_strtolower($slot->title)]));
+        return $this->finder->find($this->context($slot), $references, $terms === [] ? null : $terms);
     }
 
-    /**
-     * Searches, from a reply or from what a person typed: up to three,
-     * separated by semicolons or new lines.
-     *
-     * @return array<int, string>
-     */
-    public static function terms(string $text): array
+    public function context(FieldSlot $slot): PhotoContext
     {
-        $terms = array_map(fn (string $term) => trim(preg_replace('/[^\p{L}\p{N} \'-]+/u', ' ', $term) ?? '', " \t-'"), preg_split('/[;\n]+/u', $text) ?: []);
-        $terms = array_values(array_unique(array_filter(array_map(fn (string $term) => mb_strtolower(preg_replace('/\s+/u', ' ', $term) ?? ''), $terms))));
-
-        return array_slice($terms, 0, 3);
-    }
-
-    /**
-     * @param  array<int, string>  $terms
-     * @return array<int, array<string, mixed>>
-     */
-    public function shortlist(FieldSlot $slot, array $terms): array
-    {
-        $references = $slot->references();
-
-        return $this->images->shortlistFor($terms, $references, $this->images->shapeOf($references[0] ?? null), $slot->title, $this->guide->for($slot->collection->title()));
+        return PhotoContext::make(
+            title: $slot->title,
+            label: $slot->label(),
+            blockText: $slot->blockText,
+            pageText: $slot->pageText,
+            shape: $this->images->shapeOf($slot->references()[0] ?? null),
+            style: $this->guide->for($slot->collection->title()),
+        );
     }
 
     /**
@@ -77,24 +57,30 @@ class FieldImages
     }
 
     /**
+     * Keep a photograph from a library, named, titled and described from
+     * what the library says it shows.
+     */
+    public function keepPhoto(FieldSlot $slot, PhotoFile $file, string $term = ''): Asset
+    {
+        $photo = $file->photo;
+        $fallback = trim($term) !== '' ? $term : $slot->title;
+
+        return $this->keep($slot, $file->content, $file->extension, [
+            'title' => $photo->assetTitle($fallback),
+            'alt' => $photo->alt($fallback),
+            'credit' => $photo->credit,
+            'credit_url' => $photo->creditUrl,
+            'licence' => $photo->licence,
+        ], $photo->filenameBase($fallback));
+    }
+
+    /**
      * Keep a picture as an asset in the field's container and folder.
      *
-     * @param  array<string, mixed>  $meta  Title, credit and the like, kept on the asset.
+     * @param  array<string, mixed>  $meta  Title, alt text, credit and the like, kept on the asset.
      */
-    public function keep(FieldSlot $slot, string $content, string $extension, array $meta = []): Asset
+    public function keep(FieldSlot $slot, string $content, string $extension, array $meta = [], ?string $name = null): Asset
     {
-        $container = AssetContainer::find($slot->field['container'])
-            ?? throw new InvalidArgumentException("The asset container \"{$slot->field['container']}\" no longer exists.");
-
-        $extension = $extension === 'jpeg' ? 'jpg' : preg_replace('/[^a-z0-9]/', '', strtolower($extension));
-        $name = Str::slug((string) ($meta['title'] ?? '')) ?: (Str::slug($slot->title) ?: 'image');
-        $path = ltrim($slot->folder().'/'.$name.'-'.Str::lower(Str::random(6)).'.'.$extension, '/');
-
-        $container->disk()->put($path, $content);
-
-        $asset = $container->makeAsset($path);
-        $asset->data(array_filter($meta, fn ($value) => $value !== null && $value !== ''))->save();
-
-        return $asset;
+        return ImageStudio::saveAsset($slot->field['container'], $slot->folder(), $name ?: ((string) ($meta['title'] ?? '') ?: $slot->title), $content, $extension, $meta);
     }
 }

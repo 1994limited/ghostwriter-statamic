@@ -32,7 +32,7 @@ export default {
 
             if (this.found[from.key]) return this.found[from.key];
 
-            return from.options?.length ? { query: from.query, photos: from.options } : null;
+            return from.options?.length ? { query: from.query, photos: from.options, judged: from.judged, none_fit: from.none_fit, with_references: from.with_references } : null;
         },
 
         // The field whose photographs this one is choosing from: its own,
@@ -176,16 +176,23 @@ export default {
                 <p v-if="!offered(image).photos.length" class="text-sm text-gray-500">
                     {{ __('Nothing found for “:query”. Try other words.', { query: offered(image).query }) }}
                 </p>
-                <p v-else class="mb-2 text-sm text-gray-500">{{ __('Pick one to use it. Searched for: :query', { query: offered(image).query }) }}</p>
+                <template v-else>
+                    <p class="text-sm text-gray-500">{{ __('Searched for: :terms. Pick one to use it.', { terms: offered(image).query }) }}</p>
+                    <p v-if="offered(image).none_fit" class="mb-2 text-sm text-gray-500">{{ __('None of these fitted the page, even after a second round of searches. These are the top results; try other words for a better match.') }}</p>
+                    <p v-else-if="offered(image).judged && !offered(image).with_references" class="mb-2 text-sm text-gray-500">{{ __('Compared with the page; there are no other images here to match.') }}</p>
+                    <p v-else-if="!offered(image).judged" class="mb-2 text-sm text-gray-500">{{ __('These are the top results of each search. They weren’t compared with the page.') }}</p>
+                    <div v-else class="mb-2" />
+                </template>
                 <div v-if="offered(image).photos.length" class="grid grid-cols-3 items-start gap-3">
                     <div
                         v-for="photo in shown(image)"
                         :key="photo.source + photo.id"
-                        class="flex flex-col overflow-hidden rounded-md border border-gray-200 hover:border-gray-500! dark:border-gray-700!"
+                        class="relative flex flex-col overflow-hidden rounded-md border border-gray-200 hover:border-gray-500! dark:border-gray-700!"
                         :class="{ 'animate-pulse': choosing === photo.id }"
                     >
-                        <button type="button" class="block text-start" :disabled="choosing !== null" :title="`${photo.credit} · ${photo.licence}`" @click="use(image, photo)">
-                            <img :src="photo.thumb" alt="" loading="lazy" class="block aspect-[4/3] w-full object-cover" />
+                        <button type="button" class="block text-start" :disabled="choosing !== null" :title="[photo.reason || photo.alt, `${photo.credit} · ${photo.licence}`].filter(Boolean).join('\n')" @click="use(image, photo)">
+                            <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
+                            <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" />
                             <span v-if="photo.term" class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
                             <span class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }}</span>
                         </button>

@@ -16,6 +16,17 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Get started says when another provider's key is set but not chosen.
 - Prompts ship with Ghostwriter Core. `php artisan vendor:publish --tag=ghostwriter-prompts` still publishes them to `resources/ghostwriter/prompts/`, where an edited copy still takes precedence. The photo picker's prompt is now a file too, `photo-picker.md`.
 - **Dark mode.** The "Ghostwriter needs your answer" card was a light amber with near-white text, and a few hover borders didn't change. Statamic's own utilities outranked the addon's dark and hover styles; they now win.
+
+**Photo search** now comes from Ghostwriter Core 0.2.0 (`1994/ghostwriter-core ~0.2.0`), the same in all three addons (decisions D2 and D4):
+
+- Photos are judged even where no other entry has an image in that place: the model checks each one against the block's and page's words and what the library says it shows, and leaves out clear misses. Before, those photos weren't compared at all.
+- The images under a draft are found the same way as with the field button: the words of the block the image goes in, the rest of the draft, and the images already there.
+- When nothing fits, a second round of searches runs; if that finds nothing either, the top results are shown with a line saying none fitted.
+- **Best match** only marks photos a model judged. "Searched for: …" is shown above the results under a draft too.
+- A chosen photo is named and titled from the library's own description or tags ("brown-rocks-at-golden-hour-x7k2qa.jpg"), not the search, and its description is saved as the asset's alt text where the container's blueprint has an `alt` field.
+- With the search box under a draft left empty, the searches are chosen by the `photo-researcher` prompt from the draft, as on the field button. The `photo-query` prompt is no longer used.
+- Photo libraries are fetched through Ghostwriter Core's HTTP client: redirects are followed only over https, never to a private address, and the key is dropped when a redirect leaves the library's host.
+
 **Fixes** (from the UX parity audit of the three addons):
 
 - **Editing keeps what you typed.** "Edit with Ghostwriter" now starts from what the entry's form holds, unsaved typing included, and "Use these changes" puts the new writing over the form as it stands. Before, both worked from the entry as last saved, so an image or setting changed in the form and not yet saved was put back.
@@ -25,6 +36,7 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Deleting a kind of content says so ("Kind deleted"), and says why when it can't. The confirmation now says "kind of content" rather than "content type".
 - Choosing none of Ghostwriter's plan suggestions says "Dismissed 3 suggestions." rather than "0 added to the plan."
 - An image chosen with the field button for a multi-image field that already holds as many as it allows no longer goes in over the limit. It is kept in the container, and Ghostwriter says so.
+
 **Changes** (agreed after the UX parity audit, so the three addons work alike):
 
 - **Settings in config win.** A value set in `config/ghostwriter.php` or `.env` (provider, model, collections, voice collections, suggesting kinds, image provider and model, placeholders) now wins over the settings screen, which shows that field locked with a note saying what it is set to. Before, a value saved on the screen silently beat the config, so saving the form once fixed the provider whatever `GHOSTWRITER_PROVIDER` said. **If you published the config before**, its `provider` line reads `env('GHOSTWRITER_PROVIDER', 'anthropic')`, which now fixes the provider to Claude: change it to `env('GHOSTWRITER_PROVIDER')`, and likewise drop the defaults from `suggest_kinds` and `images.placeholders`, to choose them on the screen again.
