@@ -9,11 +9,12 @@ use Illuminate\Queue\InteractsWithQueue;
 use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
 use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
 use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
+use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use Throwable;
 
 /**
  * Searches the photo libraries for one field on a form and ranks what it
- * finds against the pictures already in that place.
+ * finds against the page and the pictures already in that place.
  */
 class FindImages implements ShouldQueue
 {
@@ -37,13 +38,13 @@ class FindImages implements ShouldQueue
 
         try {
             $slot = FieldSlot::find(...$data['slot']) ?? throw new \InvalidArgumentException('That image field is no longer on the page.');
-            $terms = $data['terms'] ?: $images->searchTerms($slot);
+            $results = $images->find($slot, $data['terms'] ?? []);
 
-            if ($terms === []) {
+            if ($results->terms === []) {
                 throw new \InvalidArgumentException('Type what the picture should show: there is nothing on the page to go by yet.');
             }
 
-            $requests->update($this->request, ['status' => ImageRequests::DONE, 'terms' => $terms, 'options' => $images->shortlist($slot, $terms), 'error' => null]);
+            $requests->update($this->request, ['status' => ImageRequests::DONE, 'error' => null] + ImageStudio::offered($results) + ['terms' => $results->terms]);
         } catch (Throwable $exception) {
             report($exception);
 

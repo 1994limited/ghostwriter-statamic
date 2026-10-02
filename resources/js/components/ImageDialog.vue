@@ -49,10 +49,10 @@ export default {
             return this.more ? options : options.slice(0, 3);
         },
 
-        // Whether the model compared these with the images already here, or
-        // they are just the top result of each search.
+        // Whether a model compared these with the page (and the images
+        // already here), or they are just the top result of each search.
         judged() {
-            return (this.request?.options ?? []).some((photo) => photo.picked);
+            return Boolean(this.request?.judged);
         },
 
         tabs() {
@@ -249,16 +249,18 @@ export default {
                 <template v-if="request?.status === 'done' && request.mode === 'find'">
                     <p class="text-sm text-gray-500">{{ __('Searched for: :terms. Choose one to use it.', { terms: request.terms.join('; ') }) }}</p>
                     <p v-if="!request.options.length" class="text-sm">{{ __('Nothing found. Try other words.') }}</p>
-                    <p v-else-if="!judged" class="text-sm text-gray-500">{{ __('These are the top results of each search. They weren’t compared with the images already in this place.') }}</p>
+                    <p v-else-if="request.none_fit" class="text-sm text-gray-500">{{ __('None of these fitted the page, even after a second round of searches. These are the top results; try other words for a better match.') }}</p>
+                    <p v-else-if="judged && !request.with_references" class="text-sm text-gray-500">{{ __('Compared with the page; there are no other images here to match.') }}</p>
+                    <p v-else-if="!judged" class="text-sm text-gray-500">{{ __('These are the top results of each search. They weren’t compared with the page.') }}</p>
                     <div class="grid grid-cols-3 items-start gap-3">
                         <div
                             v-for="photo in shown"
                             :key="photo.source + photo.id"
                             class="relative flex flex-col overflow-hidden rounded-md border border-gray-200 hover:border-gray-500! dark:border-gray-700!"
                         >
-                            <button type="button" class="block text-start disabled:opacity-50!" :disabled="busy" :title="`${photo.credit} · ${photo.licence}`" @click="use(photo)">
+                            <button type="button" class="block text-start disabled:opacity-50!" :disabled="busy" :title="[photo.reason || photo.alt, `${photo.credit} · ${photo.licence}`].filter(Boolean).join('\n')" @click="use(photo)">
                                 <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
-                                <img :src="photo.thumb" alt="" loading="lazy" class="block aspect-[4/3] w-full object-cover" />
+                                <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" />
                                 <span class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
                                 <span class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }} · {{ photo.licence }}</span>
                             </button>

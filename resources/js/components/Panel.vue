@@ -363,7 +363,7 @@ export default {
             try {
                 const { data } = await this.$axios.get(this.url(`sessions/${this.session.id}/photos`), { params: { key, query } });
 
-                return data;
+                return { query: data.query, photos: data.options, judged: data.judged, none_fit: data.none_fit, with_references: data.with_references };
             } catch (error) {
                 this.fail(error);
 
@@ -383,7 +383,7 @@ export default {
 
         async usePhoto(key, photo) {
             try {
-                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/photos`), { key, source: photo.source, id: photo.id });
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/photos`), { key, source: photo.source, id: photo.id, term: photo.term });
 
                 this.receive(data);
 

@@ -3,13 +3,18 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
+use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\FakeProvider;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\MockHttpClient;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
+use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\ServiceProvider;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use Psr\Http\Message\RequestInterface;
 use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -76,6 +81,53 @@ abstract class TestCase extends AddonTestCase
         }
 
         $this->ai->unconfigured(text: in_array('anthropic', $providers, true), image: in_array('openai', $providers, true));
+    }
+
+    /**
+     * Stand in for the photo libraries, as Http::fake() would: each address
+     * (host, path and query, without https://) is matched against the
+     * patterns in turn. An array answers as JSON; a string is an image's
+     * bytes. Anything unmatched gets a 404. Returns the client, whose
+     * `requests` say what was asked for.
+     *
+     * @param  array<string, array<mixed>|string>  $routes
+     */
+    protected function photoLibrary(array $routes): MockHttpClient
+    {
+        $client = new MockHttpClient;
+
+        $router = function (RequestInterface $request) use ($client, $routes) {
+            $uri = $request->getUri();
+            $address = $uri->getHost().$uri->getPath().($uri->getQuery() !== '' ? '?'.urldecode($uri->getQuery()) : '');
+
+            foreach ($routes as $pattern => $answer) {
+                if (Str::is($pattern, $address)) {
+                    return is_array($answer)
+                        ? $client->response(200, (string) json_encode($answer), ['content-type' => 'application/json'])
+                        : $client->response(200, $answer, ['content-type' => 'image/png']);
+                }
+            }
+
+            return $client->response(404, '{}', ['content-type' => 'application/json']);
+        };
+
+        $client->queue(...array_fill(0, 200, $router));
+
+        $this->app->forgetInstance(StockSearch::class);
+        $this->app->forgetInstance(PhotoFinder::class);
+        $this->app->instance(StockSearch::class, new StockSearch($client, new ConfigCredentials, openverse: fn (): bool => (bool) config('ghostwriter.images.openverse', true)));
+
+        return $client;
+    }
+
+    /**
+     * The addresses the photo libraries were asked for, without https://.
+     *
+     * @return array<int, string>
+     */
+    protected function photoRequests(MockHttpClient $client): array
+    {
+        return array_map(fn (RequestInterface $request) => $request->getUri()->getHost().$request->getUri()->getPath().($request->getUri()->getQuery() !== '' ? '?'.urldecode($request->getUri()->getQuery()) : ''), $client->requests);
     }
 
     protected function tearDown(): void

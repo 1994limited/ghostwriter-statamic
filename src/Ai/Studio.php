@@ -118,29 +118,6 @@ class Studio
     }
 
     /**
-     * Words to search a photo library with for a draft. A page title makes a
-     * poor search, so the model names something that can be photographed;
-     * without a model to ask, the title has to do.
-     */
-    public function photoQuery(Session $session): string
-    {
-        if (! $this->configured() || $session->draft === null) {
-            return $session->title();
-        }
-
-        try {
-            $summary = preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
-            $words = mb_strtolower(trim(preg_replace('/[^\p{L}\p{N} -]+/u', ' ', $this->ask('photo-query', "Title: {$session->title()}\nSummary: {$summary}")->text) ?? ''));
-
-            return $words !== '' && str_word_count($words) <= 6 ? $words : $session->title();
-        } catch (Throwable $exception) {
-            report($exception);
-
-            return $session->title();
-        }
-    }
-
-    /**
      * Work out what a collection holds and what to ask before writing for it.
      *
      * @param  array<int, string>  $examples  Entry IDs to model the type on; empty to use the collection's newest.

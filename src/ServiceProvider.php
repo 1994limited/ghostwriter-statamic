@@ -11,6 +11,8 @@ use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Http\GuzzleHttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
+use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\Vocabulary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
@@ -72,6 +74,23 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->singleton(PromptLibrary::class, fn () => new PromptLibrary(
             Vocabulary::statamic(),
             fn (string $name): ?string => is_file($path = resource_path("ghostwriter/prompts/{$name}.md")) ? (string) file_get_contents($path) : null,
+        ));
+
+        // Photo search is core's too: the libraries, choosing the searches,
+        // judging the results against the page and the images already
+        // there, and a second round when nothing fits. Openverse can be
+        // switched off in config at any time, so it is read on each search.
+        $this->app->singleton(StockSearch::class, fn ($app) => new StockSearch(
+            $app->make(HttpClients::class),
+            new ConfigCredentials,
+            openverse: fn (): bool => (bool) config('ghostwriter.images.openverse', true),
+            logger: Log::channel(config('ghostwriter.log_channel')),
+        ));
+        $this->app->singleton(PhotoFinder::class, fn ($app) => new PhotoFinder(
+            $app->make(StockSearch::class),
+            $app->make(Providers::class),
+            $app->make(PromptLibrary::class),
+            Log::channel(config('ghostwriter.log_channel')),
         ));
 
         // Core's text classes, set up the way Statamic stores entries: a

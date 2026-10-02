@@ -21,7 +21,10 @@ Click it to choose an image for that one field: **Find a photo** or **Make one**
 Searches free photo libraries: Openverse (no key needed) and Unsplash, Pixabay and Pexels when you've added their keys. See [API keys](api-keys.md#free-photo-libraries).
 
 1. Type what the picture should show, or leave it empty and Ghostwriter chooses three searches from the block and page. Separate your own searches with semicolons.
-2. **Find photos.** The model looks at the results beside the images already used there, and marks the best ones **Best match**. The rest follow under **View more**. Where no other entry has an image in that place yet, there is nothing to compare with: the top result of each search comes first, with no badge, and a line under the search says they weren't compared.
+2. **Find photos.** "Searched for: …" shows the searches run. The model looks at each result beside the words around the field and what the library says the photo shows, and leaves out clear misses. Where other entries have images in that place, it matches their style too. The best ones are marked **Best match**; the rest that fit follow under **View more**.
+   - With no other images in that place, the photos are still judged against the page, and a line says so: "Compared with the page; there are no other images here to match."
+   - If none fit, the model names better searches and a **second round** runs. If that finds nothing either, the top results come back with a line saying none fitted.
+   - **Best match** only appears when a model judged the photos. Without a writing model, the top result of each search comes first, with no badge, and a line says they weren't compared.
 3. Click the photo you want, or its **Use this** button.
 
 ### Make one
@@ -37,7 +40,7 @@ Ghostwriter never draws a real company's logo from memory. For a logo, add the l
 
 ### What happens when you choose one
 
-- The image is saved as an asset in the field's own **container and folder**, or beside the images already there, with a title.
+- The image is saved as an asset in the field's own **container and folder**, or beside the images already there. A photograph is named and titled from what the library says it shows ("brown-rocks-at-golden-hour-x7k2qa.jpg", "Brown rocks at golden hour"), falling back to the search. Its description goes in the asset's **alt** text, where the container's blueprint has an `alt` field (Statamic's default asset blueprint does).
 - It goes straight into the field, as if you'd chosen it from the browser. Save the entry as usual.
 - If the field held a **striped placeholder**, the placeholder comes out. In a field that holds only one image, the new image replaces the old one.
 - In a field that holds several images and already has as many as it allows, the image isn't added. It is still saved in the container, and Ghostwriter says so: remove an image from the field to make room, then choose it from the container.
@@ -56,8 +59,8 @@ A search or a picture being made belongs to the person who started it. Made pict
 
 Under a draft in the writing panel, the **Images** section lists each image field the entry normally has: the top-level ones, and those in the draft's blocks that other entries fill in.
 
-- Three photographs are offered for each field as soon as the draft is written, chosen by the writer's own searches and ranked against the images already in that place. **View more** shows the rest. Click a photo, or its **Use this** button, to choose it.
-- **Find a photo** runs your own search; **Choose from the photos for** another field, or **Use the same image as** another field, where fields share a picture.
+- Three photographs are offered for each field as soon as the draft is written, from the writer's own searches, judged the same way as on the field button: against the words of the block the field is in and the rest of the draft, and the images already in that place when there are any, with a second round when none fit. "Searched for: …" sits above them, and **Best match** marks the shortlist when a model judged them. **View more** shows the rest. Click a photo, or its **Use this** button, to choose it.
+- **Find a photo** runs your own search, or, with the box empty, searches chosen from the draft; **Choose from the photos for** another field, or **Use the same image as** another field, where fields share a picture.
 - Asking in the conversation works too: "find images for this" offers options, "add the images" puts the best match straight in.
 - **Make image** appears here too, with the same keys as on the field button, and can be given an image of your own to build the picture around.
 

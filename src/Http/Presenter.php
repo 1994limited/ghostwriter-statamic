@@ -6,10 +6,10 @@ use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
@@ -205,6 +205,9 @@ class Presenter
                 'credit' => $session->images[$slot['key']]['credit'] ?? null,
                 'query' => $session->images[$slot['key']]['query'] ?? null,
                 'options' => $session->images[$slot['key']]['options'] ?? [],
+                'judged' => (bool) ($session->images[$slot['key']]['judged'] ?? false),
+                'none_fit' => (bool) ($session->images[$slot['key']]['none_fit'] ?? false),
+                'with_references' => (bool) ($session->images[$slot['key']]['with_references'] ?? false),
                 'direction' => $session->images[$slot['key']]['direction'] ?? '',
             ])
             ->values()
