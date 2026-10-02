@@ -6,11 +6,12 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
+use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
-use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\Pattern;
+use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
@@ -459,10 +460,10 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         $this->assertSame('choice', $logo['kind']);
         $this->assertSame(['logos/acme.svg' => 'acme.svg', 'logos/globex.svg' => 'globex.svg'], $logo['options']);
-        $this->assertStringContainsString('`logo` (one of logos/acme.svg, logos/globex.svg)', app(SchemaDescriber::class)->describe($schema, []));
+        $this->assertStringContainsString('`logo` (one of logos/acme.svg, logos/globex.svg)', app(EntryLayouts::class)->layout(Schema::fromSpecs($schema), new Pattern)->fields);
 
         // The file's name is enough, and a colour is written as its hex.
-        $built = app(EntryBuilder::class)->build(['title' => 'Globex', 'logo' => 'globex.svg', 'tint' => '#ff2d20'], $schema)['data'];
+        $built = app(EntryLayouts::class)->build(['title' => 'Globex', 'logo' => 'globex.svg', 'tint' => '#ff2d20'], Schema::fromSpecs($schema))->data;
 
         $this->assertSame('logos/globex.svg', $built['logo']);
         $this->assertSame('#ff2d20', $built['tint']);

@@ -4,8 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter\Ai;
 
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
-use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
-use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaDescriber;
+use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Content\ProseExtractor;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
@@ -45,8 +44,7 @@ class StudioInputs
 
     public function __construct(
         private SchemaReader $reader,
-        private PatternFinder $patterns,
-        private SchemaDescriber $describer,
+        private EntryLayouts $layouts,
         private ProseExtractor $prose,
     ) {}
 
@@ -64,10 +62,10 @@ class StudioInputs
      */
     public function typeSurvey(EntryCollection $collection, Blueprint $blueprint, ?string $title, array $examples): TypeSurvey
     {
-        $schema = $this->reader->read($blueprint);
-        $pattern = $this->patterns->find($collection->handle(), $schema, $blueprint->handle(), [], $examples);
+        $schema = $this->reader->schema($blueprint);
+        $pattern = $this->layouts->pattern($schema, $collection->handle(), $blueprint->handle(), [], $examples);
 
-        return new TypeSurvey($collection->title(), $collection->handle(), Layout::fromPattern($this->describer->describe($schema, $pattern), $pattern), $title, $examples !== []);
+        return new TypeSurvey($collection->title(), $collection->handle(), $this->layouts->layout($schema, $pattern), $title, $examples !== []);
     }
 
     /**
@@ -162,10 +160,9 @@ class StudioInputs
         $blueprint = $type->statamicBlueprint()
             ?? throw new InvalidArgumentException("The collection \"{$type->collection}\" no longer exists.");
 
-        $schema = $this->reader->read($blueprint);
-        $pattern = $this->patterns->find($type->collection, $schema, $type->blueprint, $type->where, $type->examples);
+        $schema = $this->reader->schema($blueprint);
 
-        return Layout::fromPattern($this->describer->describe($schema, $pattern), $pattern);
+        return $this->layouts->layout($schema, $this->layouts->pattern($schema, $type->collection, $type->blueprint, $type->where, $type->examples));
     }
 
     public function kind(ContentType $type): ContentKind

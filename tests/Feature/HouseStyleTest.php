@@ -3,9 +3,13 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Storage;
-use NineteenNinetyFour\Ghostwriter\Blueprints\HouseStyle;
-use NineteenNinetyFour\Ghostwriter\Blueprints\PatternFinder;
+use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\HouseRules;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\Layouts;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\LinkDialect;
+use NineteenNinetyFour\Ghostwriter\Core\Schema\EntryData;
+use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
@@ -85,32 +89,41 @@ class HouseStyleTest extends TestCase
         ], $overrides);
     }
 
-    private function schema(): array
+    private function schema(): Schema
     {
-        return app(SchemaReader::class)->read(Collection::findByHandle('pages')->entryBlueprint());
+        return app(SchemaReader::class)->schema(Collection::findByHandle('pages')->entryBlueprint());
+    }
+
+    /**
+     * What the pages agree on, each page known by its slug.
+     *
+     * @param  array<string, array<string, mixed>>  $pages
+     */
+    private function learn(array $pages): HouseRules
+    {
+        return app(Layouts::class)->houseStyle()->learn(array_map(fn (string $id) => new EntryData($pages[$id], $id), array_keys($pages)), $this->schema());
     }
 
     public function test_settings_links_sequences_and_markup_agreed_by_position_go_into_a_new_page(): void
     {
-        $pages = [$this->page('p1', 'Yacht Studio'), $this->page('p2', 'Architecture Studio'), $this->page('p3', 'Visualisation Studio')];
-        $pages[2]['page_builder'][3]['height'] = '80/120';
+        $pages = ['p1' => $this->page('p1', 'Yacht Studio'), 'p2' => $this->page('p2', 'Architecture Studio'), 'p3' => $this->page('p3', 'Visualisation Studio')];
+        $pages['p3']['page_builder'][3]['height'] = '80/120';
 
-        $style = (new HouseStyle)->learn($pages, $this->schema(), ['p1', 'p2', 'p3']);
+        $style = $this->learn($pages);
 
         // The first spacer is agreed; the last is two to one, which is enough for a setting.
-        $this->assertSame('45/65', $style['positions']['page_builder/spacer#0']['height']);
-        $this->assertSame('60/100', $style['positions']['page_builder/spacer#1']['height']);
+        $this->assertSame('45/65', $style->positions['page_builder/spacer#0']['height']);
+        $this->assertSame('60/100', $style->positions['page_builder/spacer#1']['height']);
 
         // Every page's hero links to the contact page; the last crumb to itself.
-        $this->assertSame('entry::contact', $style['positions']['page_builder/hero#0']['button_link']);
-        $this->assertSame(HouseStyle::SELF, $style['positions']['page_builder/breadcrumbs#0/crumbs/crumb#2']['link']);
-        $this->assertSame(HouseStyle::TITLE, $style['positions']['page_builder/breadcrumbs#0/crumbs/crumb#2']['label']);
-        $this->assertSame(['crumb', 'crumb', 'crumb'], $style['sequences']['page_builder/breadcrumbs#0/crumbs']);
-        $this->assertSame(['textAlign' => 'center'], $style['markup']['page_builder/hero.heading']['heading1']['attrs']);
-        $this->assertSame([['type' => 'bold']], $style['markup']['page_builder/hero.heading']['heading1']['marks']);
+        $this->assertSame('entry::contact', $style->positions['page_builder/hero#0']['button_link']);
+        $this->assertSame(LinkDialect::SELF, $style->positions['page_builder/breadcrumbs#0/crumbs/crumb#2']['link']);
+        $this->assertSame(LinkDialect::TITLE, $style->positions['page_builder/breadcrumbs#0/crumbs/crumb#2']['label']);
+        $this->assertSame(['crumb', 'crumb', 'crumb'], $style->sequences['page_builder/breadcrumbs#0/crumbs']);
+        $this->assertSame(['textAlign' => 'center'], $style->markup['page_builder/hero.heading']['heading1']['attrs']);
+        $this->assertSame([['type' => 'bold']], $style->markup['page_builder/hero.heading']['heading1']['marks']);
 
-        $toFill = [];
-        $data = (new HouseStyle)->apply([
+        $house = app(EntryLayouts::class)->apply([
             'title' => 'Studio Winch',
             'page_builder' => [
                 ['type' => 'spacer'],
@@ -118,8 +131,9 @@ class HouseStyleTest extends TestCase
                 ['type' => 'breadcrumbs'],
                 ['type' => 'spacer'],
             ],
-        ], $this->schema(), $style, $toFill, ['id' => null, 'title' => 'Studio Winch']);
+        ], $this->schema(), $style, null, 'Studio Winch');
 
+        $data = $house->data;
         $blocks = $data['page_builder'];
 
         $this->assertSame('45/65', $blocks[0]['height']);
@@ -137,34 +151,34 @@ class HouseStyleTest extends TestCase
         $this->assertSame(['entry::home', 'entry::studio'], [$crumbs[0]['link'], $crumbs[1]['link']]);
         $this->assertArrayNotHasKey('link', $crumbs[2]);
 
-        $linked = (new HouseStyle)->linkToSelf($data, $this->schema(), $style, 'new-id', 'Studio Winch');
+        $linked = app(EntryLayouts::class)->linkToSelf($data, $this->schema(), $style, 'new-id', 'Studio Winch');
         $this->assertSame('entry::new-id', $linked['page_builder'][2]['crumbs'][2]['link']);
-        $this->assertSame([], $toFill);
+        $this->assertSame([], $house->toFill);
     }
 
     public function test_a_link_to_the_page_itself_is_found_whatever_each_page_calls_it_and_unopposed_links_count(): void
     {
-        $pages = [$this->page('p1', 'Yacht Studio'), $this->page('p2', 'Architecture Studio'), $this->page('p3', 'Visualisation Studio'), $this->page('p4', 'Procurement')];
-        $pages[1]['page_builder'][2]['crumbs'][2]['label'] = 'Architecture';
-        unset($pages[2]['page_builder'][2]['crumbs'][2]['link'], $pages[3]['page_builder'][2]['crumbs'][2]['link']);
+        $pages = ['p1' => $this->page('p1', 'Yacht Studio'), 'p2' => $this->page('p2', 'Architecture Studio'), 'p3' => $this->page('p3', 'Visualisation Studio'), 'p4' => $this->page('p4', 'Procurement')];
+        $pages['p2']['page_builder'][2]['crumbs'][2]['label'] = 'Architecture';
+        unset($pages['p3']['page_builder'][2]['crumbs'][2]['link'], $pages['p4']['page_builder'][2]['crumbs'][2]['link']);
 
         // Two of four link the last crumb to themselves, two leave it empty, none elsewhere.
-        $style = (new HouseStyle)->learn($pages, $this->schema(), ['p1', 'p2', 'p3', 'p4']);
-        $this->assertSame(HouseStyle::SELF, $style['positions']['page_builder/breadcrumbs#0/crumbs/crumb#2']['link']);
+        $style = $this->learn($pages);
+        $this->assertSame(LinkDialect::SELF, $style->positions['page_builder/breadcrumbs#0/crumbs/crumb#2']['link']);
 
         // One page's hero links somewhere else: no longer agreed, so nothing is copied.
-        $pages[3]['page_builder'][1]['button_link'] = 'entry::pricing';
-        $style = (new HouseStyle)->learn($pages, $this->schema(), ['p1', 'p2', 'p3', 'p4']);
-        $this->assertArrayNotHasKey('button_link', $style['positions']['page_builder/hero#0']);
+        $pages['p4']['page_builder'][1]['button_link'] = 'entry::pricing';
+        $style = $this->learn($pages);
+        $this->assertArrayNotHasKey('button_link', $style->positions['page_builder/hero#0']);
 
         // The hero still usually has a link, so a new page gets example.com and says so.
-        $toFill = [];
-        $data = (new HouseStyle)->apply(['title' => 'New', 'page_builder' => [['type' => 'hero']]], $this->schema(), $style, $toFill);
+        $house = app(EntryLayouts::class)->apply(['title' => 'New', 'page_builder' => [['type' => 'hero']]], $this->schema(), $style, null, '');
+        $data = $house->data;
 
-        $this->assertSame(HouseStyle::PLACEHOLDER_URL, $data['page_builder'][0]['button_link']);
+        $this->assertSame(LinkDialect::PLACEHOLDER_URL, $data['page_builder'][0]['button_link']);
         // The button's words are agreed, so they stay; only the link is stood in for.
         $this->assertSame('Talk to us', $data['page_builder'][0]['button_text']);
-        $this->assertSame(['Hero (links to example.com for now)'], $toFill);
+        $this->assertSame(['Hero (links to example.com for now)'], $house->toFill);
     }
 
     public function test_striped_placeholders_go_where_an_image_belongs_and_nowhere_else(): void
@@ -172,7 +186,7 @@ class HouseStyleTest extends TestCase
         $rates = ['featured_image' => 1.0, 'brochure' => 1.0, 'hero.image' => 1.0, 'hero.background' => 0.25];
         $placeholders = new Placeholders($rates);
 
-        $data = $placeholders->fill(['title' => 'New', 'page_builder' => [['type' => 'hero', 'heading' => []]]], $this->schema());
+        $data = $placeholders->fill(['title' => 'New', 'page_builder' => [['type' => 'hero', 'heading' => []]]], $this->schema()->toSpecs());
 
         $this->assertSame(Placeholders::PATH, $data['featured_image']);
         $this->assertSame(Placeholders::PATH, $data['page_builder'][0]['image']);
@@ -201,9 +215,9 @@ class HouseStyleTest extends TestCase
             $entry->data($data)->save();
         }
 
-        $pattern = app(PatternFinder::class)->find('pages', $this->schema());
-        $this->assertSame('45/65', $pattern['house']['positions']['page_builder/spacer#0']['height']);
-        $this->assertSame(1.0, $pattern['filled']['hero.image']);
+        $pattern = app(EntryLayouts::class)->pattern($this->schema(), 'pages');
+        $this->assertSame('45/65', $pattern->house->positions['page_builder/spacer#0']['height']);
+        $this->assertSame(1.0, $pattern->filled['hero.image']);
 
         $session = Session::start('any:pages', ['subject' => 'Winches']);
         $session->draft = "title: Studio Winch\npage_builder:\n  - type: spacer\n  - type: hero\n    heading: |\n      # Winches, rigged right\n    button_text: Talk to us\n  - type: breadcrumbs\n  - type: spacer";

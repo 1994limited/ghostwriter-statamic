@@ -13,13 +13,17 @@ use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\LayoutOptions;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\Layouts;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\Links\StatamicLinks;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\Vocabulary;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\StudioOptions;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
-use NineteenNinetyFour\Ghostwriter\Drafts\BardToMarkdown;
+use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Addons\SettingsRepository;
@@ -114,9 +118,11 @@ class ServiceProvider extends AddonServiceProvider
         // rewritten draft leaves out what it does not hold rather than
         // copying it back, grid rows keep their IDs, and Bard is node trees.
         $this->app->bind(EntryMerger::class, fn () => new EntryMerger(keepMissing: false, mergeRows: true));
-        $this->app->bind(EntrySimplifier::class, fn ($app) => new EntrySimplifier(
-            richText: fn (mixed $value) => is_array($value) ? $app->make(BardToMarkdown::class)->convert($value) : trim((string) $value),
-        ));
+        $this->app->bind(EntrySimplifier::class, fn ($app) => PatternFinder::simplifier($app->make(BardDialect::class)));
+
+        // Core's layout algorithms, as Statamic stores entries: Bard for rich
+        // text, `entry::id` links, and new sets and rows with IDs of their own.
+        $this->app->singleton(Layouts::class, fn ($app) => new Layouts(LayoutOptions::statamic(), $app->make(BardDialect::class), new StatamicLinks));
     }
 
     /**
