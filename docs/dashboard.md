@@ -1,23 +1,29 @@
-# The dashboard and widget
+# The Overview and widget
 
-## Ghostwriter's dashboard
+This page covers Ghostwriter's own home page, the Overview, and the widget for Statamic's dashboard.
 
-**Tools → Ghostwriter** shows:
+## The Overview
 
-- **Get started**, while setup isn't finished: how many of the required steps are done, the next step, and **Continue**. Once they're all done, a one-line **You're set up** stays, with a link to the optional steps, until Get started is hidden. **Hide** is there for people who may change Ghostwriter's settings. See [Get started](getting-started.md#hiding-get-started).
-- **Four tiles**: the voice guide and image style guide (in place or not, and when last updated), ideas waiting on the content plan, and pieces in progress. Click one to open it.
-- **Collections**: every collection Ghostwriter writes for, with its entry count and how many kinds it has. Kinds show as small labels; hover for the description, click to edit. Each collection has:
-  - **Write**, to start a new entry with Ghostwriter.
-  - A **Kinds** menu: **Teach a kind** and **Suggest kinds**. Opening the dashboard doesn't look for kinds by itself; only Get started does.
-  - With more than one collection, **Suggest kinds everywhere** above the list looks over them all at once.
-  - **N suggested kinds to review**, when there are suggestions. See [Kinds of content](kinds.md).
-- **In progress**: pieces being written, with their stage (Writing, Waiting on you, Draft ready, In the form, Editing, and so on). Click one to carry on, or **Remove** it. When conversations are shared, **Remove** is shown only to the person who started the piece and to those who can change Ghostwriter's settings; everyone else can carry it on but not delete it. A piece leaves this list once its entry has been saved. Finished pieces are under **Show finished**. With nothing under way it says "Nothing being written right now."
+**Tools → Ghostwriter → Overview** (`/cp/ghostwriter`). It shows:
 
-The settings cog in the header opens the addon's settings. It shows only to people who may change them.
+- **Get started**, while setup isn't finished: how many required steps are done, the next one, and **Continue**. Once they are all done, a one-line **You’re set up.** stays, with **Get started** for the optional steps, until Get started is hidden. Managers see **Hide** and **Hide Get started**. See [Finishing and hiding Get started](getting-started.md#finishing-and-hiding-get-started).
+- **No API key yet**, as a warning, until the chosen provider has a key.
+- **Four tiles**, each a link: **Voice guide** and **Image style** (**Written** or **Not written yet**), **Content plan** (ideas waiting) and **In progress** (pieces under way).
+- **Collections:** every collection Ghostwriter writes for, with its entry count and its kinds, shown as small labels you can click to edit. Each has **Write**, to start a new entry, and a **Kinds** menu with **Teach a kind** and **Suggest kinds**. With more than one collection, **Suggest kinds everywhere** sits above them. **N suggested kinds to review** opens the suggestions. See [Kinds of content](kinds.md).
+- **In progress:** pieces not yet saved as an entry, with their stage (**Writing**, **Waiting on you**, **Draft ready**, **In the form, not saved**, **Editing** and so on) and who started each ("Started by you", "Started by Maya Lindqvist"). Click one to carry on. **Remove** deletes it, for the person who started it and for managers (see [Deleting a piece](permissions.md#deleting-a-piece)). "A piece leaves this list once its entry has been saved." Finished pieces fold away under **Show N finished**.
+- **Show Get started** at the foot, for managers, once Get started is hidden.
+
+The cog in the header opens the settings, for managers only.
+
+![The Overview: You're set up, four tiles, the collections with Write and Kinds, and In progress](images/overview.png)
+
+It follows the Control Panel's dark mode.
+
+![The Overview in dark mode](images/overview-dark.png)
 
 ## The dashboard widget
 
-Add Ghostwriter to Statamic's own dashboard in `config/statamic/cp.php`:
+Ghostwriter's widget goes on Statamic's own dashboard. Add it in `config/statamic/cp.php`:
 
 ```php
 'widgets' => [
@@ -25,12 +31,26 @@ Add Ghostwriter to Statamic's own dashboard in `config/statamic/cp.php`:
 ],
 ```
 
+A user's own `widgets` preference, if they have one, replaces that list for them; add the same entry there. In a user's YAML file:
+
+```yaml
+preferences:
+  widgets:
+    -
+      type: ghostwriter
+      limit: 5
+```
+
 It shows:
 
-- Ghostwriter has no API key yet, as a one-line warning, until one is added. **Write something** is disabled until then; the rest of the widget still works.
 - Get started progress, until the required steps are done or it is hidden.
-- How many pieces are in progress, and how many ideas are waiting.
-- The latest pieces in progress, with their stage; long titles are truncated.
+- How many pieces are **in progress** and how many **ideas waiting** on the plan.
+- The latest pieces in progress, with their stage. With conversations shared, that is everyone's pieces.
 - **Write something**, a menu of collections to start a new entry in, and **Open Ghostwriter**.
+- With no API key, "Ghostwriter has no API key yet." as a warning. Its links still work, and **Write something** is disabled until a key is added.
 
-`limit` is how many pieces it lists (5 by default, up to 20); `title` renames it. People without the Ghostwriter permission see nothing.
+`limit` is how many pieces it lists (5 by default, up to 20); `title` renames it. People without the Ghostwriter permission don't see it.
+
+![The Ghostwriter widget on Statamic's dashboard](images/widget.png)
+
+Next: [How Ghostwriter reads your fields](fields.md).

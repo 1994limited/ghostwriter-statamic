@@ -1,10 +1,12 @@
 # Editing an existing entry
 
-Open any saved entry in a collection Ghostwriter writes for, and click **Edit with Ghostwriter**, to the left of **Save**.
-
-The panel opens with the entry's content as the form holds it now, including anything you've typed and not yet saved, as the draft. There is no brief: the entry is the brief.
+This page covers changing an entry that already exists, in conversation with Ghostwriter.
 
 ## Asking for changes
+
+Open a saved entry in a collection Ghostwriter writes for, and click **Edit with Ghostwriter**, to the left of **Save & Publish**.
+
+The panel opens with "I have the entry as it stands. Tell me what to change." The draft is the entry as the form holds it now, including anything you've typed and not yet saved. There is no brief: the entry is the brief.
 
 Ask for what you want in plain words:
 
@@ -12,24 +14,31 @@ Ask for what you want in plain words:
 - "Rewrite this for a client who has never commissioned a garden."
 - "Add a short section on maintenance before the closing paragraph."
 
-The draft on the right shows the result, and you can click any text to change it yourself, as when [writing](writing.md#the-draft).
+The revised draft shows on the right. You can change any writing in it yourself, as when [writing](writing.md#the-draft).
+
+![The About page in the panel, with a request, Ghostwriter's reply, and the revised draft with Use these changes](images/editing.png)
 
 ## Use these changes
 
-**Use these changes** puts the revised writing into the form.
+**Use these changes** puts the revised writing into the form, and says "Changes added to the form. Check them over, then save."
 
-- **Only the writing changes.** Images, links, chosen entries, settings, and blocks that are switched off stay exactly as they are in the form, including changes you've made there and not yet saved.
-- **Blocks are matched by type, in order.** The entry's second text block takes the draft's second text block, even if the writer moved it. New blocks are added; blocks the writer removed are removed.
 - **The entry is untouched** until you save the form.
+- **Blocks are matched by type, in order.** The entry's second text block takes the draft's second text block, even if the writer moved it. New blocks are added; blocks the writer removed are removed.
+
+## Start again
+
+**Start again from the entry** throws away the changes asked for in this conversation and starts again from the entry as the form holds it now. It asks first.
 
 ## Coming back
 
-If you close the panel, or reload the page, before using the changes, they are kept. **Edit with Ghostwriter** picks up the same conversation.
-
-To start again from the entry as the form holds it now, and throw away the changes asked for, click **Start again from the entry**.
+If you close the panel, or reload the page, before using the changes, they are kept: **Edit with Ghostwriter** picks up the same conversation.
 
 Once changes have gone into the form, the next **Edit with Ghostwriter** starts again from what the form holds, so anything you've changed by hand since is included, saved or not.
 
 ## What is not changed
 
-Editing never applies [house style](fields.md#house-style) or [image placeholders](images.md#placeholders). Those are for building new entries; an existing entry keeps its own settings, links and images.
+Only the writing changes. Images, links, chosen entries, settings, blocks that are switched off and block IDs stay as they are in the form, including changes you've made there and not yet saved.
+
+Editing never applies [house style](fields.md#house-style) or [image placeholders](images.md#placeholders). Those are for new entries.
+
+Next: [The voice guide and image style guide](guides.md).
