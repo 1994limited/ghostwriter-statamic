@@ -233,7 +233,7 @@ class ImageStudio
             .($canMake ? ' For `make`, one sentence describing the image.' : '')
             ."\n\nInclude a line only for an image that should change, and leave the block out otherwise. Say in your reply what you did about images, in a few words. Images are part of your job here: never say you cannot help with them."
             .($canMake ? '' : ' This site cannot make new images, only find photographs; if asked to generate one, say so and offer to find one.')
-            .' A logo or brand mark is never found or made: if that is what an image should be, tell your colleague to use "Logo card" under Images, which needs the logo file from them.';
+            .' A logo or brand mark is never found or made: if that is what an image should be, tell your colleague to add the logo file to that field themselves.';
     }
 
     /**
@@ -553,14 +553,18 @@ class ImageStudio
 
             if ($best === null && $second !== []) {
                 $best = $this->oneOfEach($second);
+                $fallback = true;
             }
         }
 
+        // Only photos the model compared with the site's own are marked as
+        // the best match; the top result of each search is just first.
+        $judged = $best !== null && ! isset($fallback);
         $best ??= $this->oneOfEach($candidates);
         $ids = array_map(fn (array $photo) => $photo['source'].$photo['id'], $best);
 
         return [
-            ...array_map(fn (array $photo) => $photo + ['picked' => true], $best),
+            ...array_map(fn (array $photo) => $photo + ['picked' => $judged], $best),
             ...array_values(array_filter($candidates, fn (array $photo) => ! in_array($photo['source'].$photo['id'], $ids, true))),
         ];
     }

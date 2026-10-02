@@ -123,6 +123,23 @@ class WritingTest extends TestCase
         $this->postJson($suggestion['learn_url'])->assertNotFound();
     }
 
+    public function test_the_kinds_poll_says_when_learning_a_kind_has_finished_or_failed(): void
+    {
+        $this->signIn();
+        $this->makeArticlesCollection();
+
+        app(TypeState::class)->set('articles', TypeState::WORKING);
+        $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))->assertOk()->assertJsonPath('state.status', 'working');
+
+        app(TypeState::class)->set('articles', TypeState::FAILED, 'The model gave up.');
+        $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))
+            ->assertJsonPath('state.status', 'failed')
+            ->assertJsonPath('state.error', 'The model gave up.');
+
+        app(TypeState::class)->set('articles', TypeState::IDLE);
+        $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))->assertJsonPath('state.status', 'idle');
+    }
+
     public function test_a_scout_with_nothing_to_add_is_not_a_failure(): void
     {
         $this->makeType();
@@ -392,6 +409,24 @@ class WritingTest extends TestCase
         $this->assertSame(['No invented figures.'], $type->checklist);
 
         $this->patchJson(cp_route('ghostwriter.types.update', 'articles'), ['title' => ''])->assertStatus(422);
+
+        // A kind needs a question: without one it is the general brief.
+        $this->patchJson(cp_route('ghostwriter.types.update', 'articles'), ['title' => 'Project article', 'questions' => []])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.questions.0', 'A kind of content needs at least one question.');
+
+        // Handles are not shown: a question keeps the one it had, and a new
+        // one gets one made from its wording, never a duplicate.
+        $this->patchJson(cp_route('ghostwriter.types.update', 'articles'), [
+            'title' => 'Project article',
+            'questions' => [
+                ['label' => 'Who was it for, really?', 'handle' => 'who', 'type' => 'text'],
+                ['label' => 'What did it cost?', 'handle' => null, 'type' => 'textarea'],
+                ['label' => 'Who', 'type' => 'text'],
+            ],
+        ])->assertOk();
+
+        $this->assertSame(['who', 'what_did_it_cost', 'who_2'], array_column(app(TypeRepository::class)->find('articles')->questions, 'handle'));
 
         $this->deleteJson(cp_route('ghostwriter.types.destroy', 'articles'))->assertOk();
         $this->assertNull(app(TypeRepository::class)->find('articles'));
@@ -725,7 +760,6 @@ class WritingTest extends TestCase
         $this->getJson(cp_route('ghostwriter.sessions.photos', $theirs->id, ['key' => 'x']))->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.photo', $theirs->id), ['key' => 'x', 'source' => 'unsplash', 'id' => '1'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.image.copy', $theirs->id), ['key' => 'x'])->assertForbidden();
-        $this->post(cp_route('ghostwriter.sessions.logo-card', $theirs->id), ['key' => 'x'], ['Accept' => 'application/json'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.entry', $theirs->id))->assertForbidden();
         $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $theirs->id))->assertForbidden();
 
@@ -791,6 +825,54 @@ class WritingTest extends TestCase
 
         // Finished pieces are not offered to carry on with.
         $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonPath('sessions', []);
+    }
+
+    public function test_replies_are_rendered_as_markdown_with_html_escaped(): void
+    {
+        $this->signIn();
+        $this->makeType();
+
+        $session = $this->sessionWithDraft(self::DRAFT);
+        $session->addMessage('assistant', "Two things:\n\n- **Shorter** opening\n- <script>alert(1)</script> gone");
+        app(SessionRepository::class)->save($session);
+
+        $messages = $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))->json('messages');
+        $reply = end($messages);
+
+        $this->assertStringContainsString('<li><strong>Shorter</strong> opening</li>', $reply['html']);
+        $this->assertStringContainsString('&lt;script&gt;', $reply['html']);
+        $this->assertStringNotContainsString('<script>', $reply['html']);
+        // The person's own words are left as they are.
+        $this->assertArrayNotHasKey('html', $messages[0]);
+    }
+
+    public function test_a_piece_is_finished_only_once_its_entry_is_saved(): void
+    {
+        $this->signIn();
+        $this->makeType();
+
+        // An older entry that happens to share the title is not this piece.
+        Entry::make()->collection('articles')->slug('old-cost')->published(true)->data(['title' => 'What does a website cost?', 'updated_at' => now()->subDay()->timestamp])->save();
+
+        $session = $this->sessionWithDraft(self::DRAFT);
+        $summary = fn (string $id) => array_intersect_key(app(Presenter::class)->summary(app(SessionRepository::class)->find($id)), ['stage' => 1, 'finished' => 1]);
+
+        $this->assertSame(['stage' => 'draft', 'finished' => false], $summary($session->id));
+
+        // Changes to an existing entry: put into its form is not saved.
+        Entry::make()->collection('articles')->slug('existing')->published(true)->data(['title' => 'Existing Piece', 'summary' => 'Old.', 'updated_at' => now()->subHour()->timestamp])->save();
+        $entry = Entry::query()->where('slug', 'existing')->first();
+        $editing = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->json('id');
+
+        $edit = app(SessionRepository::class)->find($editing);
+        $edit->appliedAt = now()->toIso8601String();
+        app(SessionRepository::class)->save($edit);
+
+        $this->assertSame(['stage' => 'changed', 'finished' => false], $summary($editing));
+
+        // The form is saved: now it is done.
+        $entry->set('updated_at', now()->addSecond()->timestamp)->save();
+        $this->assertSame(['stage' => 'published', 'finished' => true], $summary($editing));
     }
 
     public function test_writing_can_be_changed_where_it_is_shown(): void
@@ -936,6 +1018,47 @@ class WritingTest extends TestCase
 
         // The image field the draft does not cover is not sent, so the form keeps it.
         $this->assertArrayNotHasKey('featured_image', $values);
+    }
+
+    public function test_editing_starts_from_the_form_as_it_stands_and_keeps_its_unsaved_changes(): void
+    {
+        $this->signIn();
+
+        Entry::make()->collection('articles')->slug('existing')->published(true)->data([
+            'title' => 'Existing Piece',
+            'summary' => 'The saved summary.',
+            'page_builder' => [
+                ['id' => 'h1', 'type' => 'hero', 'enabled' => true, 'heading' => 'Old heading', 'image' => 'heroes/saved.mp4'],
+            ],
+        ])->save();
+
+        $entry = Entry::query()->where('slug', 'existing')->first();
+
+        // The form as the person has it: a summary typed and a hero image
+        // swapped, neither saved yet.
+        $form = $entry->blueprint()->fields()->addValues($entry->data()->all())->preProcess()->values()->all();
+        $form['summary'] = 'Typed but not saved.';
+        $form['page_builder'][0]['image'] = 'heroes/unsaved.mp4';
+
+        $detail = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()), ['values' => $form])->assertOk()->json();
+
+        $this->assertStringContainsString('Typed but not saved.', $detail['draft']);
+        $this->assertStringNotContainsString('The saved summary.', $detail['draft']);
+
+        $this->ai->respond('writer', "<reply>Done.</reply>\n<draft>\ntitle: Existing Piece\nsummary: Typed but not saved.\npage_builder:\n  - type: hero\n    heading: New heading\n</draft>");
+        $this->postJson(cp_route('ghostwriter.sessions.message', $detail['id']), ['message' => 'A new heading.'])->assertOk();
+        $this->runTurn(app(SessionRepository::class)->find($detail['id']));
+
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']), ['values' => $form])->assertOk()->json('values');
+
+        // The words changed; the image swapped by hand in the form stayed swapped.
+        $this->assertSame('New heading', $values['page_builder'][0]['heading']);
+        $this->assertSame('heroes/unsaved.mp4', $values['page_builder'][0]['image']);
+        $this->assertSame('Typed but not saved.', $values['summary']);
+
+        // Without the form's values (an older script), the entry as saved is the base, as before.
+        $saved = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']))->assertOk()->json('values');
+        $this->assertSame('heroes/saved.mp4', $saved['page_builder'][0]['image']);
     }
 
     private function startedSession(): Session

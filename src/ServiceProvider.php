@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigProviderSettings;
+use NineteenNinetyFour\Ghostwriter\Ai\ModelCheck;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Http\GuzzleHttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
@@ -19,8 +20,10 @@ use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Events\AddonSettingsSaving;
 use Statamic\Facades\CP\Nav;
+use Statamic\Facades\CP\Toast;
 use Statamic\Facades\Permission;
 use Statamic\Facades\User;
+use Statamic\Facades\YAML;
 use Statamic\Providers\AddonServiceProvider;
 use Statamic\Statamic;
 
@@ -80,6 +83,23 @@ class ServiceProvider extends AddonServiceProvider
         ));
     }
 
+    /**
+     * The settings screen, with each field that config/ghostwriter.php (or
+     * .env) sets locked and labelled, since the config wins.
+     */
+    protected function bootSettingsBlueprint()
+    {
+        parent::bootSettingsBlueprint();
+
+        $path = __DIR__.'/../resources/blueprints/settings.yaml';
+
+        if ($this->getAddon()->hasSettingsBlueprint()) {
+            $this->registerSettingsBlueprint(fn () => app(Settings::class)->lockOverridden(YAML::file($path)->parse()));
+        }
+
+        return $this;
+    }
+
     public function bootAddon(): void
     {
         $this->publishes([
@@ -104,6 +124,20 @@ class ServiceProvider extends AddonServiceProvider
             }
 
             $event->settings->set('show_get_started', null);
+
+            // A model name that belongs to another provider is let through,
+            // as new models appear all the time, but said out loud.
+            $settings = app(Settings::class);
+            $check = app(ModelCheck::class);
+            $provider = $settings->fromConfig('provider') ?? ($event->settings->get('provider') ?: 'anthropic');
+            $imageProvider = $settings->fromConfig('image_provider') ?? ($event->settings->get('image_provider') ?: null);
+
+            foreach (array_filter([
+                $check->mismatch($provider, $settings->fromConfig('model') ?? $event->settings->get('model')),
+                $check->mismatch($imageProvider, $settings->fromConfig('image_model') ?? $event->settings->get('image_model'), 'Image model'),
+            ]) as $warning) {
+                Toast::error($warning)->duration(12000);
+            }
         });
 
         Statamic::provideToScript(['ghostwriter' => fn () => [

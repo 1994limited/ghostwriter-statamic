@@ -19,7 +19,14 @@ export default {
     emits: ['learned'],
 
     data() {
-        return { current: this.collection.suggested, learning: this.collection.state?.status === 'working', busy: null, timer: null };
+        return {
+            current: this.collection.suggested,
+            learning: this.collection.state?.status === 'working',
+            // Why the last kind could not be learned, until the next try.
+            learnError: this.collection.state?.status === 'failed' ? this.collection.state.error : null,
+            busy: null,
+            timer: null,
+        };
     },
 
     computed: {
@@ -55,11 +62,14 @@ export default {
 
             this.current = { status: data.kinds.status, error: data.kinds.error, suggestions: data.kinds.suggestions };
 
-            if (data.state) this.learning = data.state.status === 'working';
+            if (data.state) {
+                this.learning = data.state.status === 'working';
+                this.learnError = data.state.status === 'failed' ? data.state.error : null;
+            }
 
             if (this.looking || this.learning) {
                 this.poll();
-            } else if (wasLearning) {
+            } else if (wasLearning && !this.learnError) {
                 // A kind has been learned: the dashboard's list of kinds is stale.
                 this.$emit('learned');
             }
@@ -88,8 +98,9 @@ export default {
 </script>
 
 <template>
-    <div v-if="looking || learning || current.error || current.suggestions.length" class="mt-3">
+    <div v-if="looking || learning || current.error || learnError || current.suggestions.length" class="mt-3">
         <Alert v-if="current.error" variant="error" :text="current.error" class="mb-2" />
+        <Alert v-if="learnError && !learning" variant="error" :heading="__('Learning did not work')" :text="learnError" class="mb-2" />
 
         <p v-if="looking" class="text-sm text-gray-500">
             <span class="animate-pulse">{{ __('Looking over the entries for kinds of content…') }}</span>
@@ -100,7 +111,7 @@ export default {
 
         <template v-if="current.suggestions.length">
             <div class="mb-2 flex items-center justify-between">
-                <Subheading :text="__(':count suggested kinds to review', { count: current.suggestions.length })" />
+                <Subheading :text="__n(':count suggested kind to review|:count suggested kinds to review', current.suggestions.length)" />
                 <Button v-if="current.suggestions.length > 1" size="sm" variant="ghost" :text="__('Learn all :count', { count: current.suggestions.length })" :disabled="!configured || learning || !!busy" @click="learnAll" />
             </div>
             <div class="space-y-2">

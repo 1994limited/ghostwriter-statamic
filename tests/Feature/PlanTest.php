@@ -66,6 +66,24 @@ class PlanTest extends TestCase
         $this->assertSame(PlanState::IDLE, app(PlanState::class)->get()['status']);
     }
 
+    public function test_suggestions_wait_until_they_are_looked_over_or_dropped(): void
+    {
+        $this->signIn();
+
+        app(PlanState::class)->update(['pending' => [
+            ['title' => 'How to brief a web agency', 'collection' => 'articles', 'type' => null, 'why' => 'Asked often.', 'notes' => ''],
+            ['title' => 'Slow site, lost sale', 'collection' => 'articles', 'type' => null, 'why' => '', 'notes' => ''],
+        ]]);
+
+        // Coming back to the plan, they are still there to look over.
+        $this->get(cp_route('ghostwriter.plan.show'))->assertOk()->assertInertia(fn ($page) => $page->has('plan.pending', 2));
+        $this->getJson(cp_route('ghostwriter.plan.status'))->assertJsonCount(2, 'pending');
+
+        // Only dropping them throws them away, and nothing is remembered.
+        $this->postJson(cp_route('ghostwriter.plan.accept'), ['chosen' => [], 'discard' => true])->assertOk()->assertJsonPath('pending', []);
+        $this->assertCount(0, app(IdeaRepository::class)->all());
+    }
+
     public function test_ideas_cut_off_twice_are_kept_as_far_as_they_got(): void
     {
         $this->ai->respond('planner', new TextResponse("<ideas>\n- title: How to brief a web agency\n  collection: articles\n- title: Rebuild or re", StopReason::MaxTokens));

@@ -37,6 +37,7 @@ export default {
                 draft: this.__('Draft ready'),
                 in_form: this.__('In the form'),
                 editing: this.__('Editing'),
+                changed: this.__('Changes in the form'),
             }[session.stage] ?? this.__('In progress');
         },
     },
@@ -46,6 +47,8 @@ export default {
 <template>
     <Panel :heading="title" :icon="ghost">
         <div class="divide-y divide-gray-200 dark:divide-gray-700!">
+            <p v-if="!configured" class="px-4 py-2 text-sm text-amber-700 dark:text-amber-400!">{{ __('Ghostwriter has no API key yet.') }} <a :href="urls.setup + '#step-1'" class="underline">{{ __('Add one') }}</a></p>
+
             <a v-if="!setup.hidden && !setup.complete" :href="urls.setup" class="block px-4 py-3 hover:bg-gray-50! dark:hover:bg-gray-800!">
                 <div class="flex items-center justify-between text-sm">
                     <span class="font-medium">{{ __('Get started') }} · {{ __(':done of :total', { done: setup.done, total: setup.total }) }}</span>
@@ -58,7 +61,7 @@ export default {
 
             <div class="flex gap-6 px-4 py-3 text-sm">
                 <a :href="urls.index" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #2b3a64)">{{ inProgress.length + moreInProgress }}</strong> {{ __('in progress') }}</a>
-                <a :href="urls.plan" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #2b3a64)">{{ planOpen }}</strong> {{ __('ideas waiting') }}</a>
+                <a :href="urls.plan" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #2b3a64)">{{ planOpen }}</strong> {{ __n('idea waiting|ideas waiting', planOpen) }}</a>
             </div>
 
             <ul v-if="inProgress.length">
@@ -74,7 +77,7 @@ export default {
             <div class="flex items-center justify-between gap-2 px-4 py-3">
                 <Dropdown v-if="collections.length">
                     <template #trigger>
-                        <Button size="sm" variant="primary" :icon="ghost" :text="__('Write something')" :disabled="!configured" />
+                        <Button size="sm" variant="primary" :icon="ghost" :text="__('Write something')" :disabled="!configured" :title="configured ? null : __('Add an API key first')" />
                     </template>
                     <DropdownMenu>
                         <DropdownItem v-for="collection in collections" :key="collection.handle" :text="collection.title" :href="collection.url" />

@@ -15,7 +15,6 @@ use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
@@ -126,101 +125,6 @@ class ImageTest extends TestCase
 
     }
 
-    public function test_a_logo_card_is_drawn_at_the_size_the_field_uses(): void
-    {
-        if (! LogoCard::available()) {
-            $this->markTestSkipped('Imagick is not installed.');
-        }
-
-        $this->signIn();
-
-        // A green square on a transparent ground, and a field whose images are 800 by 600.
-        $logo = new \Imagick;
-        $logo->newImage(200, 100, new \ImagickPixel('transparent'), 'png');
-        $draw = new \ImagickDraw;
-        $draw->setFillColor('#2f9e44');
-        $draw->rectangle(40, 20, 160, 80);
-        $logo->drawImage($draw);
-
-        $reference = new \Imagick;
-        $reference->newImage(800, 600, new \ImagickPixel('#cccccc'), 'png');
-        Storage::disk('assets')->put('stories/one.png', $reference->getImageBlob());
-        Storage::disk('assets')->put('stories/two.png', $reference->getImageBlob());
-
-        $session = $this->draftSession();
-
-        $post = fn (array $options) => $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), $options + [
-            'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent('logo.png', $logo->getImageBlob()),
-        ], ['Accept' => 'application/json']);
-
-        // No colour given: the ground takes the logo's own, the logo turns white.
-        $post([])->assertOk()->assertJsonPath('images.0.status', 'done');
-
-        $record = app(SessionRepository::class)->find($session->id)->images['cover'];
-        $card = new \Imagick;
-        $card->readImageBlob(Storage::disk('assets')->get($record['path']));
-
-        $this->assertSame('#2f9e44', $record['colour']);
-        $this->assertSame([800, 600], [$card->getImageWidth(), $card->getImageHeight()]);
-        $this->assertEqualsWithDelta(47, $card->getImagePixelColor(5, 5)->getColor()['r'], 6);
-        $this->assertGreaterThan(245, $card->getImagePixelColor(400, 300)->getColor()['g']);
-        $this->assertGreaterThan(245, $card->getImagePixelColor(400, 300)->getColor()['r']);
-
-        // Two colours make a gradient: the corners differ.
-        $post(['colour' => '#ff0000', 'colour_to' => '#0000ff', 'white' => '0', 'everywhere' => '1'])->assertOk();
-
-        $images = app(SessionRepository::class)->find($session->id)->images;
-        $card = new \Imagick;
-        $card->readImageBlob(Storage::disk('assets')->get($images['cover']['path']));
-
-        $this->assertGreaterThan(200, $card->getImagePixelColor(2, 2)->getColor()['r']);
-        $this->assertGreaterThan(200, $card->getImagePixelColor(797, 597)->getColor()['b']);
-        $this->assertGreaterThan(100, $card->getImagePixelColor(400, 300)->getColor()['g']);
-
-        // "Everywhere" puts the one card in every image field.
-        $this->assertSame($images['cover']['path'], $images['blocks:banner:0:picture']['path']);
-
-        $post(['colour' => 'greenish'])->assertStatus(422);
-    }
-
-    public function test_a_logo_is_only_ever_a_plain_png_webp_or_svg(): void
-    {
-        if (! LogoCard::available()) {
-            $this->markTestSkipped('Imagick is not installed.');
-        }
-
-        $this->signIn();
-
-        $reference = new \Imagick;
-        $reference->newImage(400, 300, new \ImagickPixel('#cccccc'), 'png');
-        Storage::disk('assets')->put('stories/one.png', $reference->getImageBlob());
-        Storage::disk('assets')->put('stories/two.png', $reference->getImageBlob());
-
-        $session = $this->draftSession();
-        $refused = fn (string $name, string $content) => $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
-            'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent($name, $content),
-        ], ['Accept' => 'application/json'])->assertStatus(422);
-
-        // An SVG that pulls in other files or scripts, however it is dressed.
-        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><image href="http://example.com/x.png"/></svg>');
-        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><style>rect { fill: url(http://example.com/x.svg#p) }</style><rect width="1" height="1"/></svg>');
-        $refused('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><style>@import url("http://example.com/x.css");</style><rect width="1" height="1"/></svg>');
-        $refused('logo.svg', '<!--'.str_repeat('padding ', 400).'--><svg xmlns="http://www.w3.org/2000/svg"><image href="http://example.com/x.png"/></svg>');
-
-        // An Imagick drawing script, with and without an image's name.
-        $mvg = "push graphic-context\nviewbox 0 0 640 480\nfill 'url(http://example.com/x.jpg)'\npop graphic-context";
-        $refused('logo.mvg', $mvg);
-        $refused('logo.png', $mvg);
-
-        // The addon's own ghost is fine.
-        $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
-            'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#2f9e44"/></svg>'),
-        ], ['Accept' => 'application/json'])->assertOk();
-    }
-
     public function test_an_image_is_not_saved_where_the_person_could_not_upload(): void
     {
         config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
@@ -232,10 +136,6 @@ class ImageTest extends TestCase
 
         $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'unsplash', 'id' => 'abc123'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.image', $session->id), ['key' => 'cover'])->assertForbidden();
-        $this->post(cp_route('ghostwriter.sessions.logo-card', $session->id), [
-            'key' => 'cover',
-            'logo' => UploadedFile::fake()->createWithContent('logo.png', $this->png()),
-        ], ['Accept' => 'application/json'])->assertForbidden();
 
         Bus::assertNotDispatched(GenerateImage::class);
         $this->assertSame(['stories/one.png', 'stories/two.png'], Storage::disk('assets')->files('stories'));

@@ -35,7 +35,7 @@ class DashboardController
             ],
             'configured' => $studio->configured(),
             'provider' => $studio->provider(),
-            'settings_url' => $settings->url(),
+            'settings_url' => $settings->urlForCurrentUser(),
             'voice' => [
                 'exists' => $guide->exists(),
                 'updated_at' => $guide->updatedAt()?->diffForHumans(),

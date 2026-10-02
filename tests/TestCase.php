@@ -52,6 +52,10 @@ abstract class TestCase extends AddonTestCase
             'ai.providers' => [],
         ]);
 
+        // The addon's settings live in a file the test app keeps between
+        // tests; each test starts with none saved.
+        File::delete(resource_path('addons/ghostwriter-statamic.yaml'));
+
         $this->http = new MockHttpClient;
         $this->app->instance(HttpClients::class, $this->http);
         $this->app->forgetInstance(Providers::class);
@@ -79,6 +83,7 @@ abstract class TestCase extends AddonTestCase
         $this->assertSame([], $this->http->requests, 'A request reached the network layer.');
 
         File::deleteDirectory($this->workspace);
+        File::delete(resource_path('addons/ghostwriter-statamic.yaml'));
 
         parent::tearDown();
     }
@@ -174,6 +179,17 @@ abstract class TestCase extends AddonTestCase
             'guidance' => 'Open on the reader. Two sections.',
             'checklist' => ['Every fact comes from the brief.'],
         ]));
+    }
+
+    /**
+     * Someone who may also change Ghostwriter's settings. A second person
+     * signed in during a test needs Statamic Pro.
+     */
+    protected function signInAsManager(): \Statamic\Contracts\Auth\User
+    {
+        config(['statamic.editions.pro' => true]);
+
+        return $this->signInWith(['access ghostwriter', 'edit 1994/ghostwriter-statamic settings', ...self::WRITER_PERMISSIONS]);
     }
 
     /** What a writer may do, Ghostwriter aside: the Statamic permissions the tests lean on. */

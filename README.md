@@ -19,9 +19,9 @@ It works on any collection because it takes its instructions from the collection
 - **Image style.** Looks at the images your entries use and writes down the house style, a section per collection, so the photographs it finds and the pictures it makes belong beside them.
 - **Kinds of content.** Looks over each collection and suggests the kinds of content in it (a case study, a service page, a press release), each learned with a click into a brief of its own. A general brief works on every collection with no setup at all.
 - **Writing.** *Write with Ghostwriter* on a create screen opens a panel beside the form. Give it a title and a few notes and the brief fills itself in; check it, answer anything it still needs, and the draft appears. Ask for changes in conversation, click any piece of writing to edit it in place, then *Use this draft* fills in the form.
-- **Editing.** *Edit with Ghostwriter* on an existing entry starts from the entry as saved. Only the writing changes; images, links, chosen entries, settings and block IDs stay as they were.
+- **Editing.** *Edit with Ghostwriter* on an existing entry starts from the entry as its form holds it, unsaved typing included. Only the writing changes; images, links, chosen entries, settings and block IDs stay as they are in the form.
 - **House style.** A new entry takes what the model entries agree on place by place: the settings and links where each block sits, how many nested items (such as breadcrumbs) and of which types, and how rich text is dressed. Where an image belongs but none is chosen yet, a striped placeholder marks the spot.
-- **Images.** A Ghostwriter button on every assets field: find a free photograph (searches chosen from the words around the field, ranked against the pictures already in that place), have one made in that style, or compose a logo card. The image goes straight into the field.
+- **Images.** A Ghostwriter button on every assets field: find a free photograph (searches chosen from the words around the field, ranked against the pictures already in that place), or have one made in that style. The image goes straight into the field.
 - **Content plan.** Ghostwriter reads the whole site and suggests entries it is missing. Keep the good ones; each opens a new entry with its brief filled in.
 - **Get started.** Seven steps from installed to writing, done from one page, with a card on the dashboard and a Control Panel widget.
 
@@ -37,7 +37,7 @@ Full documentation is in [docs/](docs/README.md): [installation](docs/installati
 ## Requirements
 
 - Statamic 6
-- PHP 8.3+, with GD (for placeholders); Imagick for logo cards and SVG logos
+- PHP 8.3+, with GD (for placeholders); Imagick is optional, for sending smaller copies of images to the model
 - An API key for Anthropic, OpenAI or Gemini
 - A queue connection, or PHP-FPM (see "The queue" below)
 
@@ -76,7 +76,7 @@ The **Get started** page walks through it. In short:
 
 1. **Settings** (under Ghostwriter in the navigation): the collections to write for, the collections to read for the voice, the provider and model.
 2. **Voice guide**: generate it, read it, correct it.
-3. **Kinds**: on the dashboard, learn the kinds Ghostwriter suggests for each collection, or *Teach it a kind* by hand.
+3. **Kinds**: on the dashboard, learn the kinds Ghostwriter suggests for each collection, or *Teach a kind* by hand.
 4. **Image style** (optional): generate it from your images.
 5. **Content plan** (optional): ask what is missing.
 6. Write something.
@@ -91,7 +91,7 @@ Model calls take a minute or more, longer than a web request should be held open
 
 ## Configuration
 
-`config/ghostwriter.php` sets code-level defaults; the settings screen takes precedence. Publish it with:
+Most settings can be chosen on the settings screen or in `config/ghostwriter.php` (and `.env`). A value set in the config wins, and the settings screen shows that field locked. Publish the config with:
 
 ```bash
 php artisan vendor:publish --tag=ghostwriter-config
@@ -103,11 +103,11 @@ php artisan vendor:publish --tag=ghostwriter-config
 | Collections to write for | Settings screen, or `collections` | All |
 | Collections read for the voice | Settings screen, or `voice.collections` | All |
 | Suggest kinds automatically | Settings screen, or `suggest_kinds` | On |
-| Striped placeholders | Settings screen, or `images.placeholders` | On |
+| Mark images still to choose (striped placeholders) | Settings screen, or `images.placeholders` | On |
 | Image provider and model | Settings screen, or `images.provider` / `images.model` | Whichever has a key |
 | Openverse | `images.openverse` | On |
 | Show Get started | Settings screen (acts on Ghostwriter's own state; not stored) | |
-| Timeout per model call | `timeout` | 180 seconds |
+| Timeout per model call | `timeout` | 300 seconds |
 
 The dashboard widget is added in `config/statamic/cp.php`:
 

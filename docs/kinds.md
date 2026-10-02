@@ -14,20 +14,22 @@ Ghostwriter looks at a collection's entries (their titles, how they are built, h
 - It looks **by itself** the first time a collection appears on the dashboard, and again once ten or more entries have been published there since. Each look is one model call. Turn this off with **Suggest kinds of content** in the settings.
 - **Suggest kinds** in a collection's **Kinds** menu on the dashboard asks again now.
 
-Suggestions appear under the collection as **N suggested kinds to review**. Open it, then:
+Suggestions appear under the collection as **N suggested kinds to review**. Each shows what the kind is, why it's worth teaching, and up to three of the entries it was found in. Open the list, then:
 
-- **Learn this** writes the brief for that kind from the entries it was suggested from. It takes about a minute.
+- **Learn this** writes the brief for that kind from the entries it was suggested from. It takes about a minute; the collection's row says **Learning…** until it is done, then the new kind appears. If it fails, the reason stays under the collection until the next try.
 - **Not this** dismisses it. Dismissed kinds aren't suggested again.
-- **Learn all N** learns every suggestion in the collection, one after another. One failing does not stop the rest; failures are reported by name.
+- **Learn all N** asks first, as it takes about a minute a kind, then learns every suggestion in the collection, one after another. One failing does not stop the rest; failures are reported by name.
 
 The Get started page shows the same suggestions on its fourth step.
 
 ## Teaching a kind yourself
 
-**Teach it a kind** (in a collection's **Kinds** menu, or in the writing panel) teaches one by hand:
+**Teach a kind** (in a collection's **Kinds** menu, or in the writing panel) teaches one by hand:
 
 1. **What is this kind of content called?** For example "Case study". Leave it blank and Ghostwriter names it.
 2. **Model it on**: tick up to six entries that are good examples, or leave them unticked to use the newest published entries.
+
+**Learn this** closes the box. The collection's row on the dashboard says **Learning…** while Ghostwriter reads the entries, about a minute, and the new kind appears there when it is done, or the reason if it failed.
 
 Ghostwriter writes the questions, guidance and checklist from those entries. Two kinds with the same name get their own handles (`event`, `event-2`); nothing is overwritten.
 
@@ -36,12 +38,12 @@ Ghostwriter writes the questions, guidance and checklist from those entries. Two
 Click a kind on the dashboard to open it. You can change:
 
 - **Name** and **Description** (shown when choosing what to write).
-- **The brief**: the questions, each with a hint, and whether it must be answered. Ask only for what can't be invented: what happened, who for, what resulted, what must be left out.
+- **The brief**: the questions, each with a hint, an answer length (**One line** or **Paragraph**), and whether it must be answered. Ask only for what can't be invented: what happened, who for, what resulted, what must be left out. A kind needs at least one question; without any, it would be the general brief under another name. Each question's handle is made from its wording and kept when you reword it; to set one yourself, edit the kind's YAML file.
 - **Guidance for the writer**, in markdown. The fields themselves are read from the blueprint, so the guidance doesn't need to list them.
 - **Check before handing over**: one statement per line.
 - **Modelled on**: the example entries.
 
-**Delete** removes the kind; entries already written with it are not affected.
+**Delete** asks first, then removes the kind and says so (**Kind deleted**); entries already written with it are not affected.
 
 ## Where kinds are kept
 
