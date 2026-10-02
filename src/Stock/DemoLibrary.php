@@ -20,6 +20,9 @@ class DemoLibrary
 {
     public const ID = 'demo';
 
+    /** The container key a test binds its own scripted demo library to. */
+    public const BINDING = 'ghostwriter.stock.demo-library';
+
     /** Its photos: ID => title, width, height, and editorial restrictions if any. */
     public const PHOTOS = [
         'demo-101' => ['Stone path through a summer meadow', 1600, 1067, null],
