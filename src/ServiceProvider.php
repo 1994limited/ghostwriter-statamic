@@ -15,6 +15,8 @@ use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\Vocabulary;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\StudioOptions;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardToMarkdown;
@@ -78,6 +80,16 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->singleton(PromptLibrary::class, fn () => new PromptLibrary(
             Vocabulary::statamic(),
             fn (string $name): ?string => is_file($path = resource_path("ghostwriter/prompts/{$name}.md")) ? (string) file_get_contents($path) : null,
+        ));
+
+        // Writing, planning and learning the site are core's Studio, with
+        // Statamic's options. With ghostwriter.debug.log_replies on, a reply
+        // that can't be read is logged whole; otherwise only what was wrong.
+        $this->app->singleton(CoreStudio::class, fn ($app) => new CoreStudio(
+            $app->make(Providers::class),
+            $app->make(PromptLibrary::class),
+            Log::channel(config('ghostwriter.log_channel')),
+            StudioOptions::statamic(logReplies: (bool) config('ghostwriter.debug.log_replies', false)),
         ));
 
         // Photo search is core's too: the libraries, choosing the searches,

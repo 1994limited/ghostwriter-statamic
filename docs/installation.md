@@ -22,7 +22,7 @@ From your project's root:
 composer require 1994/ghostwriter-statamic
 ```
 
-This also installs `1994/ghostwriter-core` (`~0.2.0`) from Packagist: the part Ghostwriter shares with its Filament and Craft versions. No extra repository is needed.
+This also installs `1994/ghostwriter-core` (`~0.3.0`) from Packagist: the part Ghostwriter shares with its Filament and Craft versions. No extra repository is needed.
 
 Ghostwriter no longer uses the Laravel AI SDK (`laravel/ai`). It has its own connection to Anthropic, OpenAI and Gemini, and doesn't read `config/ai.php`, except that a key still set there is used when the matching `.env` variable is empty. If `config/ai.php` was only there for Ghostwriter, you can delete it.
 

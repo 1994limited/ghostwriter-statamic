@@ -3,12 +3,14 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use NineteenNinetyFour\Ghostwriter\Actions\WriteWithGhostwriter;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\StopReason;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextResponse;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
@@ -75,6 +77,32 @@ class WritingTest extends TestCase
 
         // The second ask said what was wrong with the first answer.
         $this->ai->assertSent('type-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'could not be read: there was no <type> block'));
+    }
+
+    public function test_an_unreadable_reply_is_logged_whole_only_when_the_debug_setting_is_on(): void
+    {
+        config([
+            'logging.channels.ghostwriter-test' => ['driver' => 'single', 'path' => $this->workspace.'/ghostwriter.log'],
+            'ghostwriter.log_channel' => 'ghostwriter-test',
+        ]);
+
+        $analyse = function (): string {
+            $this->app->forgetInstance(CoreStudio::class);
+            File::delete($this->workspace.'/ghostwriter.log');
+            $this->ai->respond('type-analyst', 'Sorry, I cannot help with SECRET-REPLY-TEXT.', 'Still no.');
+
+            (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+
+            return (string) File::get($this->workspace.'/ghostwriter.log');
+        };
+
+        // Off by default: the log says what was wrong, not what the model wrote.
+        $log = $analyse();
+        $this->assertStringContainsString('the type analysis for articles could not be read (there was no <type> block)', $log);
+        $this->assertStringNotContainsString('SECRET-REPLY-TEXT', $log);
+
+        config(['ghostwriter.debug.log_replies' => true]);
+        $this->assertStringContainsString('SECRET-REPLY-TEXT', $analyse());
     }
 
     public function test_a_type_in_a_code_fence_or_fixed_on_the_second_try_is_read(): void

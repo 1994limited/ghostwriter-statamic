@@ -55,6 +55,7 @@ php artisan vendor:publish --tag=ghostwriter-config
 | `base_urls.anthropic`, `base_urls.openai`, `base_urls.gemini` | `null` | A gateway that speaks the provider's API. See [Gateways and proxies](api-keys.md#gateways-and-proxies) |
 | `anthropic_fallbacks` | `true` | Pass a request Claude declines to the model Anthropic recommends, on models that support it |
 | `log_channel` | `null` (the default channel) | Where each call is logged |
+| `debug.log_replies` | `false` | Put the whole reply in the log when it can't be read. See [Seeing what went wrong](troubleshooting.md#seeing-what-went-wrong) |
 | `images.provider`, `images.model` | `null` | Making images. `null` provider uses OpenAI, then Gemini, whichever has a key |
 | `images.unsplash_key`, `images.pexels_key`, `images.pixabay_key` | from `.env` | Photo library keys |
 | `images.openverse` | `null` (the screen; on if that is blank) | Search Openverse |
@@ -124,6 +125,6 @@ They land in `resources/ghostwriter/prompts/`. Keep any `{{ placeholders }}` tha
 
 ## Logging
 
-Every model call is logged with the provider, model, tokens and time, never the words sent or received, or the keys. Set `log_channel` (`GHOSTWRITER_LOG_CHANNEL`) to send these lines to their own channel. Errors, and replies that couldn't be read, go to the log too, prefixed "Ghostwriter:".
+Every model call is logged with the provider, model, tokens and time, never the words sent or received, or the keys. Set `log_channel` (`GHOSTWRITER_LOG_CHANNEL`) to send these lines to their own channel. Errors, and what was wrong with replies that couldn't be read, go to the log too, prefixed "Ghostwriter:". The reply itself is logged only with `debug.log_replies` (`GHOSTWRITER_LOG_REPLIES`) on.
 
 Next: [Writing a new entry](writing.md).
