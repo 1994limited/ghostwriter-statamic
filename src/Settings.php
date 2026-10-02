@@ -181,6 +181,20 @@ class Settings
     }
 
     /**
+     * Each setting config/ghostwriter.php (or .env) fixes, at the value it
+     * fixes it to, keyed by its field on the settings screen.
+     *
+     * @return array<string, mixed>
+     */
+    public function configured(): array
+    {
+        return collect(array_keys(self::IN_CONFIG))
+            ->mapWithKeys(fn (string $key) => [$key => $this->fromConfig($key)])
+            ->reject(fn (mixed $value) => $value === null)
+            ->all();
+    }
+
+    /**
      * Whether a setting is fixed in code, so the settings screen cannot change it.
      */
     public function isOverridden(string $key): bool
@@ -190,7 +204,8 @@ class Settings
 
     /**
      * The settings screen's blueprint with each field set in code locked,
-     * and a note saying where it is set and what it is.
+     * and a note saying where it is set and what it is. The field shows that
+     * value too: ConfiguredSettingsRepository lays it over the saved one.
      *
      * @param  array<string, mixed>  $contents
      * @return array<string, mixed>

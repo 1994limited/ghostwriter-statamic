@@ -32,7 +32,7 @@ tabs:
             field:
               type: toggle
               display: Suggest kinds of content
-              instructions: 'Look over each collection for kinds of content worth teaching, the first time it is seen and again once ten more entries have been published. Off, kinds are only suggested when asked.'
+              instructions: 'When Get started opens, look over each collection for kinds of content worth teaching: the first time it is seen, and again once ten more entries have been published. Everywhere else, and with this off, kinds are only suggested when someone clicks Suggest kinds.'
               default: true
       -
         display: API keys

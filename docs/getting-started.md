@@ -22,7 +22,7 @@ Without a voice guide, Ghostwriter still writes, but in a plain voice rather tha
 
 ## 4. Teach it your kinds of content
 
-Ghostwriter looks at each collection and suggests the kinds of content in it, such as "Case study" or "Service page". The suggestions are shown on this step, each with why it's worth teaching and a few of the entries it was found in. **Learn this** on the ones you write often; each gets its own brief. **Learn all** asks first, then learns every suggestion in a collection, one after another. See [Kinds of content](kinds.md).
+When this page opens, Ghostwriter looks at each collection it hasn't looked at yet (or that has ten or more new entries since) and suggests the kinds of content in it, such as "Case study" or "Service page". The suggestions are shown on this step, each with why it's worth teaching and a few of the entries it was found in. **Learn this** on the ones you write often; each gets its own brief. **Learn all** asks first, then learns every suggestion in a collection, one after another. See [Kinds of content](kinds.md).
 
 Every collection can be written for without this; it then uses a general brief.
 

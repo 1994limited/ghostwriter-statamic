@@ -9,6 +9,7 @@ use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Widgets\Ghostwriter;
+use Statamic\Contracts\Addons\SettingsRepository;
 use Statamic\Facades\Addon;
 use Statamic\Facades\Collection;
 
@@ -91,7 +92,8 @@ class SetupTest extends TestCase
     public function test_collections_are_chosen_in_place_by_those_who_may_change_the_settings(): void
     {
         Collection::make('pages')->title('Pages')->save();
-        $saved = fn (string $key) => Addon::get(Settings::ADDON)->settings()->raw()[$key] ?? null;
+        // As stored: a list set in config is shown over it, not saved into it.
+        $saved = fn (string $key) => app(SettingsRepository::class)->stored(Settings::ADDON)[$key] ?? null;
 
         $this->signIn();
         $this->postJson(cp_route('ghostwriter.setup.collections'), ['collections' => ['articles']])->assertForbidden();

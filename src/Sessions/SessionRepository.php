@@ -7,6 +7,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Utf8;
+use NineteenNinetyFour\Ghostwriter\Settings;
 use Statamic\Contracts\Auth\User;
 
 /**
@@ -67,6 +68,21 @@ class SessionRepository
         return $this->shared() || $session->belongsTo($user);
     }
 
+    /**
+     * Whether a person may remove a session. When conversations are shared,
+     * everyone may carry a piece on, but only the person who started it, a
+     * super user, or someone who looks after Ghostwriter's settings may
+     * delete it; when they are not, whoever may see it.
+     */
+    public function canDelete(Session $session, ?User $user): bool
+    {
+        if (! $this->canSee($session, $user)) {
+            return false;
+        }
+
+        return ! $this->shared() || $session->belongsTo($user) || $user->can('edit '.Settings::ADDON.' settings');
+    }
+
     public function find(string $id): ?Session
     {
         // IDs are ULIDs; anything else is not ours to look up.
@@ -110,6 +126,30 @@ class SessionRepository
             flock($handle, LOCK_UN);
             fclose($handle);
         }
+    }
+
+    /**
+     * Change a session as it stands now, under its lock: read it afresh,
+     * change it, save it. For a change made after slow work (fetching a
+     * photograph, building a form), so it lands on whatever a turn or
+     * another person saved meanwhile instead of over it. Null when the
+     * session has gone.
+     *
+     * @param  Closure(Session): void  $change
+     */
+    public function update(string $id, Closure $change): ?Session
+    {
+        return $this->exclusively($id, function () use ($id, $change) {
+            $session = $this->find($id);
+
+            if (! $session) {
+                return null;
+            }
+
+            $change($session);
+
+            return $this->save($session);
+        });
     }
 
     public function save(Session $session): Session

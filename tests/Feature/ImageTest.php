@@ -555,6 +555,106 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $this->assertSame([], array_filter(array_column($offered['options'], 'picked')));
     }
 
+    public function test_an_image_chosen_while_the_writer_works_is_kept_when_the_turn_saves(): void
+    {
+        Bus::fake([GenerateImage::class]);
+        $this->signIn();
+
+        $session = $this->draftSession();
+        $session->images = ['blocks:banner:0:picture' => ['status' => 'done', 'path' => 'banners/one.png', 'url' => '/assets/banners/one.png']];
+        $session->addMessage('user', 'Make the banner new.');
+        $session->run(null);
+        app(SessionRepository::class)->save($session);
+
+        $changed = str_replace('heading: Hello', 'heading: Hello again', self::DRAFT);
+
+        // While the writer works, the person uses the banner's picture for
+        // the cover. Image choices are not held up by the turn.
+        $this->ai->respond('writer', function () use ($session, $changed) {
+            $this->postJson(cp_route('ghostwriter.sessions.image.copy', $session->id), ['key' => 'cover', 'from' => 'blocks:banner:0:picture'])->assertOk();
+
+            return "<reply>A new banner is on its way.</reply>\n<draft>\n{$changed}\n</draft>\n<images>\nblocks:banner:0:picture | make | a lighthouse at dusk\n</images>";
+        });
+
+        (new RunSessionTurn($session->id))->handle(app(SessionRepository::class), app(TypeRepository::class), app(Studio::class), app(VoiceGuide::class));
+
+        $saved = app(SessionRepository::class)->find($session->id);
+
+        // The turn's work is saved, and so is the choice made meanwhile.
+        $this->assertSame($changed, $saved->draft);
+        $this->assertSame(Session::IDLE, $saved->status);
+        $this->assertSame('A new banner is on its way.', end($saved->messages)['content']);
+        $this->assertSame(['status' => 'done', 'path' => 'banners/one.png'], array_intersect_key($saved->images['cover'], ['status' => 1, 'path' => 1]));
+
+        // The turn's own image request lands on the field nobody touched.
+        $this->assertSame('working', $saved->images['blocks:banner:0:picture']['status']);
+        Bus::assertDispatched(GenerateImage::class, fn ($job) => $job->key === 'blocks:banner:0:picture');
+    }
+
+    public function test_a_turn_does_not_overwrite_a_field_chosen_since_it_began_and_a_removed_piece_stays_removed(): void
+    {
+        Bus::fake([GenerateImage::class]);
+
+        $session = $this->draftSession();
+        $session->addMessage('user', 'Make a cover.');
+        $session->run(null);
+        app(SessionRepository::class)->save($session);
+
+        // The person chooses a cover while the writer asks for one to be made.
+        $this->ai->respond('writer', function () use ($session) {
+            app(SessionRepository::class)->update($session->id, fn (Session $latest) => $latest->images['cover'] = ['status' => 'done', 'path' => 'stories/two.png', 'url' => '/assets/stories/two.png', 'error' => null]);
+
+            return "<reply>Making one.</reply>\n<images>\ncover | make | a harbour\n</images>";
+        });
+
+        $run = fn () => (new RunSessionTurn($session->id))->handle(app(SessionRepository::class), app(TypeRepository::class), app(Studio::class), app(VoiceGuide::class));
+        $run();
+
+        $this->assertSame('stories/two.png', app(SessionRepository::class)->find($session->id)->images['cover']['path']);
+        $this->assertSame('done', app(SessionRepository::class)->find($session->id)->images['cover']['status']);
+
+        // Removed while the writer worked: the turn does not bring it back.
+        $this->ai->reset('writer')->respond('writer', function () use ($session) {
+            app(SessionRepository::class)->delete(app(SessionRepository::class)->find($session->id));
+
+            return '<reply>Done.</reply>';
+        });
+
+        $again = app(SessionRepository::class)->find($session->id);
+        $again->run(null);
+        app(SessionRepository::class)->save($again);
+        $run();
+
+        $this->assertNull(app(SessionRepository::class)->find($session->id));
+
+        // Nor does an image finished after it went.
+        (new GenerateImage($session->id, 'cover'))->handle(app(SessionRepository::class), app(TypeRepository::class), app(ImageStudio::class));
+        $this->assertNull(app(SessionRepository::class)->find($session->id));
+    }
+
+    public function test_using_the_draft_keeps_an_image_already_chosen_in_the_form(): void
+    {
+        $this->signIn();
+
+        $session = $this->draftSession();
+
+        // Without one, the cover gets the striped placeholder.
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id))->assertOk()->json('values');
+        $this->assertSame(['assets::ghostwriter/image-placeholder.png'], (array) $values['cover']);
+
+        // Chosen in the form before the draft was used: it stays.
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => ['title' => '', 'cover' => ['assets::stories/two.png']]])->assertOk()->json('values');
+        $this->assertSame(['assets::stories/two.png'], (array) $values['cover']);
+
+        // One chosen in the panel goes in all the same.
+        $session = app(SessionRepository::class)->find($session->id);
+        $session->images = ['cover' => ['status' => 'done', 'path' => 'stories/one.png']];
+        app(SessionRepository::class)->save($session);
+
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => ['cover' => ['assets::stories/two.png']]])->assertOk()->json('values');
+        $this->assertSame(['assets::stories/one.png'], (array) $values['cover']);
+    }
+
     private function draftSession(): Session
     {
         $session = Session::start('any:stories', ['subject' => 'A new story.']);

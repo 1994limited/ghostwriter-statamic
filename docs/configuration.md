@@ -26,7 +26,7 @@ To set any of these in code, or differently per environment, publish the config:
 php artisan vendor:publish --tag=ghostwriter-config
 ```
 
-A value set in the config file (or its environment variable) wins over the settings screen, which then shows that field locked, with a note saying where it is set. Leave a value `null` (or a list empty) to let the settings screen decide. The settings that work this way are `provider`, `model`, `collections`, `voice.collections`, `suggest_kinds`, `images.provider`, `images.model` and `images.placeholders`.
+A value set in the config file (or its environment variable) wins over the settings screen, which then shows that field locked, with a note saying where it is set. Leave a value `null` (or a list empty) to let the settings screen decide. The locked field shows the value from the config, not the one saved on the screen; what was saved is kept, and comes back if you take the value out of the config. The settings that work this way are `provider`, `model`, `collections`, `voice.collections`, `suggest_kinds`, `images.provider`, `images.model`, `images.placeholders` and `images.openverse`.
 
 If you published the config before 1.1.0, its `provider` line reads `env('GHOSTWRITER_PROVIDER', 'anthropic')`, which now fixes the provider to Claude. Change it to `env('GHOSTWRITER_PROVIDER')` to choose the provider on the settings screen again; do the same for `suggest_kinds` and `images.placeholders`.
 
@@ -42,7 +42,7 @@ If you published the config before 1.1.0, its `provider` line reads `env('GHOSTW
 | `collections` | `[]` (all) | Collection handles to write for |
 | `voice.collections` | `[]` (all) | Collection handles read for the voice guide |
 | `voice.max_entries`, `voice.max_chars_per_entry`, `voice.max_chars` | `24`, `6000`, `90000` | How much is read for the voice guide |
-| `suggest_kinds` | `null` (the settings screen; on if that is blank) | Look for kinds without being asked |
+| `suggest_kinds` | `null` (the settings screen; on if that is blank) | Look for kinds without being asked, on Get started only |
 | `images.provider` | `null` | `openai` or `gemini`; `null` uses whichever has a key |
 | `images.model` | provider's default | |
 | `images.openverse` | `null` (the settings screen; on if that is blank) | Search Openverse |

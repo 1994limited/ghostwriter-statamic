@@ -20,6 +20,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardToMarkdown;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use Statamic\Contracts\Addons\SettingsRepository;
 use Statamic\Events\AddonSettingsSaving;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\CP\Toast;
@@ -53,6 +54,9 @@ class ServiceProvider extends AddonServiceProvider
 
         $this->mergeConfigFrom(__DIR__.'/../config/ghostwriter.php', 'ghostwriter');
         $this->publishes([__DIR__.'/../config/ghostwriter.php' => config_path('ghostwriter.php')], 'ghostwriter-config');
+
+        // A field the config locks shows the config's value on the settings screen.
+        $this->app->extend(SettingsRepository::class, fn (SettingsRepository $repository) => $repository instanceof ConfiguredSettingsRepository ? $repository : new ConfiguredSettingsRepository($repository));
 
         // Resolved late so a project can point `ghostwriter.writer` at its own
         // class, or bind the contract itself in a service provider.
@@ -145,6 +149,16 @@ class ServiceProvider extends AddonServiceProvider
 
             $event->settings->set('show_get_started', null);
             $event->settings->set('key_status', null);
+
+            // A locked field shows, and so sends back, the config's value.
+            // What was saved for it stays, for when the config lets go.
+            $stored = ($repository = app(SettingsRepository::class)) instanceof ConfiguredSettingsRepository ? $repository->stored(Settings::ADDON) : [];
+
+            foreach (app(Settings::class)->configured() as $key => $value) {
+                if (($event->settings->raw()[$key] ?? null) === $value) {
+                    $event->settings->set($key, $stored[$key] ?? null);
+                }
+            }
 
             // A model name that belongs to another provider is let through,
             // as new models appear all the time, but said out loud.

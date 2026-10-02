@@ -8,6 +8,8 @@ use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\Addon;
 use Statamic\Facades\CP\Toast;
+use Statamic\Facades\User;
+use Statamic\Facades\YAML;
 
 /**
  * Where each setting comes from: the config wins over the settings screen,
@@ -128,5 +130,47 @@ class SettingsTest extends TestCase
 
         // Saved all the same.
         $this->assertSame('gpt-6.1-sol', app(Settings::class)->model());
+    }
+
+    public function test_a_locked_field_shows_the_value_the_config_sets_and_saving_keeps_the_stored_one(): void
+    {
+        config(['ghostwriter.provider' => null]);
+        $addon = Addon::get(Settings::ADDON);
+        $addon->settings()->set(['openverse' => true, 'placeholder_images' => true, 'model' => 'claude-opus-5-5', 'collections' => ['pages']])->save();
+
+        config([
+            'ghostwriter.images.openverse' => false,
+            'ghostwriter.images.placeholders' => false,
+            'ghostwriter.provider' => 'gemini',
+            'ghostwriter.collections' => ['articles'],
+        ]);
+
+        $user = User::make()->email('admin@example.com')->makeSuper();
+        $user->save();
+        $this->actingAs($user);
+
+        // Every lockable field shows what applies, not what was saved.
+        $values = $this->getJson(cp_route('addons.settings.edit', $addon->slug()))->assertOk()->json('values');
+
+        $this->assertFalse($values['openverse']);
+        $this->assertFalse($values['placeholder_images']);
+        $this->assertSame('gemini', $values['provider']);
+        $this->assertSame(['articles'], $values['collections']);
+        $this->assertSame('claude-opus-5-5', $values['model'], 'A field the config leaves alone shows what was saved.');
+
+        // Saving the screen sends the locked values back; what was stored for
+        // them is kept, so taking the config away brings it back.
+        $this->patchJson(cp_route('addons.settings.update', $addon->slug()), array_merge($values, ['model' => 'claude-sonnet-5']))->assertOk();
+
+        $stored = YAML::file(resource_path('addons/ghostwriter-statamic.yaml'))->parse();
+        $this->assertTrue($stored['openverse']);
+        $this->assertTrue($stored['placeholder_images']);
+        $this->assertSame(['pages'], $stored['collections']);
+        $this->assertNull($stored['provider'] ?? null);
+        $this->assertSame('claude-sonnet-5', $stored['model']);
+
+        config(['ghostwriter.images.openverse' => null]);
+        $this->assertTrue(app(Settings::class)->openverse());
+        $this->assertTrue($this->getJson(cp_route('addons.settings.edit', $addon->slug()))->json('values.openverse'));
     }
 }

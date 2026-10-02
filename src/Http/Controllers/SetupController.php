@@ -7,8 +7,11 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Settings;
+use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
+use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 
 /**
  * Get started: a page of steps that take Ghostwriter from installed to
@@ -18,8 +21,10 @@ class SetupController
 {
     public function __construct(private Onboarding $onboarding, private Studio $studio, private Settings $settings) {}
 
-    public function show(): Response
+    public function show(TypeRepository $types, KindSuggestions $suggestions): Response
     {
+        $this->suggestDueKinds($types, $suggestions);
+
         return Inertia::render('ghostwriter::Setup', $this->payload() + [
             'urls' => [
                 'index' => cp_route('ghostwriter.index'),
@@ -70,6 +75,31 @@ class SetupController
         $this->onboarding->chooseCollections($validated['collections'] ?? null, $validated['voice_collections'] ?? null);
 
         return response()->json($this->payload());
+    }
+
+    /**
+     * Collections due a look for kinds of content are looked over as Get
+     * started opens, when "Suggest kinds of content" is on: the first time
+     * each is seen, and again once enough has been published there since.
+     * Only here: elsewhere, kinds are suggested when someone asks.
+     */
+    private function suggestDueKinds(TypeRepository $types, KindSuggestions $suggestions): void
+    {
+        if (! $this->settings->suggestsKinds() || ! $this->studio->configured()) {
+            return;
+        }
+
+        $due = $types->collections()->filter(fn ($collection) => $suggestions->due($collection))->map->handle()->values()->all();
+
+        if ($due === []) {
+            return;
+        }
+
+        foreach ($due as $handle) {
+            $suggestions->update($handle, ['status' => KindSuggestions::WORKING, 'error' => null]);
+        }
+
+        SuggestKinds::start($due);
     }
 
     /**
