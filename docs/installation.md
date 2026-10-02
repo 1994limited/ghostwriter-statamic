@@ -1,16 +1,18 @@
 # Installation
 
+This page covers what Ghostwriter needs, installing it, the queue it runs on, and updating or removing it.
+
 ## Requirements
 
-- Statamic 6
-- PHP 8.3 or later
-- An API key for one AI provider: Anthropic (Claude), OpenAI (ChatGPT) or Google (Gemini). See [API keys](api-keys.md).
+- PHP 8.3 or later, with the GD extension (it draws the striped image placeholders).
+- Statamic 6.
+- An API key for one writing provider: Anthropic (Claude), OpenAI (ChatGPT) or Google (Gemini). See [API keys](api-keys.md).
+- A queue worker, or PHP-FPM if your site uses the `sync` queue. See [The queue](#the-queue).
 
 Optional:
 
-- An OpenAI or Gemini key, to make images. Claude does not make images.
-- The **Imagick** PHP extension, for sending smaller copies of images to the model. Without it, images are sent at their original size up to 1 MB.
-- The **GD** extension, which Statamic already needs, draws the striped image placeholders.
+- An OpenAI or Gemini key, to make images. Claude doesn't make images.
+- The Imagick extension. Ghostwriter sends small copies of images to the model, made with Imagick when it is loaded and with GD otherwise.
 
 ## Install the addon
 
@@ -20,52 +22,50 @@ From your project's root:
 composer require 1994/ghostwriter-statamic
 ```
 
-Statamic discovers the addon on install. Its Control Panel assets are published automatically; after an update, or if the screens look broken, publish them again:
+This also installs `1994/ghostwriter-core` (`~0.2.0`) from Packagist: the part Ghostwriter shares with its Filament and Craft versions. No extra repository is needed.
+
+Ghostwriter no longer uses the Laravel AI SDK (`laravel/ai`). It has its own connection to Anthropic, OpenAI and Gemini, and doesn't read `config/ai.php`, except that a key still set there is used when the matching `.env` variable is empty. If `config/ai.php` was only there for Ghostwriter, you can delete it.
+
+Then publish the Control Panel assets:
 
 ```bash
 php artisan vendor:publish --tag=ghostwriter-statamic --force
 ```
 
-Add that line to your deploy script after `composer install`, so the assets land on the server too. `public/vendor/ghostwriter-statamic` can be left out of version control.
+Add that line to your deploy script after `composer install`, so the assets reach the server too. `public/vendor/ghostwriter-statamic` can be left out of version control.
 
 ## Add your API key
 
-Add the key for your chosen provider to your project's `.env` file:
+Add the key for your provider to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-...`. See [API keys](api-keys.md) for every key Ghostwriter can use.
 
-```dotenv
-ANTHROPIC_API_KEY=sk-ant-...
-```
+## Who can use it
 
-Ghostwriter reads keys from the environment each time it needs one. It never stores them, and they never appear in a settings file. See [API keys](api-keys.md) for every key it can use.
-
-On a server, add the same variable wherever your host keeps environment variables (Laravel Forge, Ploi and Laravel Cloud all have a screen for this).
-
-## Permissions
-
-Ghostwriter adds one permission, under **Permissions** in a role: **Write content and edit the voice guide with Ghostwriter**.
-
-- People with it see Ghostwriter in the navigation, the **Write with Ghostwriter** and **Edit with Ghostwriter** buttons, the image button on assets fields, and the dashboard widget.
-- Putting a draft into an entry also needs Statamic's own permission to create entries in that collection, and editing an entry through Ghostwriter needs the permission to edit that entry. Ghostwriter never lets anyone change an entry they could not change by hand.
-- Saving an image into an assets field needs the permission to upload to that field's container.
-- **Conversations are shared** with everyone who has the Ghostwriter permission: from the dashboard, the widget, the content plan, the panel's **Or carry on with** and the entry itself. Anyone with access can also remove a conversation. Each message shows who sent it, and each piece shows who started it and who last changed it. Ghostwriter answers one request at a time: while someone's request runs, others see "Ada is waiting on Ghostwriter" and can't send or edit until it has answered.
-- To keep conversations private instead, set `shared_conversations` to `false` in `config/ghostwriter.php` (or `GHOSTWRITER_SHARED_CONVERSATIONS=false`). Then a conversation belongs to whoever started it: nobody else sees it on the dashboard or the widget, or can open it, super users aside.
-- Ghostwriter's settings screen is seen by whoever may edit the addon's settings (the **Edit Ghostwriter settings** permission, or a super user).
+Ghostwriter adds one permission, **Write content and edit the voice guide with Ghostwriter**. See [Permissions](permissions.md).
 
 ## The queue
 
-Writing a draft or a guide can take a minute or more, which is longer than a web request should be held open.
+Writing a draft or a guide can take a minute or more, longer than a web request should be held open.
 
-- **With a queue connection** (Redis, database, and so on) each model call runs as a queued job. Keep a worker running (`php artisan queue:work`, Horizon, or your host's daemon), or nothing will happen.
-- **On the `sync` driver**, the default for a flat-file site, the call runs after the HTTP response has been sent, in the same PHP process, while the screen polls for the result. This needs PHP-FPM, which Herd, Forge and most hosts use. The single-threaded `php artisan serve` blocks until the call is done.
+- **With a queue connection** (database, Redis and so on), each model call runs as a queued job. Keep a worker running, or nothing happens:
 
-Each call is allowed the configured timeout (300 seconds by default). A call that finds the provider busy or rate-limited is tried again, up to three times in all, so each job is allowed three times the timeout plus 60 seconds (16 minutes by default). If your worker has its own time limit (`--timeout`, or Horizon's `timeout`), set it at least that high.
+  ```bash
+  php artisan queue:work --timeout=960
+  ```
+
+  If nothing picks the work up for a while, Ghostwriter says so: "Still waiting for a queue worker to pick this up. Is “php artisan queue:work” running?" It names the queue when it isn't `default`.
+- **On the `sync` driver**, the default for a flat-file site, the call runs after the response has been sent, in the same PHP process, while the screen checks back for the result. This needs PHP-FPM, which Herd, Forge and most hosts use. `php artisan serve` handles one request at a time, so it blocks until the call is done.
+
+**Why 960 seconds.** Each model call may take up to `timeout` seconds (300 by default). A provider that is busy or limiting requests is tried again, up to three attempts in all (see [Busy providers and retries](api-keys.md#busy-providers-and-retries)), so each job is allowed `timeout × 3 + 60` seconds: 960 with the default. Set your worker's own limit (`--timeout`, or Horizon's `timeout`) at least that high. On the database queue, also set `DB_QUEUE_RETRY_AFTER` above it, for example `1020`, so a long job isn't handed out twice. If you raise `GHOSTWRITER_TIMEOUT`, raise these too.
 
 ## Updating
 
 ```bash
 composer update 1994/ghostwriter-statamic
 php artisan vendor:publish --tag=ghostwriter-statamic --force
+php artisan queue:restart
 ```
+
+A running worker keeps the old code until it restarts, hence the last line. See the [changelog](../CHANGELOG.md) for what changed.
 
 ## Uninstalling
 
@@ -73,6 +73,6 @@ php artisan vendor:publish --tag=ghostwriter-statamic --force
 composer remove 1994/ghostwriter-statamic
 ```
 
-Ghostwriter adds no database tables. Its guides, kinds and plan stay in `resources/ghostwriter/`, its settings in `resources/addons/ghostwriter-statamic.yaml`, and its working files in `storage/ghostwriter/`, until you delete them. Assets it saved (photos, made images, and logo cards made before 1.1.0, the striped placeholder) stay in your containers.
+Ghostwriter adds no database tables. Its guides, kinds and plan stay in `resources/ghostwriter/`, its settings in `resources/addons/ghostwriter-statamic.yaml`, and its working files in `storage/ghostwriter/`, until you delete them. Assets it saved stay in your containers: photos, made images and the striped placeholder, and any logo cards made before version 1.1.0.
 
-Next: [API keys](api-keys.md).
+Next: [Get started](getting-started.md).

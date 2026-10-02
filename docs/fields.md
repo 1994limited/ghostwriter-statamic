@@ -1,6 +1,6 @@
 # How Ghostwriter reads your fields
 
-Ghostwriter works with any collection because it reads the blueprint, and the entries already in the collection, rather than assuming a shape.
+This page covers how Ghostwriter reads a collection's blueprint and entries, and the house style it copies into new entries. It works with any collection because it reads these, rather than assuming a shape.
 
 ## Fieldtypes
 
@@ -44,8 +44,10 @@ A link from a page to itself, such as the last breadcrumb, is recognised as one.
 
 ### Links it can't decide
 
-If a block should have a link (the field is required, or that kind of block usually has one), but the examples don't agree on where it goes, Ghostwriter points it at `https://example.com` with the text "Link to choose" in a matching text field. The page still works, and the gap is easy to spot. The notes above the form list each one as "(links to example.com for now)". Set them before publishing.
+If a block should have a link (the field is required, or that kind of block usually has one), but the examples don't agree on where it goes, Ghostwriter points it at `https://example.com` with the text "Link to choose" in a matching text field. The page still works, and the gap is easy to spot. The notes above the form, after **Use this draft**, list each one as "(links to example.com for now)". Set them before publishing.
 
 This works for the `link` fieldtype. Entries fields can't take a web address, so they're simply listed as still to set.
 
 House style is never applied when [editing](editing.md) an existing entry, which keeps its own.
+
+Next: [Privacy and data](privacy.md).

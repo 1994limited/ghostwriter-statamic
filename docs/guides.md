@@ -1,30 +1,27 @@
 # The voice guide and image style guide
 
-Both guides are plain markdown files in your project. Ghostwriter writes the first version from your site, and you correct it. Both are read every time Ghostwriter writes, or finds or makes an image.
+This page covers the two guides Ghostwriter writes from your site: how it sounds, and what its pictures look like. Both are markdown files in your project. Ghostwriter writes the first version, and you correct it. Both are read every time Ghostwriter writes, or finds or makes an image.
 
 ## The voice guide
 
-**Ghostwriter → Voice guide.** It describes how your site sounds, with real examples from your entries:
-
-- who is talking, and to whom
-- the attitude and the warmth
-- how pieces are shaped: openings, headings, endings, length
-- the words you use, and the ones you never do
+**Ghostwriter → Voice guide.** It describes how your site sounds, with real examples from your entries: who is talking and to whom, the attitude, how pieces are shaped (openings, headings, endings, length), and the words you use and the ones you never do.
 
 ### Writing it
 
-Tick the collections to read, then **Write the voice guide** the first time, or **Rescan and rewrite** under **Read the site again** after that. Ghostwriter reads the newest published entries in those collections, spread evenly across them, and writes the guide in a minute or so. Rescanning replaces the guide, so save or undo any edits first: while there are unsaved edits, rescanning and asking for a change wait.
+Tick the collections to read, then **Write the voice guide** the first time, or **Rescan and rewrite** under **Read the site again** after that. Ghostwriter reads the newest published entries in those collections, spread across them, and writes the guide in a minute or so. Rescanning replaces the guide, and asks first.
 
-If a run fails, the reason stays at the top of the screen until the next run, even if you were away when it failed.
+How much it reads is set by `voice.max_entries` and the other `voice.*` keys in [Configuration](configuration.md).
 
-To control how much it reads, see `voice.max_entries` and the other `voice.*` keys in [Configuration](configuration.md).
+![The voice guide in its editor, with Ask for a change and Read the site again](images/voice-guide.png)
 
 ### Changing it
 
-- **Edit** it directly in the markdown editor, then **Save**. A note under the editor reminds you that every writing prompt includes the guide as it stands.
-- Or **Ask for a change** in plain words, for example "We never say solutions. Add that.", then **Update the guide**. Ghostwriter rewrites the guide with the change, and says what it did.
+- Edit it in the editor, then **Save**.
+- Or **Ask for a change** in plain words, such as "We never say solutions. Add that.", then **Update the guide**. Ghostwriter rewrites the guide with the change, and says what it did.
 
-The guide is `resources/ghostwriter/voice.md`. Commit it with your project so every environment writes the same way.
+While there are unsaved edits, rescanning and asking for a change wait: "Save your edits first."
+
+The guide is kept in `resources/ghostwriter/voice.md` (see [Where things are kept](configuration.md#where-things-are-kept)). Commit it, so every environment writes the same way.
 
 ## The image style guide
 
@@ -32,20 +29,26 @@ The guide is `resources/ghostwriter/voice.md`. Commit it with your project so ev
 
 ### Writing it
 
-Tick the collections to look at, then **Describe the images** (or **Look again and rewrite** under **Look at the images again** once there is a guide). Ghostwriter looks at the images used by the newest published entries in each collection, in every image field, including those inside page-builder blocks, a few from each field. It writes a `##` section for each collection. A collection needs at least three images to describe.
+Tick the collections to look at, then **Describe the images** the first time, or **Look again and rewrite** under **Look at the images again** after that. Ghostwriter looks at a few images from each image field used by the newest published entries, including those inside page-builder blocks, and writes one `##` section per collection. A collection needs at least three images. The number looked at per collection is `images.guide_samples` (10 by default).
 
-The number of images looked at per collection is `images.guide_samples` (10 by default).
+![The image style guide, with Look again and rewrite](images/image-style.png)
 
 ### Changing it
 
-Edit it in the same editor as the voice guide. Keep a `## Collection title` heading for each collection: that is how Ghostwriter finds the part that applies to an image. As with the voice guide, looking again waits while there are unsaved edits, and a failed run stays explained until the next one.
+Edit it in the same way as the voice guide. Keep a `## Collection title` heading for each collection: that is how Ghostwriter finds the part that applies to an image. As with the voice guide, looking again waits while there are unsaved edits.
 
-The guide is `resources/ghostwriter/imagery.md`.
+The guide is kept in `resources/ghostwriter/imagery.md`.
 
 ### Where it is used
 
-- Choosing what to **search for** when finding a photo, including the rule that a piece about an idea gets a concrete object that stands for the argument, not the activity it literally describes.
-- **Picking** the photos that best fit, from the search results.
+- Choosing what to **search for** when finding a photo.
+- **Ranking** the photos found against your site.
 - **Making** an image.
 
 See [Images](images.md).
+
+## When something goes wrong
+
+If writing or changing a guide fails, the reason stays at the top of the screen, under **That didn't work**, until the next run, even if you were away when it failed.
+
+Next: [Kinds of content](kinds.md).

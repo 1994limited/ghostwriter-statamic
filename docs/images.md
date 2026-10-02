@@ -1,79 +1,85 @@
 # Images
 
-Ghostwriter helps with images in two places: on every assets field in an entry form, and under a draft in the writing panel.
+This page covers finding and making images: the image button on assets fields, the Images section under a draft, how photos are ranked and named, and placeholders.
 
-## The image button on a field
+## The image button
 
-On every assets field in a collection Ghostwriter writes for, a small **Ghostwriter** button (the ghost) sits in the field's header beside its own controls, on create and edit screens, for people with the Ghostwriter permission.
+Every assets field on an entry's create or edit screen, in a collection Ghostwriter writes for, has a small **Ghostwriter** button (the ghost) beside the field's own controls, for people with the Ghostwriter permission. The field needs a container. On a field that takes only other kinds of file (validated as `mimes:pdf`, say), Ghostwriter says it can't help.
 
-It isn't shown on fields whose validation only allows other kinds of file (for example `mimes:pdf`), or on fields with no container.
+![The Hero image field with the Ghostwriter button beside its own controls](images/image-button.png)
 
-Click it to choose an image for that one field: **Find a photo** or **Make one**. Where only one of them is available, the dialog shows just that one; with neither, it says which keys to add.
+Click it to open **Image for** and the field's name, with two tabs: **Find a photo** and **Make one**. Where only one is available, only that tab shows; with neither, the dialog says which keys to add.
 
-### How it decides what fits
+Ghostwriter picks images to suit the words of the block the field is in and the rest of the page, as the form holds it now, saved or not. Where other entries already have images in the same place (the same field, in the same kind of set), it matches those too, in style and shape. The [image style guide](guides.md#the-image-style-guide) adds the words for that style.
 
-- **Words.** Ghostwriter reads the replicator block the field is in first, then the rest of the form as it stands, saved or not. A picture inside a "Charity partner" block is chosen for that partner, not for the page as a whole.
-- **Style.** It looks at the images already in the **same place** on the collection's other entries: the same field, in the same kind of set, looking back through up to 150 entries. If none use that exact set, it looks at the same field in a set of the same family, for example `link_grid_left` for `link_grid_right`. The [image style guide](guides.md#the-image-style-guide) adds the words.
-- **Shape.** Landscape, portrait or square, from those images.
+## Find a photo
 
-### Find a photo
+Searches free photo libraries: Openverse (no key needed), and Unsplash, Pexels and Pixabay when you've added their keys. See [API keys](api-keys.md#free-photo-libraries).
 
-Searches free photo libraries: Openverse (no key needed) and Unsplash, Pixabay and Pexels when you've added their keys. See [API keys](api-keys.md#free-photo-libraries).
+1. Type what the picture should show, or leave it empty and Ghostwriter chooses three searches from the page. Separate your own searches with semicolons.
+2. **Find photos.** "Searched for: …" shows the searches that ran, which explains any odd result.
+3. The best three come first, with **Best match** on the ones the model picked. **View N more** shows the rest of those that fit.
+4. Click a photo, or its **Use this** button. The credit under each one links to it on the library's site.
 
-1. Type what the picture should show, or leave it empty and Ghostwriter chooses three searches from the block and page. Separate your own searches with semicolons. The photos that best suit the page's words come first, matched to the images already in that place on other entries when there are any.
-2. **Find photos.** "Searched for: …" shows the searches run. The model looks at each result beside the words around the field and what the library says the photo shows, and leaves out clear misses. Where other entries have images in that place, it matches their style too. The best ones are marked **Best match**; the rest that fit follow under **View more**.
-   - With no other images in that place, the photos are still judged against the page, and a line says so: "Compared with the page; there are no other images here to match."
-   - If none fit, the model names better searches and a **second round** runs. If that finds nothing either, the top results come back with a line saying none fitted.
-   - **Best match** only appears when a model judged the photos. Without a writing model, the top result of each search comes first, with no badge, and a line says they weren't compared.
-3. Click the photo you want, or its **Use this** button. The credit under each photo links to it on the library's site, to check its context and licence. A thumbnail that won't load is left out.
+![The Find a photo tab, with the searches run, three results, two marked Best match, and View 3 more](images/image-find.png)
 
-### Make one
+**How photos are ranked.** The model looks at each result beside the words around the field and what the library says the photo shows, and leaves out clear misses. This happens whether or not other entries have images in that place; with none, a line says "Compared with the page; there are no other images here to match." If nothing fits, the model names better searches and a second round runs. If that finds nothing either, the top results come back with a line saying none fitted.
 
-Needs an OpenAI or Gemini key (see [API keys](api-keys.md)).
+Without a writing model to judge them, the top result of each search comes first, with no **Best match** badge, and a line says they weren't compared with the page.
 
-1. Optionally, say what it should show. Leave it blank and Ghostwriter decides from the block and page.
-2. Optionally, add **an image of your own to put in it**, such as a product shot. It is used as it is, not redrawn.
-3. **Make image.** It takes a minute or two, matching the style of the images already in that place.
-4. **Use this**, or **Make another**. A line under the button says it is being made while you wait.
+### Names, alt text and credits
 
-Ghostwriter never draws a real company's logo from memory. For a logo, add the logo file to the field yourself, or give it as your own image in step 2.
+- The file is named and titled from what the library says the photo shows, for example `brown-rocks-at-golden-hour-x7k2qa.jpg` and "Brown rocks at golden hour", falling back to the search words.
+- The library's description goes in the asset's **alt** text, where the container's blueprint has an `alt` field (Statamic's default asset blueprint does).
+- The photographer, library and licence are saved on the asset as `credit`, `credit_url` and `licence`, for example "Jane Doe on Unsplash". Add fields with those handles to the container's blueprint to see and print them.
 
-### What happens when you choose one
+Openverse photos are public domain or CC0. Unsplash, Pexels and Pixabay photos are under their own free licences, which ask you to credit the photographer where you can.
 
-- The image is saved as an asset in the field's own **container and folder**, or beside the images already there. A photograph is named and titled from what the library says it shows ("brown-rocks-at-golden-hour-x7k2qa.jpg", "Brown rocks at golden hour"), falling back to the search. Its description goes in the asset's **alt** text, where the container's blueprint has an `alt` field (Statamic's default asset blueprint does).
-- It goes straight into the field, as if you'd chosen it from the browser. Save the entry as usual.
-- If the field held a **striped placeholder**, the placeholder comes out. In a field that holds only one image, the new image replaces the old one.
-- In a field that holds several images and already has as many as it allows, the image isn't added. It is still saved in the container, and Ghostwriter says so: remove an image from the field to make room, then choose it from the container.
+## Make one
 
-### Credits
+Needs an OpenAI or Gemini key; without one, the tab isn't shown. See [API keys](api-keys.md).
 
-A photograph's photographer, library and licence are saved on the asset as `credit`, `credit_url` and `licence`, for example "Jane Doe on Unsplash". Add fields with those handles to the container's blueprint to see and print them.
+1. Optionally, say what it should show. Leave it blank and Ghostwriter decides from the page.
+2. Optionally, **Use my own image in it**, such as a product shot. It is placed in the picture as it is, not redrawn.
+3. **Make the picture.** It takes a minute or two, in the style of the images already in that place.
+4. **Use this**, or **Make another**.
 
-Openverse photos are public domain or CC0. Unsplash, Pixabay and Pexels photos are under their own free licences, which ask you to credit the photographer where you can.
+A logo or brand mark is never made or found. For a logo, add the file to the field yourself, or give it as your own image in step 2.
 
-### Requests are private
+![The Make one tab with a made picture, Make another and Use this](images/image-make.png)
 
-A search or a picture being made belongs to the person who started it. Made pictures waiting to be used are kept for a day, then cleared away.
+## What happens when you choose one
+
+- The image is saved as an asset in the field's own container and folder, or beside the images already there.
+- It goes straight into the field, and Ghostwriter says "Image added. Save to keep it." Save the entry as usual.
+- A striped placeholder in the field comes out. In a field that holds one image, the new one replaces the old.
+- A field that holds several images and is already full doesn't take another. The image is still saved in the container, and Ghostwriter says so: remove one from the field to make room, then choose it from the container.
 
 ## Images with a draft
 
 Under a draft in the writing panel, the **Images** section lists each image field the entry normally has: the top-level ones, and those in the draft's blocks that other entries fill in.
 
-- Three photographs are offered for each field as soon as the draft is written, from the writer's own searches, judged the same way as on the field button: against the words of the block the field is in and the rest of the draft, and the images already in that place when there are any, with a second round when none fit. "Searched for: …" sits above them, and **Best match** marks the shortlist when a model judged them. **View more** shows the rest. Click a photo, or its **Use this** button, to choose it.
-- **Find a photo** runs your own search, or, with the box empty, searches chosen from the draft; **Choose from the photos for** another field, or **Use the same image as** another field, where fields share a picture.
+- Photos are offered for each field as soon as the draft is written, from the writer's own searches, ranked the same way as on the image button, against the words of the draft. "Searched for: …" sits above them; **View N more** shows the rest.
+- **Find a photo** runs your own search. **Choose from the photos for** another field, or **Use the same image as** another field, where fields share a picture.
+- **Make the picture** (or **Make another**) makes one, with the same keys as on the image button, and can **Use my own image in it, such as a logo**.
 - Asking in the conversation works too: "find images for this" offers options, "add the images" puts the best match straight in.
-- **Make image** appears here too, with the same keys as on the field button, and can be given an image of your own to build the picture around.
 
-Chosen images go into the form with **Use this draft**, in the field's container and folder. On a new entry, an image you already chose in the form yourself is kept: no placeholder goes over it. One chosen under the draft takes its place.
+Chosen images go into the form with **Use this draft**. On a new entry, an image you already chose in the form yourself is kept. Images chosen or made while Ghostwriter is working on a message are kept when it finishes.
 
-Images can be chosen, copied or made while Ghostwriter is working on a message; when it finishes, those choices are kept.
+![The Images section under a draft, with a chosen photo and three more marked Best match](images/image-panel.png)
 
 ## Placeholders
 
-When a draft is put into a **new** entry, image fields it leaves empty get a striped "image to choose" placeholder, but only where the collection's entries usually have an image there (or the field is required). Optional images, such as a background most entries leave empty, are left alone, as are fields that take no pictures.
+When a draft is put into a **new** entry, image fields it leaves empty get a striped placeholder, but only where the collection's entries usually have an image there, or the field is required. Optional images most entries leave empty, and fields that take no pictures, are left alone.
 
 - The placeholder is one shared asset, `ghostwriter/image-placeholder.png`, in the field's container.
 - The notes above the form list every field that has one.
 - Replace them with the image button before publishing.
 
-Turn this off with **Mark images still to choose** in the settings.
+Turn this off with **Mark images still to choose** in the settings, or `images.placeholders` in the config.
+
+## Requests are private
+
+A photo search or a picture being made belongs to the person who started it, even when conversations are shared. Requests, and made pictures waiting to be used, are cleared after a day.
+
+Next: [The content plan](content-plan.md).

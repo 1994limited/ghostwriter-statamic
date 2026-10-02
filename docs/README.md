@@ -1,26 +1,34 @@
 # Ghostwriter documentation
 
-Ghostwriter learns how your site writes, then drafts and edits entries in that voice, beside the entry form in Statamic's Control Panel.
+Ghostwriter learns how your site writes and what its pictures look like, then drafts and edits entries in that voice from a short brief and a conversation, beside the entry form in Statamic's Control Panel. It finds or makes images to match, and keeps a plan of what the site is missing.
 
 ## Setting up
 
-1. [Installation](installation.md): requirements, installing the addon, permissions and the queue.
-2. [API keys](api-keys.md): getting a key for Claude, ChatGPT or Gemini, and the free photo libraries.
-3. [Get started](getting-started.md): the setup steps in the Control Panel.
+1. [Installation](installation.md): requirements, installing, the queue, updating.
+2. [Get started](getting-started.md): the seven setup steps in the Control Panel.
+3. [API keys](api-keys.md): keys for Claude, ChatGPT or Gemini, gateways, retries, and the free photo libraries.
+4. [Permissions](permissions.md): who can use and manage Ghostwriter, and shared conversations.
+5. [Configuration](configuration.md): the settings screen, `config/ghostwriter.php`, where things are kept, prompts and logging.
 
 ## Using Ghostwriter
 
-- [Writing a new entry](writing.md): the brief, the conversation, the draft and **Use this draft**.
-- [Editing an existing entry](editing.md): changing what is already published.
-- [Kinds of content](kinds.md): teaching Ghostwriter the things you write often.
-- [The voice guide and image style guide](guides.md): how your site sounds and what its pictures look like.
-- [Images](images.md): finding photos and making images from any assets field.
-- [The content plan](content-plan.md): ideas for what to write next.
-- [The dashboard and widget](dashboard.md): what is in progress, at a glance.
+6. [Writing a new entry](writing.md): the brief, the conversation, the draft and **Use this draft**.
+7. [Editing an existing entry](editing.md): changing an entry in conversation.
+8. [The voice guide and image style guide](guides.md): how your site sounds, and what its pictures look like.
+9. [Kinds of content](kinds.md): teaching Ghostwriter the things you write often.
+10. [Images](images.md): finding and making images, ranking, alt text and placeholders.
+11. [The content plan](content-plan.md): ideas for what to write next.
+12. [The Overview and widget](dashboard.md): what is in progress, at a glance.
 
 ## Reference
 
-- [Configuration](configuration.md): settings, `config/ghostwriter.php`, where files are kept, prompt overrides.
-- [How Ghostwriter reads your fields](fields.md): fieldtypes, page builders and house style.
-- [Privacy and data](privacy.md): what is sent where, and when.
-- [Troubleshooting](troubleshooting.md): common problems and fixes.
+13. [How Ghostwriter reads your fields](fields.md): fieldtypes, page builders and house style.
+14. [Privacy and data](privacy.md): what is sent where, and what is kept.
+15. [Troubleshooting](troubleshooting.md): common problems and fixes.
+
+## Requirements
+
+- PHP 8.3 or later, with GD.
+- Statamic 6.
+- An API key for Anthropic, OpenAI or Google Gemini.
+- A queue worker, or PHP-FPM on the `sync` queue.

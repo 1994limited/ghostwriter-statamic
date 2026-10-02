@@ -1,6 +1,6 @@
 # API keys
 
-Ghostwriter writes with one AI provider, on your own account. It can also make images with a second provider, and search free photo libraries. Every key goes in your `.env` file, and Ghostwriter never stores any of them.
+Ghostwriter writes with one provider, on your own account. It can also make images with a second provider, and search free photo libraries. Every key goes in your `.env` file. Ghostwriter reads it there each time it needs it, and never stores or shows it.
 
 | Variable | Service | What for | Free? |
 | --- | --- | --- | --- |
@@ -12,23 +12,27 @@ Ghostwriter writes with one AI provider, on your own account. It can also make i
 | `PEXELS_API_KEY` | Pexels | Photo search | Yes |
 | none | Openverse | Photo search (public domain and CC0 only) | Yes, no key needed |
 
-You need **one** writing key. Everything else is optional.
-
-After adding or changing a key, reload the Control Panel page. **Ghostwriter → Get started** shows which provider it is connected to.
+You need **one** writing key. Everything else is optional. After adding or changing a key, reload the Control Panel page (and run `php artisan config:clear` if your config is cached).
 
 > Keep keys out of version control. `.env` should already be in your `.gitignore`. Use a separate key for each site, so you can see what each one spends and revoke one without affecting the others.
 
 ## Choosing a writing provider
 
-All three write well. Claude is the default and the one Ghostwriter's prompts were tuned on.
+Ghostwriter works with three providers, through its own connection to each: Anthropic, OpenAI and Google. It doesn't use the Laravel AI SDK, and no other provider is supported.
 
-- **Claude (Anthropic):** the default. Strong at matching a voice and following the brief closely.
+- **Claude (Anthropic):** the default, and the one the prompts were tuned on. Strong at matching a voice and following the brief closely.
 - **ChatGPT (OpenAI):** a good choice if you also want to make images with the same account.
-- **Gemini (Google):** the only one with a free tier. On the free tier, set the model to a Flash model (see below).
+- **Gemini (Google):** the only one with a free tier. Leave **Model** blank to use the default Flash model.
 
-Choose the provider under **Ghostwriter → Settings → Provider**, or with `provider` in [`config/ghostwriter.php`](configuration.md). Ghostwriter connects to all three itself; nothing else needs setting up.
+Choose under **Ghostwriter → Settings → Provider**, or with `provider` in [`config/ghostwriter.php`](configuration.md). Leave **Model** blank for the provider's default. These were checked on 2026-10-01 and come from Ghostwriter Core:
 
-Keys are read through `keys` in `config/ghostwriter.php`, which takes them from the variables above. A key still set in `config/ai.php`, from before 1.1, is used when the variable is empty.
+| Provider | Writing | Images |
+| --- | --- | --- |
+| Anthropic | `claude-opus-5-5` | (doesn't make images) |
+| OpenAI | `gpt-6.1-sol` | `gpt-image-2.5-sunburst` |
+| Google | `gemini-3.8-flash` | `gemini-3.1-flash-image` |
+
+With no **Image provider** chosen, Ghostwriter makes images with OpenAI if it has a key, otherwise Gemini.
 
 ## Anthropic (Claude)
 
@@ -42,7 +46,7 @@ Keys are read through `keys` in `config/ghostwriter.php`, which takes them from 
    ANTHROPIC_API_KEY=sk-ant-...
    ```
 
-Keys made inside a workspace only work for that workspace's settings; a key that gives "not scoped to a workspace" errors needs making again from the default workspace. You can set a monthly spend limit on the Billing page.
+A key made inside a workspace only works for that workspace; one that gives "not scoped to a workspace" errors needs making again from the default workspace. You can set a monthly spend limit on the Billing page.
 
 ## OpenAI (ChatGPT, and images)
 
@@ -55,11 +59,11 @@ Keys made inside a workspace only work for that workspace's settings; a key that
    OPENAI_API_KEY=sk-...
    ```
 
-To **write** with OpenAI, set **Provider** to OpenAI. To **make images** with it while writing with Claude, leave Provider as Anthropic. Ghostwriter uses any image provider that has a key, or the one chosen under **Image provider**.
+To **write** with OpenAI, set **Provider** to ChatGPT (OpenAI). To **make images** with it while writing with Claude, leave **Provider** as Claude.
 
-OpenAI may ask you to verify your organisation before its image models can be used. If making an image fails with a message about verification, complete it under **Settings → Organization** in the OpenAI platform.
+OpenAI may ask you to verify your organisation before its image models can be used. If making an image fails with a message about verification, complete it under **Settings → Organization** on the OpenAI platform.
 
-## Google (Gemini)
+## Google (Gemini, and images)
 
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey) and sign in with a Google account.
 2. Click **Create API key**. If asked, choose or create a Google Cloud project for it.
@@ -69,22 +73,32 @@ OpenAI may ask you to verify your organisation before its image models can be us
    GEMINI_API_KEY=...
    ```
 
-**Using the free tier.** The free tier covers Gemini's Flash models, with daily limits. Ghostwriter's default Gemini model is a Flash model, so to write for free, set **Provider** to Gemini and leave **Model** blank. If you set a model, choose a 3.x Flash model: Google now limits the older 2.5 models to accounts that have used them before. Two things to know:
+**The free tier** covers Gemini's Flash models, with daily limits. To write for free, set **Provider** to Gemini (Google) and leave **Model** blank. If you set a model, choose a 3.x Flash model: Google limits the older 2.5 models to accounts that have used them before. Two things to know:
 
-- **Google may use what you send to improve its products.** That includes excerpts of your entries and drafts. For client sites, or anything confidential, turn on billing for the project so the paid terms apply.
-- **Making images is not on the free tier.** Gemini's image model needs billing turned on for the project.
+- **Google may use what you send to improve its products** on the free tier. That includes excerpts of your entries and drafts. For client sites, or anything confidential, turn on billing for the project so the paid terms apply.
+- **Making images isn't on the free tier.** Gemini's image model needs billing turned on.
 
 Check [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) for the current free models and limits.
 
+## Gateways and proxies
+
+To send a provider's requests through a gateway that speaks the same API, set its address:
+
+```dotenv
+GHOSTWRITER_ANTHROPIC_BASE_URL=https://gateway.example.com/anthropic
+GHOSTWRITER_OPENAI_BASE_URL=https://gateway.example.com/v1
+GHOSTWRITER_GEMINI_BASE_URL=https://gateway.example.com/gemini
+```
+
+These are `base_urls.anthropic`, `base_urls.openai` and `base_urls.gemini` in `config/ghostwriter.php`. The address must be `https://`, except on `localhost`, `127.0.0.1` or `[::1]`, and can't hold a query string or credentials. Leave it unset to use the provider's own address.
+
 ## Free photo libraries
 
-**Find a photo** searches every library that is switched on, and the model picks the best matches for your site. Each library you add gives it more to choose from.
+**Find a photo** searches every library that is switched on, and the model picks the best matches. Each library you add gives it more to choose from.
 
 ### Openverse (no key)
 
 On by default. Openverse is searched for **public-domain and CC0** work only, so nothing found there comes with conditions. Turn it off with **Search Openverse** in the settings, or `images.openverse` (`GHOSTWRITER_OPENVERSE`) in [`config/ghostwriter.php`](configuration.md), which wins over the screen.
-
-The settings screen's **API keys** section lists each key Ghostwriter can use (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `UNSPLASH_ACCESS_KEY`, `PIXABAY_API_KEY`, `PEXELS_API_KEY`) and whether it is set. The keys themselves are never shown or stored there.
 
 ### Unsplash
 
@@ -98,7 +112,15 @@ The settings screen's **API keys** section lists each key Ghostwriter can use (`
 
 New Unsplash apps start in **demo mode**, limited to 50 requests an hour. That is enough for one person choosing photos now and then: a search is one request and a photo picked is two. For more, apply for production access from your app's page.
 
-Ghostwriter tells Unsplash each time a photo is used, as their guidelines ask, and saves the photographer, library and licence on the asset (see [Images](images.md#credits)). Read the [Unsplash API guidelines](https://unsplash.com/documentation) before using it on a production site.
+Ghostwriter tells Unsplash each time a photo is used, as their guidelines ask, and saves the photographer, library and licence on the asset (see [Images](images.md#names-alt-text-and-credits)). Read the [Unsplash API guidelines](https://unsplash.com/documentation) before using it on a production site.
+
+### Pexels
+
+Pexels keys are free, though Pexels sometimes pauses issuing new ones. If you have one:
+
+```dotenv
+PEXELS_API_KEY=...
+```
 
 ### Pixabay
 
@@ -112,16 +134,18 @@ Ghostwriter tells Unsplash each time a photo is used, as their guidelines ask, a
 
 Free, with up to 100 requests a minute. Pixabay doesn't allow linking straight to its images, so Ghostwriter downloads the photo you choose into your asset container, which is what Pixabay asks for.
 
-### Pexels
+## Busy providers and retries
 
-Pexels keys are free but Pexels sometimes pauses issuing new ones. If you have one:
+A provider that is busy, limiting requests or briefly down is tried again by itself. The statuses retried are 408, 409, 429, 500, 502, 503, 504 and 529, and dropped connections, up to three attempts in all. Ghostwriter waits as long as the provider asks (`retry-after`), up to 30 seconds, or backs off for a moment if it doesn't say. A call that times out waiting for an answer isn't retried, as the model may still be working on it.
 
-```dotenv
-PEXELS_API_KEY=...
-```
+This isn't configurable. It is why each queued job is allowed `timeout × 3 + 60` seconds (see [The queue](installation.md#the-queue)).
+
+On Claude models that support it, a request Claude declines is passed to the model Anthropic recommends instead. This is on by default; turn it off with `GHOSTWRITER_ANTHROPIC_FALLBACKS=false`.
 
 ## Checking it works
 
-Open **Ghostwriter → Get started**. The first step, **Connect a model**, shows the provider it is connected to, or which key is missing, and says so if another provider's key is set instead. On the image button, only the libraries and options with a key are offered.
+- **Get started**, step 1 (**Connect a model**), names the provider Ghostwriter is connected to, or the key that is missing.
+- **Ghostwriter → Settings** lists each key under **API keys** as **Set** or **Not set**. The keys themselves are never shown.
+- On the image button, only the options with a key are offered.
 
-Next: [Get started](getting-started.md).
+Next: [Permissions](permissions.md).
