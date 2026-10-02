@@ -92,6 +92,29 @@ export default {
             }
         },
 
+        // The piece open in the panel. On a create screen, the button
+        // carries on with it after "Use this draft" or a close, as Craft
+        // does, and the address names it so a reload carries on too.
+        // Editing an entry starts from the form each time instead.
+        remember(id) {
+            if (this.entry) return;
+
+            this.resume = id;
+            this.idea = null;
+
+            try {
+                const url = new URL(window.location.href);
+
+                if (id) url.searchParams.set('ghostwriter', id);
+                else url.searchParams.delete('ghostwriter');
+
+                url.searchParams.delete('idea');
+                window.history.replaceState(window.history.state, '', url);
+            } catch (error) {
+                // The address just isn't updated.
+            }
+        },
+
         apply({ values, meta, notes }) {
             // Field by field, so everything the draft does not cover keeps the
             // value and meta it already had. Meta goes first: fields such as
@@ -149,7 +172,7 @@ export default {
         </div>
 
         <Stack v-model:open="open" :title="__('Ghostwriter')" :icon="ghost" size="full">
-            <Panel v-if="open" :collection="collection" :blueprint="blueprint" :base-url="baseUrl" :resume="resume" :idea="idea" :entry="entry" :form-values="formValues" @apply="apply" />
+            <Panel v-if="open" :collection="collection" :blueprint="blueprint" :base-url="baseUrl" :resume="resume" :idea="idea" :entry="entry" :form-values="formValues" @apply="apply" @session="remember" />
         </Stack>
     </div>
 </template>

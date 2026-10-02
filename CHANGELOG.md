@@ -27,6 +27,11 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - With the search box under a draft left empty, the searches are chosen by the `photo-researcher` prompt from the draft, as on the field button. The `photo-query` prompt is no longer used.
 - Photo libraries are fetched through Ghostwriter Core's HTTP client: redirects are followed only over https, never to a private address, and the key is dropped when a redirect leaves the library's host.
 
+**Editing the draft and carrying on** (decisions C1 and C3):
+
+- Writing in the draft is always editable in place, as in the Craft addon: click it or move to it with Tab, type, and it is saved when you leave it. Escape puts back what was there; Enter finishes a one-line field. Rich text stays rich. Before, a click turned a line into a text box first, and nothing could be reached from the keyboard.
+- On a create screen, **Write with Ghostwriter** carries on with the piece last used or open there, after **Use this draft** or closing the panel, rather than going back to **What are you writing?**. The address names the piece (`?ghostwriter=…`), so reloading the page carries on too. **Start over** goes back to a new piece.
+
 **Fixes** (from the UX parity audit of the three addons):
 
 - **Editing keeps what you typed.** "Edit with Ghostwriter" now starts from what the entry's form holds, unsaved typing included, and "Use these changes" puts the new writing over the form as it stands. Before, both worked from the entry as last saved, so an image or setting changed in the form and not yet saved was put back.

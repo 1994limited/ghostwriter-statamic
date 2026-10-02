@@ -33,7 +33,9 @@ export default {
         formValues: { type: Function, default: () => ({}) },
     },
 
-    emits: ['apply'],
+    // `session` says which piece is open (an id, or null for none), so the
+    // launcher can carry on with it when the panel is opened again.
+    emits: ['apply', 'session'],
 
     data() {
         return {
@@ -281,11 +283,16 @@ export default {
                 this.receive(data);
             } catch (error) {
                 this.fail(error);
+
+                // Gone, or not this person's: start afresh next time.
+                if (!this.session) this.$emit('session', null);
             }
         },
 
         receive(data) {
             const changed = data.draft !== this.session?.draft;
+
+            if (data.id !== this.session?.id) this.$emit('session', data.id);
 
             this.session = data;
 
@@ -406,14 +413,14 @@ export default {
         },
 
         // One piece of writing changed where it is shown.
-        async editField({ path, value, format }) {
+        async editField({ path, value, format, revert }) {
             try {
                 const { data } = await this.$axios.patch(this.url(`sessions/${this.session.id}/field`), { path: path.map(String), value, format });
 
                 this.receive(data);
             } catch (error) {
                 this.fail(error);
-                this.receive(this.session);
+                revert?.();
             }
         },
 
@@ -469,6 +476,7 @@ export default {
 
             this.session = null;
             this.type = this.nothingToChoose ? this.type : null;
+            this.$emit('session', null);
         },
     },
 };

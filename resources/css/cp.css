@@ -33,6 +33,16 @@
     --gw-accent: #a7b6e2;
 }
 
+/*
+    Writing in the draft preview is always editable in place: a quiet tint on
+    hover, a ring while it has focus, so it reads as a page until touched.
+*/
+.gw-editable { @apply -mx-1.5 -my-1 rounded-md px-1.5 py-1 outline-none transition-colors; }
+.gw-editable:hover { @apply bg-gray-50; }
+.gw-editable:focus { @apply bg-white ring-2 ring-blue-400; }
+.dark .gw-editable:hover { @apply bg-gray-800; }
+.dark .gw-editable:focus { @apply bg-gray-900; }
+
 /* The draft preview is rendered markdown, so it needs its own prose styles. */
 .gw-prose h2 { @apply mt-8 mb-3 text-xl font-semibold first:mt-0; }
 .gw-prose h3 { @apply mt-6 mb-2 text-lg font-semibold; }
