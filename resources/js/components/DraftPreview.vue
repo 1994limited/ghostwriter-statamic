@@ -81,7 +81,8 @@ export default {
 
         // Enter finishes a one-line field; in anything longer it is a new line.
         enterKey(node, event) {
-            if (node.kind === 'html' || node.multiline || event.shiftKey) return;
+            // Not while an input method is still composing a character.
+            if (node.kind === 'html' || node.multiline || event.shiftKey || event.isComposing) return;
 
             event.preventDefault();
             event.target.blur();
