@@ -6,6 +6,9 @@ use Illuminate\Support\Collection;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\ProviderException;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\Truncated;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\SuggestedIdea;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\SuggestedKind;
@@ -13,10 +16,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Studio\UnreadableReply;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\WriterContext;
 use NineteenNinetyFour\Ghostwriter\Core\Text\TaggedResponse;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Settings;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
-use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Collection as EntryCollection;
 use Statamic\Fields\Blueprint;
@@ -85,7 +85,7 @@ class Studio
 
         $handle = app(TypeRepository::class)->handleFor($title ?: '', $collection->handle());
 
-        return ContentType::fromArray($handle, array_filter([
+        return TypeRepository::make($handle, array_filter([
             'collection' => $collection->handle(),
             'blueprint' => $blueprint->handle(),
             'examples' => $examples,
@@ -97,13 +97,14 @@ class Studio
      * The kinds of content a collection seems to hold, each with the entries
      * that show it, for a person to look over and have taught.
      *
+     * @param  array<int, string>  $dismissed  Titles turned down before, not to be suggested again.
      * @return array<int, array{title: string, description: string, why: string, examples: array<int, string>, blueprint: ?string}>
      *
      * @throws UnreadableReply|ProviderException
      */
-    public function suggestKinds(EntryCollection $collection, TypeRepository $types, KindSuggestions $kinds): array
+    public function suggestKinds(EntryCollection $collection, TypeRepository $types, array $dismissed): array
     {
-        $survey = $this->inputs->kindSurvey($collection, $types, $kinds->get($collection->handle())['dismissed']);
+        $survey = $this->inputs->kindSurvey($collection, $types, $dismissed);
 
         return array_map(fn (SuggestedKind $kind) => $kind->toArray('blueprint'), $this->studio->suggestKinds($survey)->value);
     }
@@ -113,7 +114,7 @@ class Studio
      * already planned.
      *
      * @param  array<int, string>  $collections  Handles of the collections to plan for.
-     * @param  array<int, array<string, mixed>>  $plan  Ideas already on the plan, whatever their status.
+     * @param  array<int, Idea>  $plan  Ideas already on the plan, whatever their status.
      * @return array<int, array{title: string, collection: string, type: ?string, why: string, notes: string}>
      *
      * @throws UnreadableReply|ProviderException

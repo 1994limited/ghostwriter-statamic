@@ -2,8 +2,8 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Contracts;
 
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use Statamic\Contracts\Auth\User;
 use Statamic\Contracts\Entries\Entry;
 

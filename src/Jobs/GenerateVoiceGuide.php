@@ -8,8 +8,10 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Content\ContentScanner;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Throwable;
 
 /**
@@ -34,7 +36,7 @@ class GenerateVoiceGuide implements ShouldQueue
         return 'guide:voice';
     }
 
-    public function handle(ContentScanner $scanner, Studio $studio, VoiceGuide $guide, VoiceState $state): void
+    public function handle(ContentScanner $scanner, Studio $studio, GuideStore $guides, WorkStates $states): void
     {
         $this->allowTimeToFinish();
 
@@ -42,26 +44,24 @@ class GenerateVoiceGuide implements ShouldQueue
             $samples = $scanner->samples($this->collections);
 
             if ($samples->isEmpty()) {
-                $state->update(['status' => VoiceState::FAILED, 'error' => 'There is no published content long enough to learn a voice from. Publish a few entries, or pick different collections.']);
+                $states->changeGuide(Guide::VOICE, fn (GuideState $state) => $state->fail('There is no published content long enough to learn a voice from. Publish a few entries, or pick different collections.'));
 
                 return;
             }
 
             $response = $studio->analyseVoice($samples);
 
-            $guide->save((string) $response->document);
+            $guides->saveGuide(new Guide(Guide::VOICE, (string) $response->document));
 
-            $state->update([
-                'status' => VoiceState::IDLE,
-                'error' => null,
-                'task' => null,
-                'messages' => [],
-                'scanned' => $samples->map(fn (array $sample) => ['title' => $sample['title'], 'collection' => $sample['collection']])->all(),
-            ]);
+            $states->changeGuide(Guide::VOICE, function (GuideState $state) use ($samples) {
+                $state->succeed();
+                $state->messages = [];
+                $state->scanned = $samples->map(fn (array $sample) => ['title' => $sample['title'], 'collection' => $sample['collection']])->all();
+            });
         } catch (Throwable $exception) {
             report($exception);
 
-            $state->update(['status' => VoiceState::FAILED, 'error' => $exception->getMessage(), 'task' => null]);
+            $states->changeGuide(Guide::VOICE, fn (GuideState $state) => $state->fail($exception->getMessage()));
         }
     }
 }

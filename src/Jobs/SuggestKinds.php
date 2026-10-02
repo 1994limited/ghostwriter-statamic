@@ -7,8 +7,10 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 use Throwable;
@@ -30,7 +32,7 @@ class SuggestKinds implements ShouldQueue
      */
     public function __construct(public array $collections) {}
 
-    public function handle(Studio $studio, TypeRepository $types, KindSuggestions $kinds): void
+    public function handle(Studio $studio, TypeRepository $types, KindStore $kinds, WorkStates $states): void
     {
         $this->allowTimeToFinish();
 
@@ -42,13 +44,14 @@ class SuggestKinds implements ShouldQueue
             }
 
             try {
-                $suggestions = $studio->suggestKinds($collection, $types, $kinds);
+                $suggestions = $studio->suggestKinds($collection, $types, $kinds->suggestions($handle)->dismissed);
+                $published = Entry::query()->where('collection', $handle)->where('published', true)->count();
 
-                $kinds->store($handle, $suggestions, Entry::query()->where('collection', $handle)->where('published', true)->count());
+                $states->changeSuggestions($handle, fn (KindSuggestions $state) => $state->store($suggestions, $published));
             } catch (Throwable $exception) {
                 report($exception);
 
-                $kinds->update($handle, ['status' => KindSuggestions::FAILED, 'error' => $exception->getMessage()]);
+                $states->changeSuggestions($handle, fn (KindSuggestions $state) => $state->fail($exception->getMessage()));
             }
         }
     }

@@ -4,14 +4,19 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Conflict;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImageryGuide;
-use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
+use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Blueprint as BlueprintFacade;
 use Statamic\Facades\Entry;
 
@@ -21,7 +26,7 @@ use Statamic\Facades\Entry;
  */
 class ImageryController
 {
-    public function __construct(private ImageryGuide $guide, private ImageryState $state, private Studio $studio, private TypeRepository $types) {}
+    public function __construct(private GuideStore $guides, private WorkStates $states, private Studio $studio, private TypeRepository $types) {}
 
     public function show(): Response
     {
@@ -43,7 +48,7 @@ class ImageryController
 
         return Inertia::render('ghostwriter::Voice', [
             'blueprint' => $blueprint->toPublishArray(),
-            'meta' => $blueprint->fields()->addValues(['document' => $this->guide->get()])->preProcess()->meta()->all(),
+            'meta' => $blueprint->fields()->addValues(['document' => $this->guides->guide(Guide::IMAGERY)->body])->preProcess()->meta()->all(),
             'configured' => $this->studio->configured(),
             'provider' => $this->studio->provider(),
             'collections' => $this->types->collections()->map(fn ($collection) => [
@@ -85,7 +90,7 @@ class ImageryController
     public function scan(Request $request): JsonResponse
     {
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
-        abort_if($this->state->get()['status'] === ImageryState::WORKING, 409, 'Ghostwriter is still working on the last request.');
+        abort_if($this->states->guide(Guide::IMAGERY)->isWorking(), 409, 'Ghostwriter is still working on the last request.');
 
         $validated = $request->validate([
             'collections' => ['required', 'array', 'min:1'],
@@ -94,7 +99,11 @@ class ImageryController
 
         $collections = array_values(array_filter($validated['collections'], fn (string $handle) => $this->types->enabled($handle)));
 
-        $this->state->update(['status' => ImageryState::WORKING, 'error' => null, 'task' => 'scan']);
+        try {
+            $this->states->changeGuide(Guide::IMAGERY, fn (GuideState $state) => $state->begin('scan'));
+        } catch (Conflict $conflict) {
+            abort(409, $conflict->getMessage());
+        }
 
         GenerateImageryGuide::start($collections);
 
@@ -105,7 +114,7 @@ class ImageryController
     {
         $validated = $request->validate(['document' => ['required', 'string', 'max:60000']]);
 
-        $this->guide->save($validated['document']);
+        $this->guides->saveGuide(new Guide(Guide::IMAGERY, $validated['document']));
 
         return response()->json($this->payload());
     }
@@ -115,14 +124,15 @@ class ImageryController
      */
     private function payload(): array
     {
-        $state = $this->state->get();
+        $state = $this->states->guide(Guide::IMAGERY);
+        $guide = $this->guides->guide(Guide::IMAGERY);
 
-        return $state + [
+        return $state->toArray() + [
             // No worker has picked the job up after a while: say so.
-            'waiting' => ($state['status'] ?? null) === ImageryState::WORKING ? app(Waiting::class)->notice('guide:imagery') : null,
-            'document' => $this->guide->get(),
-            'exists' => $this->guide->exists(),
-            'updated_at' => $this->guide->updatedAt()?->diffForHumans(),
+            'waiting' => $state->isWorking() ? app(Waiting::class)->notice('guide:imagery', app(Settings::class)->workerCommand()) : null,
+            'document' => $guide->body,
+            'exists' => $guide->exists(),
+            'updated_at' => $guide->updatedAt ? Carbon::instance($guide->updatedAt)->diffForHumans() : null,
         ];
     }
 }

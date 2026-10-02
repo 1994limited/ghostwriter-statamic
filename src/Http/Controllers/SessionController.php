@@ -13,6 +13,18 @@ use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Busy;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Conflict;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Format;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\NotAllowed;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\NotFound;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Plan;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Refused;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionImages;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
@@ -24,25 +36,21 @@ use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
-use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\Yaml\Yaml;
 
 class SessionController
 {
-    /** What a field keeps of the photographs it was offered, once one is chosen. */
-    private const OFFERED = ['query' => 1, 'options' => 1, 'judged' => 1, 'none_fit' => 1, 'with_references' => 1];
+    private const BUSY_DRAFT = 'Ghostwriter is still working on the draft. Try again when it has finished.';
 
     public function __construct(
-        private SessionRepository $sessions,
+        private SessionGuard $sessions,
         private TypeRepository $types,
         private Studio $studio,
         private Presenter $presenter,
@@ -54,7 +62,7 @@ class SessionController
 
         $this->ensureConfigured();
 
-        $validated = $request->validate($type->rules() + [
+        $validated = $request->validate(TypeRepository::rules($type) + [
             'examples' => ['nullable', 'array', 'max:6'],
             'examples.*' => ['string'],
             'idea' => ['nullable', 'string', 'max:40'],
@@ -64,19 +72,20 @@ class SessionController
 
         // Entries to model this one piece on; only ones from its own collection.
         $examples = collect($validated['examples'] ?? [])
-            ->filter(fn (string $id) => Entry::find($id)?->collectionHandle() === $type->collection)
+            ->filter(fn (string $id) => Entry::find($id)?->collectionHandle() === $type->group)
             ->values()
             ->all();
 
-        $session = Session::start($type->handle, $answers, $this->me(), $examples);
-        $session->addMessage('user', $this->studio->brief($type, $session), $this->me());
-        $session->run($this->me());
-
-        $this->sessions->save($session);
+        $session = Session::start(Format::Statamic, $type->handle, $answers, $this->me(), $examples, now()->toImmutable());
+        $session = $this->sessions->start($session, $this->studio->brief($type, $session), $this->viewer());
 
         // Started from the content plan: that idea is now in hand.
         if (! empty($validated['idea'])) {
-            app(IdeaRepository::class)->update($validated['idea'], ['status' => IdeaRepository::DRAFTED, 'session' => $session->id]);
+            try {
+                app(Plan::class)->start($validated['idea'], $session->id);
+            } catch (NotFound) {
+                // Gone from the plan meanwhile: the piece is started all the same.
+            }
         }
 
         RunSessionTurn::start($session->id);
@@ -124,24 +133,19 @@ class SessionController
 
     public function message(Request $request, string $session): JsonResponse
     {
-        return $this->sessions->exclusively($session, function () use ($request, $session) {
-            $session = $this->session($session);
+        $session = $this->session($session);
 
-            $this->ensureConfigured();
+        $this->ensureConfigured();
 
-            $this->ensureIdle($session, 'Ghostwriter is still working on the last message.');
+        $this->ensureIdle($session, 'Ghostwriter is still working on the last message.');
 
-            $validated = $request->validate(['message' => ['required', 'string', 'max:50000']]);
+        $validated = $request->validate(['message' => ['required', 'string', 'max:50000']]);
 
-            $session->addMessage('user', $validated['message'], $this->me());
-            $session->run($this->me());
+        $session = $this->guarded(fn () => $this->sessions->send($session->id, $validated['message'], $this->viewer()));
 
-            $this->sessions->save($session);
+        RunSessionTurn::start($session->id);
 
-            RunSessionTurn::start($session->id);
-
-            return response()->json($this->presenter->detail($session));
-        });
+        return response()->json($this->presenter->detail($session));
     }
 
     /**
@@ -149,41 +153,36 @@ class SessionController
      */
     public function retry(string $session): JsonResponse
     {
-        return $this->sessions->exclusively($session, function () use ($session) {
-            $session = $this->session($session);
+        $session = $this->session($session);
 
-            $this->ensureConfigured();
+        $this->ensureConfigured();
 
-            abort_unless($session->status === Session::FAILED, 409, 'There is nothing to try again.');
-            abort_unless(($last = end($session->messages)) !== false && $last['role'] === 'user', 409, 'There is nothing to try again.');
-
-            // Whoever asks again is the one waiting on it now.
-            $session->run($this->me());
-
-            $this->sessions->save($session);
-
-            RunSessionTurn::start($session->id);
-
-            return response()->json($this->presenter->detail($session));
+        // Whoever asks again is the one waiting on it now. A piece already
+        // running has nothing to try again, whoever started it.
+        $session = $this->guarded(function () use ($session) {
+            try {
+                return $this->sessions->retry($session->id, $this->viewer());
+            } catch (Busy) {
+                throw new Conflict('There is nothing to try again.');
+            }
         });
+
+        RunSessionTurn::start($session->id);
+
+        return response()->json($this->presenter->detail($session));
     }
 
     public function draft(Request $request, string $session): JsonResponse
     {
-        return $this->sessions->exclusively($session, function () use ($request, $session) {
-            $session = $this->session($session);
+        $session = $this->session($session);
 
-            $this->ensureIdle($session, 'Ghostwriter is still working on the draft. Try again when it has finished.');
-
+        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($request) {
             $validated = $request->validate(['draft' => ['required', 'string', 'max:120000']]);
 
             $session->draft = $validated['draft'];
+        }, self::BUSY_DRAFT));
 
-            $session->touch($this->me());
-            $this->sessions->save($session);
-
-            return response()->json($this->presenter->detail($session));
-        });
+        return response()->json($this->presenter->detail($session));
     }
 
     /**
@@ -193,18 +192,18 @@ class SessionController
     public function apply(Request $request, string $session, SchemaReader $reader, EntryLayouts $layouts, ImageStudio $images, EntryMerger $merger, HouseFinish $finish, FormBaseline $baseline): JsonResponse
     {
         $session = $this->session($session);
-        $type = $this->type($session->type)->forSession($session);
+        $type = $this->type($session->kind)->forSession($session);
         $draft = $this->parsedDraft($session);
 
         // The form being filled decides the blueprint; the type's own is the
         // fallback for a collection with only one.
-        $blueprint = ($request->input('blueprint') ? $type->statamicCollection()?->entryBlueprint($request->input('blueprint')) : null)
-            ?? $type->statamicBlueprint()
+        $blueprint = ($request->input('blueprint') ? TypeRepository::collectionOf($type)?->entryBlueprint($request->input('blueprint')) : null)
+            ?? TypeRepository::blueprintOf($type)
             ?? abort(422, 'The collection this was written for no longer exists.');
         $specs = $reader->read($blueprint);
         $schema = Schema::fromSpecs($specs);
 
-        $original = $session->source ? Entry::find($session->source) : null;
+        $original = $session->source !== null ? Entry::find((string) $session->source) : null;
 
         // Filling a form the person could not save is pointless, and the
         // draft is theirs to see only where they could use it.
@@ -220,7 +219,7 @@ class SessionController
             $data = $merger->merge($built->data, $baseline->data($original, $request->input('values')), $specs);
             $notes = $built->notes;
         } else {
-            $pattern = $layouts->pattern($schema, $type->collection, $type->blueprint, $type->where, $type->examples);
+            $pattern = $layouts->pattern($schema, $type->group, $type->variant, $type->where, $type->examples);
             $built = $layouts->build($draft->data, $schema, $pattern, $type->defaults);
             $data = $built->data;
 
@@ -251,10 +250,7 @@ class SessionController
 
         // Noted so the session can be shown as handed over, not still in
         // progress, on the session as it stands now.
-        $this->sessions->update($session->id, function (Session $session) {
-            $session->appliedAt = now()->toIso8601String();
-            $session->touch($this->me());
-        });
+        $this->sessions->applied($session->id, $this->viewer());
 
         return response()->json([
             'values' => $fields->values()->only(array_keys($data))->all(),
@@ -269,42 +265,48 @@ class SessionController
      */
     public function image(Request $request, string $session, ImageStudio $images): JsonResponse
     {
+        $session = $this->session($session);
+        $type = $this->type($session->kind)->forSession($session);
+
+        abort_unless($images->configured(), 422, 'No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
+
+        $validated = $request->validate([
+            'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
+            'direction' => ['nullable', 'string', 'max:2000'],
+            'source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
+        ]);
+
+        abort_if(SessionImages::status($session, $validated['key']) === SessionImages::WORKING, 409, 'That image is already being made.');
+
+        $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
+
+        $source = null;
+
+        if ($upload = $request->file('source')) {
+            $directory = storage_path('ghostwriter/uploads');
+            File::ensureDirectoryExists($directory);
+
+            $source = $upload->move($directory, Str::ulid().'.'.$upload->extension())->getPathname();
+        }
+
         // Under the lock, so the image's record is not lost to a turn or
         // another request saving at the same moment.
-        return $this->sessions->exclusively($session, function () use ($request, $session, $images) {
-            $session = $this->session($session);
-            $type = $this->type($session->type)->forSession($session);
-
-            abort_unless($images->configured(), 422, 'No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
-
-            $validated = $request->validate([
-                'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
-                'direction' => ['nullable', 'string', 'max:2000'],
-                'source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
-            ]);
-
-            abort_if(($session->images[$validated['key']]['status'] ?? null) === 'working', 409, 'That image is already being made.');
-
-            $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
-
-            $source = null;
-
-            if ($upload = $request->file('source')) {
-                $directory = storage_path('ghostwriter/uploads');
-                File::ensureDirectoryExists($directory);
-
-                $source = $upload->move($directory, Str::ulid().'.'.$upload->extension())->getPathname();
+        try {
+            $session = $this->guarded(fn () => $this->sessions->change($session->id, function (Session $session) use ($validated) {
+                SessionImages::startMaking($session, $validated['key']);
+                $session->touch($this->me());
+            })) ?? abort(404);
+        } catch (HttpException $exception) {
+            if ($source !== null) {
+                File::delete($source);
             }
 
-            $session->images[$validated['key']] = ['status' => 'working', 'error' => null] + ($session->images[$validated['key']] ?? []);
+            throw $exception;
+        }
 
-            $session->touch($this->me());
-            $this->sessions->save($session);
+        GenerateImage::start($session->id, $validated['key'], (string) ($validated['direction'] ?? ''), $source);
 
-            GenerateImage::start($session->id, $validated['key'], (string) ($validated['direction'] ?? ''), $source);
-
-            return response()->json($this->presenter->detail($session));
-        });
+        return response()->json($this->presenter->detail($session));
     }
 
     /**
@@ -314,11 +316,9 @@ class SessionController
      */
     public function editField(Request $request, string $session, HtmlToMarkdown $html): JsonResponse
     {
-        return $this->sessions->exclusively($session, function () use ($request, $session, $html) {
-            $session = $this->session($session);
+        $session = $this->session($session);
 
-            $this->ensureIdle($session, 'Ghostwriter is still working on the draft. Try again when it has finished.');
-
+        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($request, $html) {
             $draft = $this->parsedDraft($session);
 
             $validated = $request->validate([
@@ -350,12 +350,9 @@ class SessionController
             unset($node);
 
             $session->draft = trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
+        }, self::BUSY_DRAFT));
 
-            $session->touch($this->me());
-            $this->sessions->save($session);
-
-            return response()->json($this->presenter->detail($session));
-        });
+        return response()->json($this->presenter->detail($session));
     }
 
     /**
@@ -364,7 +361,7 @@ class SessionController
     public function photos(Request $request, string $session, ImageStudio $images): JsonResponse
     {
         $session = $this->session($session);
-        $type = $this->type($session->type)->forSession($session);
+        $type = $this->type($session->kind)->forSession($session);
 
         $validated = $request->validate([
             'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
@@ -382,7 +379,7 @@ class SessionController
     public function photo(Request $request, string $session, ImageStudio $images, StockSearch $stock): JsonResponse
     {
         $session = $this->session($session);
-        $type = $this->type($session->type)->forSession($session);
+        $type = $this->type($session->kind)->forSession($session);
 
         $validated = $request->validate([
             'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
@@ -404,12 +401,10 @@ class SessionController
         // Fetching took a while: the choice is written to the session as it
         // stands now, so a turn that saved meanwhile is not undone, nor
         // undoes it.
-        $session = $this->sessions->update($session->id, function (Session $session) use ($validated, $asset, $file) {
-            $session->images[$validated['key']] = ['status' => 'done', 'path' => $asset->path(), 'url' => $asset->url(), 'error' => null, 'credit' => $file->photo->credit]
-                + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
-
+        $session = $this->guarded(fn () => $this->sessions->change($session->id, function (Session $session) use ($validated, $asset, $file) {
+            SessionImages::choose($session, $validated['key'], $asset->path(), $asset->url(), $file->photo->credit);
             $session->touch($this->me());
-        }) ?? abort(404);
+        })) ?? abort(404);
 
         return response()->json($this->presenter->detail($session));
     }
@@ -420,30 +415,32 @@ class SessionController
      */
     public function copyImage(Request $request, string $session, ImageStudio $images): JsonResponse
     {
-        return $this->sessions->exclusively($session, function () use ($request, $session, $images) {
-            $session = $this->session($session);
-            $slots = $images->slots($session, $this->type($session->type)->forSession($session));
+        $session = $this->session($session);
+        $slots = $images->slots($session, $this->type($session->kind)->forSession($session));
 
-            $validated = $request->validate([
-                'key' => ['required', 'string', Rule::in(array_keys($slots))],
-                'from' => ['required', 'string', 'different:key', Rule::in(array_keys($slots))],
-            ]);
+        $validated = $request->validate([
+            'key' => ['required', 'string', Rule::in(array_keys($slots))],
+            'from' => ['required', 'string', 'different:key', Rule::in(array_keys($slots))],
+        ]);
 
-            $source = $session->images[$validated['from']] ?? [];
+        $source = $session->images[$validated['from']] ?? [];
 
-            abort_unless(($source['status'] ?? null) === 'done' && ! empty($source['path']), 422, 'That field has no image yet.');
-            abort_unless($slots[$validated['key']]['container'] === $slots[$validated['from']]['container'], 422, 'Those two fields keep their images in different places.');
+        abort_unless(($source['status'] ?? null) === SessionImages::DONE && ! empty($source['path']), 422, 'That field has no image yet.');
+        abort_unless($slots[$validated['key']]['container'] === $slots[$validated['from']]['container'], 422, 'Those two fields keep their images in different places.');
 
-            // The field keeps the photographs it was offered, in case of a change of mind.
-            $session->images[$validated['key']] = ['status' => 'done', 'error' => null]
-                + array_intersect_key($source, ['path' => 1, 'url' => 1, 'credit' => 1])
-                + array_intersect_key($session->images[$validated['key']] ?? [], self::OFFERED);
+        // On the session as it stands now. The field keeps the photographs
+        // it was offered, in case of a change of mind.
+        $session = $this->guarded(fn () => $this->sessions->change($session->id, function (Session $session) use ($validated) {
+            try {
+                SessionImages::copy($session, $validated['key'], $validated['from']);
+            } catch (Conflict $exception) {
+                abort(422, $exception->getMessage());
+            }
 
             $session->touch($this->me());
-            $this->sessions->save($session);
+        })) ?? abort(404);
 
-            return response()->json($this->presenter->detail($session));
-        });
+        return response()->json($this->presenter->detail($session));
     }
 
     /**
@@ -453,10 +450,10 @@ class SessionController
     public function entry(string $session, EntryWriter $writer, SchemaReader $reader, ImageStudio $images): JsonResponse
     {
         $session = $this->session($session);
-        $type = $this->type($session->type)->forSession($session);
+        $type = $this->type($session->kind)->forSession($session);
 
         // Ghostwriter never creates what the person could not create by hand.
-        $collection = $type->statamicCollection() ?? abort(422, 'The collection this was written for no longer exists.');
+        $collection = TypeRepository::collectionOf($type) ?? abort(422, 'The collection this was written for no longer exists.');
         abort_unless(User::current()?->can('create', [EntryContract::class, $collection]), 403, 'You cannot create entries in this collection.');
 
         try {
@@ -469,10 +466,10 @@ class SessionController
             $entry->data($images->place($entry->data()->all(), $session, $reader->read($blueprint)))->save();
         }
 
-        $session = $this->sessions->update($session->id, function (Session $session) use ($entry) {
-            $session->entryId = $entry->id();
+        $session = $this->guarded(fn () => $this->sessions->change($session->id, function (Session $session) use ($entry) {
+            $session->recordId = (string) $entry->id();
             $session->touch($this->me());
-        }) ?? $session;
+        })) ?? $session;
 
         return response()->json(['entry_url' => $entry->editUrl()] + $this->presenter->detail($session));
     }
@@ -481,9 +478,7 @@ class SessionController
     {
         $session = $this->session($session);
 
-        abort_unless($this->sessions->canDelete($session, User::current()), 403, 'Only the person who started this piece, or someone who manages Ghostwriter, can delete it.');
-
-        $this->sessions->delete($session);
+        $this->guarded(fn () => $this->sessions->delete($session->id, $this->viewer(), 'Only the person who started this piece, or someone who manages Ghostwriter, can delete it.'));
 
         return response()->json(['deleted' => true]);
     }
@@ -514,7 +509,7 @@ class SessionController
     {
         $type = $this->types->find($handle);
 
-        abort_unless($type && $this->types->enabled($type->collection), 404);
+        abort_unless($type && $this->types->enabled($type->group), 404);
 
         return $type;
     }
@@ -526,11 +521,40 @@ class SessionController
      */
     private function session(string $id): Session
     {
-        $session = $this->sessions->find($id) ?? abort(404);
+        try {
+            return $this->sessions->find($id, $this->viewer());
+        } catch (NotFound) {
+            abort(404);
+        } catch (NotAllowed) {
+            abort(403);
+        }
+    }
 
-        abort_unless($this->sessions->canSee($session, User::current()), 403);
+    /**
+     * Core's refusals as the answers the panel expects: whose request is
+     * running, when it is someone else's (one run at a time).
+     *
+     * @template T
+     *
+     * @param  callable(): T  $work
+     * @return T
+     */
+    private function guarded(callable $work): mixed
+    {
+        try {
+            return $work();
+        } catch (Busy $busy) {
+            abort(409, $busy->messageFor(fn (int|string $id) => Presenter::name((string) $id)));
+        } catch (NotFound) {
+            abort(404);
+        } catch (Refused $refused) {
+            abort($refused->status(), $refused->getMessage());
+        }
+    }
 
-        return $session;
+    private function viewer(): Viewer
+    {
+        return Presenter::viewer();
     }
 
     private function me(): ?string
@@ -545,15 +569,9 @@ class SessionController
      */
     private function ensureIdle(Session $session, string $message): void
     {
-        if ($session->status !== Session::WORKING) {
-            return;
+        if ($session->isWorking()) {
+            $this->guarded(fn () => throw new Busy($message, $session->waitingOn($this->viewer())));
         }
-
-        if ($session->runBy !== null && $session->runBy !== $this->me()) {
-            $message = Presenter::name($session->runBy).' is waiting on Ghostwriter. Try again when it has answered.';
-        }
-
-        abort(409, $message);
     }
 
     private function ensureConfigured(): void

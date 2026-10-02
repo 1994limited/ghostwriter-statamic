@@ -7,11 +7,13 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Settings;
-use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
+use Statamic\Facades\Entry;
 
 /**
  * Get started: a page of steps that take Ghostwriter from installed to
@@ -21,9 +23,9 @@ class SetupController
 {
     public function __construct(private Onboarding $onboarding, private Studio $studio, private Settings $settings) {}
 
-    public function show(TypeRepository $types, KindSuggestions $suggestions): Response
+    public function show(TypeRepository $types, WorkStates $states): Response
     {
-        $this->suggestDueKinds($types, $suggestions);
+        $this->suggestDueKinds($types, $states);
 
         return Inertia::render('ghostwriter::Setup', $this->payload() + [
             'urls' => [
@@ -83,20 +85,25 @@ class SetupController
      * each is seen, and again once enough has been published there since.
      * Only here: elsewhere, kinds are suggested when someone asks.
      */
-    private function suggestDueKinds(TypeRepository $types, KindSuggestions $suggestions): void
+    private function suggestDueKinds(TypeRepository $types, WorkStates $states): void
     {
         if (! $this->settings->suggestsKinds() || ! $this->studio->configured()) {
             return;
         }
 
-        $due = $types->collections()->filter(fn ($collection) => $suggestions->due($collection))->map->handle()->values()->all();
+        $due = $types->collections()
+            ->filter(fn ($collection) => $states->suggestions($collection->handle())->due(Entry::query()->where('collection', $collection->handle())->where('published', true)->count()))
+            ->map->handle()->values()->all();
 
         if ($due === []) {
             return;
         }
 
         foreach ($due as $handle) {
-            $suggestions->update($handle, ['status' => KindSuggestions::WORKING, 'error' => null]);
+            $states->changeSuggestions($handle, function (KindSuggestions $state) {
+                $state->status = 'working';
+                $state->error = null;
+            });
         }
 
         SuggestKinds::start($due);

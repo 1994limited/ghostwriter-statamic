@@ -2,12 +2,11 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Widgets\Ghostwriter;
 use Statamic\Contracts\Addons\SettingsRepository;
 use Statamic\Facades\Addon;
@@ -42,8 +41,8 @@ class SetupTest extends TestCase
         $this->assertFalse($steps['write']['done']);
 
         // A guide written, a session started: the steps follow.
-        app(VoiceGuide::class)->save('# Voice');
-        app(SessionRepository::class)->save(Session::start('any:articles', []));
+        app(GuideStore::class)->saveGuide(new Guide(Guide::VOICE, '# Voice'));
+        $this->sessions()->save($this->makeSession('any:articles', []));
         $this->makeType();
 
         $after = $this->getJson(cp_route('ghostwriter.setup.status'))->json();
@@ -162,7 +161,7 @@ class SetupTest extends TestCase
     public function test_the_dashboard_widget_shows_progress_and_pieces_for_those_allowed(): void
     {
         $this->signIn();
-        app(SessionRepository::class)->save(Session::start('any:articles', ['subject' => 'Something long enough to be a title']));
+        $this->sessions()->save($this->makeSession('any:articles', ['subject' => 'Something long enough to be a title']));
 
         $widget = new Ghostwriter;
         $widget->setConfig(['limit' => 1]);

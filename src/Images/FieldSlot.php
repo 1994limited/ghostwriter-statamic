@@ -137,7 +137,7 @@ class FieldSlot
 
             foreach ($values as [$type, $value]) {
                 $path = is_array($value) ? ($value[0] ?? null) : $value;
-                $asset = is_string($path) && $path !== '' && $path !== Placeholders::PATH ? $container?->asset($path) : null;
+                $asset = is_string($path) && $path !== '' && $path !== ContainerAssetSink::PATH ? $container?->asset($path) : null;
 
                 if (! $asset || ! in_array(strtolower((string) $asset->extension()), self::RASTER, true)) {
                     continue;

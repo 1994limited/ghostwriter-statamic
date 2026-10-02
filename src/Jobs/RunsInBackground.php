@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Jobs;
 
 use Illuminate\Contracts\Bus\Dispatcher;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
 use NineteenNinetyFour\Ghostwriter\Settings;
 
 /**

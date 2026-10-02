@@ -3,10 +3,11 @@
 namespace NineteenNinetyFour\Ghostwriter\Widgets;
 
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
-use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\User;
 use Statamic\Widgets\VueComponent;
@@ -28,7 +29,7 @@ class Ghostwriter extends Widget
 
         $presenter = app(Presenter::class);
         $limit = max(1, min(20, (int) $this->config('limit', 5)));
-        $inProgress = app(SessionRepository::class)->visibleTo(User::current())
+        $inProgress = collect(app(SessionGuard::class)->visible(Presenter::viewer()))
             ->map(fn ($session) => $presenter->summary($session))
             ->reject(fn (array $summary) => $summary['finished'])
             ->values();
@@ -37,7 +38,7 @@ class Ghostwriter extends Widget
             'title' => $this->config('title', 'Ghostwriter'),
             'inProgress' => $inProgress->take($limit)->all(),
             'moreInProgress' => max(0, $inProgress->count() - $limit),
-            'planOpen' => app(IdeaRepository::class)->all()->where('status', IdeaRepository::OPEN)->count(),
+            'planOpen' => count(array_filter(app(PlanStore::class)->ideas(), fn (Idea $idea) => $idea->isOpen())),
             'setup' => app(Onboarding::class)->progress(),
             'configured' => app(Studio::class)->configured(),
             'collections' => app(TypeRepository::class)->collections()->map(fn ($collection) => [

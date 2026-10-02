@@ -8,6 +8,9 @@ use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Content\ProseExtractor;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\ContentKind;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Conversation;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\ImagerySample;
@@ -20,8 +23,6 @@ use NineteenNinetyFour\Ghostwriter\Core\Studio\PlanItem;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\PlannedIdea;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\TypeSurvey;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\VoiceSample;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Collection as EntryCollection;
 use Statamic\Facades\Collection as Collections;
@@ -103,7 +104,7 @@ class StudioInputs
 
     /**
      * @param  array<int, string>  $collections  Handles of the collections to plan for.
-     * @param  array<int, array<string, mixed>>  $plan  Ideas already on the plan, whatever their status.
+     * @param  array<int, Idea>  $plan  Ideas already on the plan, whatever their status.
      */
     public function planContext(array $collections, TypeRepository $types, array $plan, string $voice, string $steer): PlanContext
     {
@@ -123,7 +124,7 @@ class StudioInputs
             return new PlanGroup($collection->title(), $handle, $this->kinds($types->forCollection($handle)), $items);
         })->filter()->values()->all();
 
-        $planned = array_map(fn (array $idea) => new PlannedIdea((string) $idea['title'], (string) $idea['collection'], (string) $idea['status']), $plan);
+        $planned = array_map(fn (Idea $idea) => new PlannedIdea($idea->title, $idea->group, $idea->status), $plan);
 
         return new PlanContext($groups, $planned, $voice, $steer, (int) config('ghostwriter.plan.suggestions', 8));
     }
@@ -144,7 +145,7 @@ class StudioInputs
      */
     public function briefTitles(ContentType $type): array
     {
-        return Entries::query()->where('collection', $type->collection)->get()
+        return Entries::query()->where('collection', $type->group)->get()
             ->sortByDesc(fn ($entry) => $entry->date()?->timestamp ?? $entry->lastModified()?->timestamp ?? 0)
             ->take(self::BRIEF_TITLES)
             ->map(fn ($entry) => (string) $entry->get('title'))
@@ -157,17 +158,17 @@ class StudioInputs
      */
     public function layout(ContentType $type): Layout
     {
-        $blueprint = $type->statamicBlueprint()
-            ?? throw new InvalidArgumentException("The collection \"{$type->collection}\" no longer exists.");
+        $blueprint = TypeRepository::blueprintOf($type)
+            ?? throw new InvalidArgumentException("The collection \"{$type->group}\" no longer exists.");
 
         $schema = $this->reader->schema($blueprint);
 
-        return $this->layouts->layout($schema, $this->layouts->pattern($schema, $type->collection, $type->blueprint, $type->where, $type->examples));
+        return $this->layouts->layout($schema, $this->layouts->pattern($schema, $type->group, $type->variant, $type->where, $type->examples));
     }
 
     public function kind(ContentType $type): ContentKind
     {
-        return ContentKind::fromArray($type->handle, $type->toArray());
+        return $type->toStudio();
     }
 
     public function conversation(Session $session): Conversation
