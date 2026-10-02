@@ -31,6 +31,9 @@ export default {
             words: '',
             direction: '',
             source: null,
+            // "Search in": the free libraries, one paid library, or everything.
+            searchIn: 'free',
+            editorial: false,
             request: null,
             busy: false,
             more: false,
@@ -57,6 +60,18 @@ export default {
         // already in this place), or they are just the top result of each search.
         judged() {
             return Boolean(this.request?.judged);
+        },
+
+        // Whether "Search in" offers any paid library.
+        offersPaid() {
+            return (this.tools?.sources ?? []).some((choice) => choice.paid);
+        },
+
+        // Every result is from a paid library, so nothing was judged.
+        allPaid() {
+            const options = this.request?.options ?? [];
+
+            return options.length > 0 && options.every((photo) => photo.paid);
         },
 
         tabs() {
@@ -90,6 +105,8 @@ export default {
             if (!this.tools) {
                 try {
                     this.tools = (await this.$axios.get(`${this.baseUrl}/images/tools`)).data;
+                    this.searchIn = this.tools.source ?? 'free';
+                    this.editorial = Boolean(this.tools.editorial);
                 } catch (error) {
                     this.tools = { find: false, make: false };
                 }
@@ -139,7 +156,11 @@ export default {
             Object.entries(this.slot()).forEach(([key, value]) => value !== null && form.append(key, value));
             form.append('mode', mode);
 
-            if (mode === 'find') form.append('words', this.words);
+            if (mode === 'find') {
+                form.append('words', this.words);
+                form.append('source', this.searchIn);
+                form.append('editorial', this.editorial ? '1' : '0');
+            }
             if (mode === 'make') {
                 form.append('direction', this.direction);
                 if (this.source) form.append('source', this.source);
@@ -202,7 +223,7 @@ export default {
         // moment its value arrives.
         // A field already holding as many images as it takes is left alone;
         // the image is in the container, and the person is told so.
-        place({ value, meta, full, message }) {
+        place({ value, meta, full, message, stock, toast }) {
             if (full) {
                 this.open = false;
                 this.$toast.error(message, { duration: 10000 });
@@ -213,7 +234,11 @@ export default {
             this.field.updateMeta({ ...(this.field.meta ?? {}), ...meta });
             this.field.update(value);
             this.open = false;
-            this.$toast.success(this.__('Image added. Save to keep it.'));
+
+            // A paid photo went in as a preview: the field's badge shows it.
+            if (stock) Statamic.$events.$emit('ghostwriter.stock', stock);
+
+            this.$toast.success(toast ?? this.__('Image added. Save to keep it.'));
         },
 
         fail(error) {
@@ -244,10 +269,21 @@ export default {
             <!-- Find a photograph -->
             <div v-if="tab === 'find' && tools?.find" class="space-y-3">
                 <Subheading :text="tools.suggests ? __('Leave the words blank and Ghostwriter chooses what to search for from the page. The photos that best suit the page’s words, and the images already in this place on other entries when there are any, come first.') : __('Type what to search for. Separate several searches with semicolons.')" />
-                <div class="flex gap-2">
-                    <Input v-model="words" class="flex-1" :placeholder="__('e.g. mended pottery gold; restored classic car')" :disabled="working" @keydown.enter.stop.prevent="start('find')" />
+                <div class="flex flex-wrap gap-2">
+                    <Input v-model="words" class="min-w-48 flex-1" :placeholder="__('e.g. mended pottery gold; restored classic car')" :disabled="working" @keydown.enter.stop.prevent="start('find')" />
+                    <label v-if="tools.sources?.length" class="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300!">
+                        <span class="shrink-0">{{ __('Search in') }}:</span>
+                        <select v-model="searchIn" data-ghostwriter-search-in class="h-9 rounded-lg border border-gray-300 bg-white px-2 text-sm text-gray-900 dark:border-gray-700! dark:bg-gray-900! dark:text-gray-100!" :disabled="working">
+                            <option v-for="choice in tools.sources" :key="choice.value" :value="choice.value" :disabled="choice.disabled">{{ choice.label }}</option>
+                        </select>
+                    </label>
                     <Button :text="working ? __('Looking…') : __('Find photos')" variant="primary" :loading="working || busy" :disabled="working || busy" @click="start('find')" />
                 </div>
+                <label v-if="offersPaid && searchIn !== 'free'" class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-gray-600 dark:text-gray-300!">
+                    <input v-model="editorial" type="checkbox" :disabled="working" />
+                    {{ __('Include editorial images') }}
+                    <span class="text-xs text-gray-500">{{ __('(news and events only; not for selling or promoting anything)') }}</span>
+                </label>
                 <Alert v-if="request?.status === 'failed'" variant="error" :text="request.error" />
                 <p v-if="working" class="text-sm text-gray-500" role="status"><span class="animate-pulse">{{ __('Choosing searches, running them, and comparing the results with the page and any images already in this place…') }}</span></p>
                 <Alert v-if="working && request.waiting" variant="warning" :text="request.waiting" role="status" />
@@ -256,8 +292,9 @@ export default {
                     <p v-if="!request.options.length" class="text-sm">{{ __('Nothing found. Try other words.') }}</p>
                     <p v-else-if="request.none_fit" class="text-sm text-gray-500">{{ __('None of these fitted the page, even after a second round of searches. These are the top results; try other words for a better match.') }}</p>
                     <p v-else-if="judged && !request.with_references" class="text-sm text-gray-500">{{ __('Compared with the page; there are no other images here to match.') }}</p>
-                    <p v-else-if="!judged" class="text-sm text-gray-500">{{ __('These are the top results of each search. They weren’t compared with the page.') }}</p>
-                    <div class="grid grid-cols-3 items-start gap-3">
+                    <p v-else-if="!judged && !allPaid" class="text-sm text-gray-500">{{ __('These are the top results of each search. They weren’t compared with the page.') }}</p>
+                    <p v-for="library in request.paid_libraries ?? []" :key="library" class="text-sm text-gray-500">{{ __(':library results are in :library\'s order; Ghostwriter doesn\'t judge paid libraries.', { library }) }}</p>
+                    <div class="grid grid-cols-3 items-start gap-3 max-sm:grid-cols-2!">
                         <div
                             v-for="photo in shown"
                             v-show="!broken[photo.source + photo.id]"
@@ -266,13 +303,18 @@ export default {
                         >
                             <button type="button" class="block text-start disabled:opacity-50!" :disabled="busy" :title="[photo.reason || photo.alt, `${photo.credit} · ${photo.licence}`].filter(Boolean).join('\n')" @click="use(photo)">
                                 <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
-                                <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" @error="broken[photo.source + photo.id] = true" />
+                                <span v-if="photo.editorial" class="absolute top-1.5 right-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-900" :title="photo.restrictions || __('Editorial use only')">{{ __('Editorial') }}</span>
+                                <span class="relative block">
+                                    <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" @error="broken[photo.source + photo.id] = true" />
+                                    <span class="absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-medium text-white" data-ghostwriter-chip="source">{{ photo.source_label || photo.source }}</span>
+                                    <span class="absolute right-1.5 bottom-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium" :class="photo.paid ? 'bg-white/90 text-gray-900' : 'bg-green-100 text-green-900'" data-ghostwriter-chip="cost">{{ photo.paid ? (photo.offer?.label || __('Paid')) : __('Free') }}</span>
+                                </span>
                                 <span class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
                             </button>
                             <a v-if="/^https?:\/\//i.test(photo.credit_url ?? '')" :href="photo.credit_url" target="_blank" rel="noopener noreferrer" class="block truncate px-1.5 text-xs text-gray-500 hover:underline!" :title="__('See it on :source', { source: photo.credit })">{{ photo.credit }} · {{ photo.licence }}</a>
                             <span v-else class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }} · {{ photo.licence }}</span>
                             <div class="px-1.5 py-1.5">
-                                <Button size="xs" :text="__('Use this')" :disabled="busy" @click="use(photo)" />
+                                <Button size="xs" :text="photo.paid ? __('Insert preview') : __('Use this')" :disabled="busy" @click="use(photo)" />
                             </div>
                         </div>
                     </div>

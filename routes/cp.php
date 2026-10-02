@@ -35,6 +35,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('images/{id}/use', [ImagesController::class, 'use'])->name('images.use');
 
     Route::post('stock/libraries/{library}/check', [StockController::class, 'check'])->name('stock.check');
+    Route::get('stock/{id}/comp', [StockController::class, 'comp'])->name('stock.comp');
     Route::get('stock/demo/{id}/thumb', [StockController::class, 'demoThumb'])->name('stock.demo.thumb');
 
     Route::get('plan', [PlanController::class, 'show'])->name('plan.show');

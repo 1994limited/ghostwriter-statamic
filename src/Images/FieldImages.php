@@ -30,10 +30,11 @@ class FieldImages
      * Photographs for the slot.
      *
      * @param  array<int, string>  $terms  What the person typed; empty to have searches chosen from the page.
+     * @param  PhotoFinder|null  $finder  One over the libraries "Search in" chose; the free libraries otherwise.
      */
-    public function find(FieldSlot $slot, array $terms = []): PhotoResults
+    public function find(FieldSlot $slot, array $terms = [], ?PhotoFinder $finder = null): PhotoResults
     {
-        return $this->finder->find($this->context($slot), ImageStudio::referenceImages($slot->references()), $terms === [] ? null : $terms);
+        return ($finder ?? $this->finder)->find($this->context($slot), ImageStudio::referenceImages($slot->references()), $terms === [] ? null : $terms);
     }
 
     public function context(FieldSlot $slot): PhotoContext
