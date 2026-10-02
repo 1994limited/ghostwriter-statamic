@@ -57,6 +57,7 @@ export default {
                 again: 'Rescan and rewrite',
                 confirm: 'Read the site again and replace the current guide? Any edits you have made to it will be lost.',
                 scanned: 'Last written from :count entry.|Last written from :count entries.',
+                note: 'Markdown. Every writing prompt includes this guide as it stands.',
                 ...this.labels,
             };
         },
@@ -164,7 +165,8 @@ export default {
 
         <SetupAlert v-if="!configured" :provider="provider" />
 
-        <Alert v-if="current.status === 'failed'" variant="error" :heading="__('That did not work')" :text="current.error" class="mb-6" />
+        <Alert v-if="current.status === 'failed'" variant="error" :heading="__('That didn’t work')" :text="current.error" class="mb-6" />
+        <Alert v-if="working && current.waiting" variant="warning" :text="current.waiting" class="mb-6" role="status" />
 
         <div class="grid gap-6 lg:grid-cols-3">
             <div class="lg:col-span-2">
@@ -185,6 +187,7 @@ export default {
                             :read-only="working"
                             :track-dirty-state="false"
                         />
+                        <p v-if="current.exists && !(working && current.task === 'scan')" class="mt-3 text-sm text-gray-500">{{ __(text.note) }}</p>
                     </div>
                 </Panel>
             </div>

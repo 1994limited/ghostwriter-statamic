@@ -26,6 +26,11 @@ class FindImages implements ShouldQueue
 
     public function __construct(public string $request) {}
 
+    public function subject(): ?string
+    {
+        return 'image:'.$this->request;
+    }
+
     public function handle(ImageRequests $requests, FieldImages $images): void
     {
         $this->allowTimeToFinish();

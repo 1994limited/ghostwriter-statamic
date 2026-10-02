@@ -32,6 +32,17 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Writing in the draft is always editable in place, as in the Craft addon: click it or move to it with Tab, type, and it is saved when you leave it. Escape puts back what was there; Enter finishes a one-line field. Rich text stays rich. Before, a click turned a line into a text box first, and nothing could be reached from the keyboard.
 - On a create screen, **Write with Ghostwriter** carries on with the piece last used or open there, after **Use this draft** or closing the panel, rather than going back to **What are you writing?**. The address names the piece (`?ghostwriter=…`), so reloading the page carries on too. **Start over** goes back to a new piece.
 
+**Missing pieces** (from the UX parity audit, so the three addons match):
+
+- **Try again** on a failed turn in the writing panel sends the same message again. Failures everywhere read "That didn’t work".
+- When work has waited 30 seconds for a queue worker, the writing panel, the voice and image style screens and the image button say so, with the command to start one. Work is marked as it is queued and unmarked when a worker starts it, in `storage/ghostwriter/queued`.
+- **Suggest kinds everywhere** on the dashboard looks over every collection at once.
+- The settings screen lists the API keys Ghostwriter can use and whether each is set (never the keys), and has a **Search Openverse** switch. `images.openverse` in the config is now blank by default so the screen decides; **if you published the config**, change its line to `env('GHOSTWRITER_OPENVERSE')` to use the switch.
+- A reopened piece whose draft is already in the form says so: using it again replaces what is there.
+- Notes under the voice guide and image style editors ("Markdown. Every writing prompt includes this guide as it stands." and the `##` headings the image guide needs).
+- The dashboard says "Nothing being written right now." with nothing in progress, the teach-a-kind box explains itself, and ⌘S saves a kind.
+- Photo credits link to the photo on the library's site; thumbnails that won't load are left out; making a picture with the field button says it is under way.
+
 **Fixes** (from the UX parity audit of the three addons):
 
 - **Editing keeps what you typed.** "Edit with Ghostwriter" now starts from what the entry's form holds, unsaved typing included, and "Use these changes" puts the new writing over the form as it stands. Before, both worked from the entry as last saved, so an image or setting changed in the form and not yet saved was put back.

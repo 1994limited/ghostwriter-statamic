@@ -30,6 +30,11 @@ class GenerateImageryGuide implements ShouldQueue
      */
     public function __construct(public array $collections) {}
 
+    public function subject(): ?string
+    {
+        return 'guide:imagery';
+    }
+
     public function handle(ImageStudio $images, Studio $studio, ImageryGuide $guide, ImageryState $state): void
     {
         $this->allowTimeToFinish();

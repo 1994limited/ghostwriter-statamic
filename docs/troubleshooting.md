@@ -8,7 +8,7 @@ The chosen provider's key isn't in the environment. Add it to `.env` (see [API k
 
 Model calls run in the background.
 
-- **Using a queue connection?** Make sure a worker is running (`php artisan queue:work`, Horizon, or your host's daemon).
+- **Using a queue connection?** Make sure a worker is running (`php artisan queue:work`, Horizon, or your host's daemon). If nothing has picked the work up after 30 seconds, the writing panel, the guide screens and the image button say so: "Still waiting for a queue worker to pick this up. Is `php artisan queue:work` running?", naming the queue when it isn't `default`.
 - **On the `sync` driver?** The call runs after the response is sent, which needs PHP-FPM. `php artisan serve` blocks; use Herd, Valet or your server.
 - **Look at the log.** `storage/logs/laravel.log` records what went wrong.
 

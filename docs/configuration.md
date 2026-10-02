@@ -45,7 +45,7 @@ If you published the config before 1.1.0, its `provider` line reads `env('GHOSTW
 | `suggest_kinds` | `null` (the settings screen; on if that is blank) | Look for kinds without being asked |
 | `images.provider` | `null` | `openai` or `gemini`; `null` uses whichever has a key |
 | `images.model` | provider's default | |
-| `images.openverse` | `true` | Search Openverse |
+| `images.openverse` | `null` (the settings screen; on if that is blank) | Search Openverse |
 | `images.placeholders` | `null` (the settings screen; on if that is blank) | Mark images still to choose with a striped placeholder in empty image fields |
 | `images.guide_samples` | `10` | Images looked at per collection for the image style guide |
 | `images.unsplash_key`, `images.pixabay_key`, `images.pexels_key` | from `.env` | Photo library keys |

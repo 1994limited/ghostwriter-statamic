@@ -29,6 +29,11 @@ class GenerateVoiceGuide implements ShouldQueue
      */
     public function __construct(public ?array $collections = null) {}
 
+    public function subject(): ?string
+    {
+        return 'guide:voice';
+    }
+
     public function handle(ContentScanner $scanner, Studio $studio, VoiceGuide $guide, VoiceState $state): void
     {
         $this->allowTimeToFinish();

@@ -25,7 +25,7 @@ Searches free photo libraries: Openverse (no key needed) and Unsplash, Pixabay a
    - With no other images in that place, the photos are still judged against the page, and a line says so: "Compared with the page; there are no other images here to match."
    - If none fit, the model names better searches and a **second round** runs. If that finds nothing either, the top results come back with a line saying none fitted.
    - **Best match** only appears when a model judged the photos. Without a writing model, the top result of each search comes first, with no badge, and a line says they weren't compared.
-3. Click the photo you want, or its **Use this** button.
+3. Click the photo you want, or its **Use this** button. The credit under each photo links to it on the library's site, to check its context and licence. A thumbnail that won't load is left out.
 
 ### Make one
 
@@ -34,7 +34,7 @@ Needs an OpenAI or Gemini key (see [API keys](api-keys.md)).
 1. Optionally, say what it should show. Leave it blank and Ghostwriter decides from the block and page.
 2. Optionally, add **an image of your own to put in it**, such as a product shot. It is used as it is, not redrawn.
 3. **Make image.** It takes a minute or two, matching the style of the images already in that place.
-4. **Use this**, or **Make another**.
+4. **Use this**, or **Make another**. A line under the button says it is being made while you wait.
 
 Ghostwriter never draws a real company's logo from memory. For a logo, add the logo file to the field yourself, or give it as your own image in step 2.
 

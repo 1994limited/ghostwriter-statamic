@@ -10,6 +10,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
+use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
@@ -163,6 +164,12 @@ class Presenter
             'title' => $session->title(),
             'status' => $session->status,
             'error' => $session->error,
+            // A failed turn can be run again when the message it was answering is the last one.
+            'can_retry' => $session->status === Session::FAILED && ($last = end($session->messages)) !== false && $last['role'] === 'user',
+            // Put into a publish form already; using it again replaces that.
+            'applied' => $session->appliedAt !== null,
+            // No worker has picked the turn up after a while: say so.
+            'queue_waiting' => $session->status === Session::WORKING ? app(Waiting::class)->notice('session:'.$session->id) : null,
             // Ghostwriter's replies, rendered as the markdown they are
             // written in, with any HTML in them escaped.
             'messages' => array_map(fn (array $message) => $message['role'] === 'assistant'

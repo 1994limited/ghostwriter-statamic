@@ -106,6 +106,28 @@ class CollectionController
     }
 
     /**
+     * Look over every collection Ghostwriter writes for, in one go: those
+     * not being looked at already are sent to one job.
+     */
+    public function suggestKindsEverywhere(): JsonResponse
+    {
+        abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
+
+        $handles = $this->types->collections()->map->handle()->values()->all();
+        $due = array_values(array_filter($handles, fn (string $handle) => $this->suggestions->get($handle)['status'] !== KindSuggestions::WORKING));
+
+        foreach ($due as $handle) {
+            $this->suggestions->update($handle, ['status' => KindSuggestions::WORKING, 'error' => null]);
+        }
+
+        if ($due !== []) {
+            SuggestKinds::start($due);
+        }
+
+        return response()->json(['collections' => collect($handles)->mapWithKeys(fn (string $handle) => [$handle => ['kinds' => $this->kindState($handle)]])]);
+    }
+
+    /**
      * Learn a suggested kind: its name and the entries that show it go to
      * the same job as teaching one by hand.
      */

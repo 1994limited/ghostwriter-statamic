@@ -79,11 +79,12 @@ class ServiceProvider extends AddonServiceProvider
         // Photo search is core's too: the libraries, choosing the searches,
         // judging the results against the page and the images already
         // there, and a second round when nothing fits. Openverse can be
-        // switched off in config at any time, so it is read on each search.
+        // switched off on the settings screen (or in config, which wins) at
+        // any time, so it is read on each search.
         $this->app->singleton(StockSearch::class, fn ($app) => new StockSearch(
             $app->make(HttpClients::class),
             new ConfigCredentials,
-            openverse: fn (): bool => (bool) config('ghostwriter.images.openverse', true),
+            openverse: fn (): bool => $app->make(Settings::class)->openverse(),
             logger: Log::channel(config('ghostwriter.log_channel')),
         ));
         $this->app->singleton(PhotoFinder::class, fn ($app) => new PhotoFinder(
@@ -113,7 +114,7 @@ class ServiceProvider extends AddonServiceProvider
         $path = __DIR__.'/../resources/blueprints/settings.yaml';
 
         if ($this->getAddon()->hasSettingsBlueprint()) {
-            $this->registerSettingsBlueprint(fn () => app(Settings::class)->lockOverridden(YAML::file($path)->parse()));
+            $this->registerSettingsBlueprint(fn () => app(Settings::class)->withKeyStatus(app(Settings::class)->lockOverridden(YAML::file($path)->parse())));
         }
 
         return $this;
@@ -143,6 +144,7 @@ class ServiceProvider extends AddonServiceProvider
             }
 
             $event->settings->set('show_get_started', null);
+            $event->settings->set('key_status', null);
 
             // A model name that belongs to another provider is let through,
             // as new models appear all the time, but said out loud.

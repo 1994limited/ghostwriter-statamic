@@ -10,6 +10,7 @@ use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Content\ContentScanner;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateVoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\RefineVoiceGuide;
+use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
 use Statamic\Facades\Blueprint as BlueprintFacade;
@@ -111,7 +112,11 @@ class VoiceController
      */
     private function payload(): array
     {
-        return $this->state->get() + [
+        $state = $this->state->get();
+
+        return $state + [
+            // No worker has picked the job up after a while: say so.
+            'waiting' => ($state['status'] ?? null) === VoiceState::WORKING ? app(Waiting::class)->notice('guide:voice') : null,
             'document' => $this->guide->get(),
             'exists' => $this->guide->exists(),
             'updated_at' => $this->guide->updatedAt()?->diffForHumans(),

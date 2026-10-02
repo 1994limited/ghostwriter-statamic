@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use NineteenNinetyFour\Ghostwriter\Ai\ModelCheck;
+use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\Addon;
@@ -60,6 +61,36 @@ class SettingsTest extends TestCase
         $this->assertStringContainsString('Set in config/ghostwriter.php (or .env) to "openai"', $fields['provider']->get('instructions'));
         $this->assertNotSame('read_only', $fields['model']->visibility());
         $this->assertSame('Mark images still to choose', $fields['placeholder_images']->display());
+    }
+
+    public function test_openverse_is_a_setting_and_the_keys_are_listed_without_their_values(): void
+    {
+        $settings = app(Settings::class);
+
+        $this->assertTrue($settings->openverse());
+
+        Addon::get(Settings::ADDON)->settings()->set(['openverse' => false])->save();
+        $this->assertFalse($settings->openverse());
+        $this->assertNotContains('openverse', app(StockSearch::class)->sources());
+
+        config(['ghostwriter.images.openverse' => true]);
+        $this->assertTrue($settings->openverse());
+        $this->assertTrue($settings->isOverridden('openverse'));
+        $this->assertContains('openverse', app(StockSearch::class)->sources());
+
+        config(['ghostwriter.keys.openai' => 'sk-secret-value', 'ghostwriter.images.pexels_key' => 'pexels-secret']);
+
+        $this->assertSame(
+            ['ANTHROPIC_API_KEY' => true, 'OPENAI_API_KEY' => true, 'GEMINI_API_KEY' => false, 'UNSPLASH_ACCESS_KEY' => false, 'PIXABAY_API_KEY' => false, 'PEXELS_API_KEY' => true],
+            $settings->keyStatus(),
+        );
+
+        $html = collect(Addon::get(Settings::ADDON)->settingsBlueprint()->fields()->all())['key_status']->get('html');
+
+        $this->assertStringContainsString('GEMINI_API_KEY</code>', $html);
+        $this->assertStringContainsString('Not set', $html);
+        $this->assertStringNotContainsString('sk-secret-value', $html);
+        $this->assertStringNotContainsString('pexels-secret', $html);
     }
 
     public function test_the_time_limit_is_config_only_and_five_minutes_by_default(): void

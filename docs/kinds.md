@@ -12,7 +12,7 @@ Every collection can be written for straight away, with a general brief. A **kin
 Ghostwriter looks at a collection's entries (their titles, how they are built, how they open) and suggests the kinds of content in it, with a line on why each one is worth teaching.
 
 - It looks **by itself** the first time a collection appears on the dashboard, and again once ten or more entries have been published there since. Each look is one model call. Turn this off with **Suggest kinds of content** in the settings.
-- **Suggest kinds** in a collection's **Kinds** menu on the dashboard asks again now.
+- **Suggest kinds** in a collection's **Kinds** menu on the dashboard asks again now; **Suggest kinds everywhere** asks for every collection at once.
 
 Suggestions appear under the collection as **N suggested kinds to review**. Each shows what the kind is, why it's worth teaching, and up to three of the entries it was found in. Open the list, then:
 

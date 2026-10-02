@@ -100,7 +100,7 @@ export default {
 <template>
     <div v-if="looking || learning || current.error || learnError || current.suggestions.length" class="mt-3">
         <Alert v-if="current.error" variant="error" :text="current.error" class="mb-2" />
-        <Alert v-if="learnError && !learning" variant="error" :heading="__('Learning did not work')" :text="learnError" class="mb-2" />
+        <Alert v-if="learnError && !learning" variant="error" :heading="__('Learning didn’t work')" :text="learnError" class="mb-2" />
 
         <p v-if="looking" class="text-sm text-gray-500">
             <span class="animate-pulse">{{ __('Looking over the entries for kinds of content…') }}</span>

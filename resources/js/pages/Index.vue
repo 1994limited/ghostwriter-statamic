@@ -24,12 +24,13 @@ export default {
         collections: { type: Array, required: true },
         sessions: { type: Array, required: true },
         auto_kinds: { type: Boolean, default: true },
+        suggest_all_url: { type: String, default: null },
         setup: { type: Object, required: true },
         counts: { type: Object, required: true },
     },
 
     data() {
-        return { learning: null, info: null, timer: null, showFinished: false, hiddenSetup: this.setup.hidden, openKinds: {} };
+        return { learning: null, info: null, timer: null, showFinished: false, hiddenSetup: this.setup.hidden, openKinds: {}, suggestingAll: false };
     },
 
     computed: {
@@ -110,6 +111,24 @@ export default {
 
         suggestionsOf(collection) {
             return collection.suggested?.suggestions?.length ?? 0;
+        },
+
+        // Look over every collection for kinds at once.
+        async suggestEverywhere() {
+            this.suggestingAll = true;
+
+            try {
+                const { data } = await this.$axios.post(this.suggest_all_url);
+
+                Object.entries(data.collections).forEach(([handle, state]) => {
+                    const ref = this.$refs[`kinds-${handle}`];
+                    (Array.isArray(ref) ? ref[0] : ref)?.apply(state);
+                });
+            } catch (error) {
+                this.$toast.error(error.response?.data?.message ?? this.__('Something went wrong.'));
+            } finally {
+                this.suggestingAll = false;
+            }
         },
 
         // Ask for kinds now, rather than waiting for the automatic check.
@@ -220,6 +239,16 @@ export default {
 
         <!-- Collections, as one list -->
         <Panel :heading="__('Collections')" class="mb-6">
+            <div v-if="collections.length > 1" class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-2 dark:border-gray-700!">
+                <span class="text-sm text-gray-500">{{ __('Ghostwriter can look over each collection for kinds of content worth teaching.') }}</span>
+                <Button
+                    size="sm"
+                    :text="__('Suggest kinds everywhere')"
+                    :loading="suggestingAll"
+                    :disabled="!configured || suggestingAll || collections.every((collection) => collection.suggested?.status === 'working')"
+                    @click="suggestEverywhere"
+                />
+            </div>
             <div class="divide-y divide-gray-200 dark:divide-gray-700!">
                 <div v-for="collection in collections" :key="collection.handle" class="p-4">
                     <div class="flex items-center justify-between gap-4">
@@ -268,8 +297,9 @@ export default {
         </Panel>
 
         <div id="in-progress"></div>
-        <Panel v-if="inProgress.length" :heading="__('In progress')" :subheading="__('A piece leaves this list once its entry has been saved.')">
-            <ul class="divide-y divide-gray-200 dark:divide-gray-700!">
+        <Panel :heading="__('In progress')" :subheading="__('A piece leaves this list once its entry has been saved.')">
+            <p v-if="!inProgress.length" class="px-4 py-3 text-sm text-gray-500">{{ __('Nothing being written right now.') }}</p>
+            <ul v-else class="divide-y divide-gray-200 dark:divide-gray-700!">
                 <li v-for="session in inProgress" :key="session.id" class="flex items-center gap-2 pe-3 hover:bg-gray-50! dark:hover:bg-gray-800!">
                     <component :is="session.url ? 'Link' : 'div'" :href="session.url" class="flex min-w-0 flex-1 items-center justify-between gap-4 px-4 py-3">
                         <div class="min-w-0">
@@ -310,6 +340,10 @@ export default {
             <div v-if="info" class="p-1">
                 <SetupAlert v-if="!info.configured" :provider="info.provider" />
                 <Alert v-if="info.state.status === 'failed'" variant="error" :text="info.state.error" class="mb-4" />
+                <Subheading
+                    class="mb-4"
+                    :text="__('Worth doing for something you write often. It reads the entries you point it at and writes a brief of its own for that kind, with questions that fit. This takes about a minute and happens once.')"
+                />
                 <LearnForm :entries="info.entries" :disabled="!info.configured" :loading="working" @learn="learn" />
             </div>
             <div v-else class="py-8 text-center text-gray-500">{{ __('Loading…') }}</div>

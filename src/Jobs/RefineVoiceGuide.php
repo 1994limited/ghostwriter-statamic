@@ -22,6 +22,11 @@ class RefineVoiceGuide implements ShouldQueue
 
     public int $timeout = 300;
 
+    public function subject(): ?string
+    {
+        return 'guide:voice';
+    }
+
     public function handle(Studio $studio, VoiceGuide $guide, VoiceState $state): void
     {
         $this->allowTimeToFinish();
