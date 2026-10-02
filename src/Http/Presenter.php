@@ -12,10 +12,12 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
 use NineteenNinetyFour\Ghostwriter\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\Entry;
+use Statamic\Facades\User;
 
 /**
  * Shapes sessions for the Control Panel.
@@ -57,6 +59,7 @@ class Presenter
             'entry_url' => $entry?->editUrl(),
             'delete_url' => cp_route('ghostwriter.sessions.destroy', $session->id),
             'updated_at' => Carbon::parse($session->updatedAt)->diffForHumans(),
+            ...$this->people($session),
             // Sessions are resumed where they were started: on the entry
             // being edited, or on the collection's create screen.
             'url' => match (true) {
@@ -134,6 +137,7 @@ class Presenter
      */
     public function detail(Session $session): array
     {
+        $shared = app(SessionRepository::class)->shared();
         $type = $this->types->find($session->type);
         $problem = null;
         $words = 0;
@@ -172,9 +176,15 @@ class Presenter
             'queue_waiting' => $session->status === Session::WORKING ? app(Waiting::class)->notice('session:'.$session->id) : null,
             // Ghostwriter's replies, rendered as the markdown they are
             // written in, with any HTML in them escaped.
+            // Each person's message says who sent it, when the conversation
+            // is shared; one with no sender is the starter's.
             'messages' => array_map(fn (array $message) => $message['role'] === 'assistant'
                 ? $message + ['html' => $this->markdown()->convert((string) $message['content'])->getContent()]
-                : $message, $session->messages),
+                : $message + [
+                    'mine' => ($by = $message['by'] ?? $session->userId) === null || $by === $this->me(),
+                    'from' => $shared ? self::name($message['by'] ?? $session->userId) : null,
+                ], $session->messages),
+            ...$this->people($session),
             'draft' => $session->draft,
             'draft_problem' => $problem,
             'preview' => $preview,
@@ -183,6 +193,45 @@ class Presenter
             'images' => $this->images($session, $type),
             'image_tools' => ['generate' => $this->images->configured(), 'search' => $this->stock->sources()],
         ];
+    }
+
+    /**
+     * Who started a piece and who last did something to it, when
+     * conversations are shared; and who is waiting on Ghostwriter for it
+     * now, when that is someone else.
+     *
+     * @return array{started_by: ?string, touched_by: ?string, waiting_on: ?string}
+     */
+    private function people(Session $session): array
+    {
+        $me = $this->me();
+        $shared = app(SessionRepository::class)->shared();
+        $touched = $session->touchedBy ?? $session->userId;
+        $who = fn (?string $id) => $id !== null && $id === $me ? 'you' : self::name($id);
+
+        return [
+            'started_by' => $shared && $session->userId !== null ? $who($session->userId) : null,
+            'touched_by' => $shared && $touched !== null && $touched !== $session->userId ? $who($touched) : null,
+            'waiting_on' => $session->status === Session::WORKING && $session->runBy !== null && $session->runBy !== $me ? self::name($session->runBy) : null,
+        ];
+    }
+
+    /**
+     * A person's name as the Control Panel shows it, or "Someone" for a
+     * user who has gone.
+     */
+    public static function name(?string $userId): string
+    {
+        $user = $userId !== null ? User::find($userId) : null;
+
+        return $user ? (string) ($user->name() ?: $user->email()) : 'Someone';
+    }
+
+    private function me(): ?string
+    {
+        $id = User::current()?->id();
+
+        return $id === null ? null : (string) $id;
     }
 
     private function markdown(): GithubFlavoredMarkdownConverter

@@ -822,8 +822,9 @@ class WritingTest extends TestCase
         $this->assertSame(1, Entry::query()->where('collection', 'articles')->where('slug', 'what-does-a-website-cost-2')->count());
     }
 
-    public function test_a_session_belongs_to_whoever_started_it(): void
+    public function test_with_conversations_kept_private_a_session_belongs_to_whoever_started_it(): void
     {
+        config(['ghostwriter.shared_conversations' => false]);
         Bus::fake([SuggestKinds::class]);
         $this->signIn();
         $this->makeType();
@@ -866,6 +867,66 @@ class WritingTest extends TestCase
         User::current()->makeSuper()->save();
         $this->getJson(cp_route('ghostwriter.sessions.show', $theirs->id))->assertOk();
         $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonCount(2, 'sessions');
+    }
+
+    public function test_conversations_are_shared_with_everyone_who_may_use_ghostwriter(): void
+    {
+        Bus::fake([SuggestKinds::class, RunSessionTurn::class]);
+        config(['statamic.editions.pro' => true]);
+        $this->setTestRoles(['tester' => ['access cp', 'access ghostwriter', ...self::WRITER_PERMISSIONS]]);
+        $this->makeType();
+
+        $ada = tap(User::make()->email('ada@example.com')->set('name', 'Ada Lovelace')->assignRole('tester'))->save();
+        $bob = tap(User::make()->email('bob@example.com')->set('name', 'Bob Byte')->assignRole('tester'))->save();
+
+        // Ada starts a piece.
+        $this->actingAs($ada);
+        $session = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'A faceted search.']])->assertOk()->json();
+        $stored = app(SessionRepository::class)->find($session['id']);
+        $stored->addMessage('assistant', 'Here is a draft.');
+        $stored->status = Session::IDLE;
+        $stored->draft = self::DRAFT;
+        app(SessionRepository::class)->save($stored);
+
+        // Bob sees it everywhere Ada would, says who started it, and can carry on.
+        $this->actingAs($bob);
+        $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))
+            ->assertJsonCount(1, 'sessions')
+            ->assertJsonPath('sessions.0.started_by', 'Ada Lovelace');
+        $this->get(cp_route('ghostwriter.index'))->assertOk()->assertInertia(fn ($page) => $page->where('counts.in_progress', 1));
+
+        $this->getJson(cp_route('ghostwriter.sessions.show', $session['id']))
+            ->assertOk()
+            ->assertJsonPath('messages.0.from', 'Ada Lovelace')
+            ->assertJsonPath('messages.0.mine', false)
+            ->assertJsonPath('started_by', 'Ada Lovelace')
+            ->assertJsonPath('touched_by', null);
+
+        $this->postJson(cp_route('ghostwriter.sessions.message', $session['id']), ['message' => 'Shorter, please.'])
+            ->assertOk()
+            ->assertJsonPath('messages.2.from', 'Bob Byte')
+            ->assertJsonPath('messages.2.mine', true)
+            ->assertJsonPath('touched_by', 'you')
+            ->assertJsonPath('waiting_on', null);
+
+        // While Bob's request runs, Ada is told whose it is, and waits.
+        $this->actingAs($ada);
+        $this->getJson(cp_route('ghostwriter.sessions.show', $session['id']))
+            ->assertJsonPath('waiting_on', 'Bob Byte')
+            ->assertJsonPath('started_by', 'you')
+            ->assertJsonPath('touched_by', 'Bob Byte');
+
+        $this->postJson(cp_route('ghostwriter.sessions.message', $session['id']), ['message' => 'Longer!'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Bob Byte is waiting on Ghostwriter. Try again when it has answered.');
+        $this->patchJson(cp_route('ghostwriter.sessions.field', $session['id']), ['path' => ['title'], 'value' => 'Mine'])->assertStatus(409);
+        $this->patchJson(cp_route('ghostwriter.sessions.draft', $session['id']), ['draft' => 'title: Mine'])->assertStatus(409);
+
+        // Someone without Ghostwriter sees none of it.
+        $this->setTestRoles(['tester' => ['access cp', 'access ghostwriter', ...self::WRITER_PERMISSIONS], 'plain' => ['access cp']]);
+        $carol = tap(User::make()->email('carol@example.com')->assignRole('plain'))->save();
+        $this->actingAs($carol);
+        $this->getJson(cp_route('ghostwriter.sessions.show', $session['id']))->assertForbidden();
     }
 
     public function test_a_draft_is_not_saved_where_the_person_could_not_create_an_entry(): void

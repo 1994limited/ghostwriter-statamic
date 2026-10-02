@@ -32,13 +32,38 @@ class SessionRepository
     }
 
     /**
-     * The sessions a person may see: their own, or all for a super user.
+     * Whether conversations are shared with everyone who may use
+     * Ghostwriter (`shared_conversations`, on by default), rather than kept
+     * to the person who started each.
+     */
+    public function shared(): bool
+    {
+        return (bool) config('ghostwriter.shared_conversations', true);
+    }
+
+    /**
+     * The sessions a person may see, newest first: everyone's when
+     * conversations are shared; otherwise their own, or all for a super user.
      *
      * @return Collection<int, Session>
      */
     public function visibleTo(?User $user): Collection
     {
-        return $this->all()->filter(fn (Session $session) => $session->belongsTo($user))->values();
+        return $this->all()->filter(fn (Session $session) => $this->canSee($session, $user))->values();
+    }
+
+    /**
+     * Whether a person may open, carry on with, use or remove a session.
+     * Everyone who may use Ghostwriter (the routes see to that) when
+     * conversations are shared; otherwise only its own person.
+     */
+    public function canSee(Session $session, ?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return $this->shared() || $session->belongsTo($user);
     }
 
     public function find(string $id): ?Session

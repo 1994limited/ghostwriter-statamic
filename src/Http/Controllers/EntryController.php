@@ -59,6 +59,7 @@ class EntryController
         $session->status = Session::IDLE;
         $session->error = null;
         $session->appliedAt = null;
+        $session->touch((string) User::current()?->id());
 
         if ($session->messages === [] || ! $this->wasEditing($session) || $fresh) {
             $session->addMessage('user', $fresh && $this->wasEditing($session)
@@ -92,7 +93,8 @@ class EntryController
     {
         $id = $entry->id();
         $collection = $entry->collectionHandle();
-        // Only the person's own conversations are theirs to pick up again.
+        // Everyone's when conversations are shared; otherwise only the
+        // person's own are theirs to pick up again.
         $all = $this->sessions->visibleTo(User::current());
 
         $existing = $all->first(fn (Session $session) => $session->source === $id || $session->entryId === $id)

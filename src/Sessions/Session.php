@@ -26,6 +26,8 @@ class Session
      * @param  string|null  $source  The existing entry being edited, when the session is not for something new.
      * @param  string|null  $blueprint  That entry's blueprint, where the collection has several.
      * @param  string|null  $appliedAt  When the draft was last put into a publish form.
+     * @param  string|null  $touchedBy  Who last did something to the piece: asked for a change, edited the draft, used it.
+     * @param  string|null  $runBy  Whose message Ghostwriter is answering now, or last answered.
      * @param  array<string, array{status: string, path?: string, url?: string, error?: ?string, direction?: string}>  $images  Generated images, keyed by the field each is for.
      */
     public function __construct(
@@ -44,6 +46,8 @@ class Session
         public ?string $source = null,
         public ?string $blueprint = null,
         public ?string $appliedAt = null,
+        public ?string $touchedBy = null,
+        public ?string $runBy = null,
         public ?string $createdAt = null,
         public ?string $updatedAt = null,
     ) {
@@ -81,14 +85,17 @@ class Session
             source: $data['source'] ?? null,
             blueprint: $data['blueprint'] ?? null,
             appliedAt: $data['applied_at'] ?? null,
+            touchedBy: $data['touched_by'] ?? null,
+            runBy: $data['run_by'] ?? null,
             createdAt: $data['created_at'] ?? null,
             updatedAt: $data['updated_at'] ?? null,
         );
     }
 
     /**
-     * Whether a person may open this session: the one who started it, or a
-     * super user. A session from before users were recorded is anyone's.
+     * Whether this is a person's own session: they started it, or they are
+     * a super user. A session from before users were recorded is anyone's.
+     * When conversations are not shared, only these may open it.
      */
     public function belongsTo(?User $user): bool
     {
@@ -99,9 +106,35 @@ class Session
         return $this->userId === null || $this->userId === (string) $user->id() || $user->isSuper();
     }
 
-    public function addMessage(string $role, string $content): void
+    /**
+     * @param  string|null  $by  Who sent it, for a person's message.
+     */
+    public function addMessage(string $role, string $content, ?string $by = null): void
     {
-        $this->messages[] = ['role' => $role, 'content' => $content, 'at' => Carbon::now()->toIso8601String()];
+        $this->messages[] = ['role' => $role, 'content' => $content, 'at' => Carbon::now()->toIso8601String()] + ($by !== null ? ['by' => $by] : []);
+    }
+
+    /**
+     * Someone did something to the piece: asked for something, edited the
+     * draft, chose an image or put it into a form.
+     */
+    public function touch(?string $userId): void
+    {
+        if ($userId !== null && $userId !== '') {
+            $this->touchedBy = $userId;
+        }
+    }
+
+    /**
+     * Ghostwriter starts on a message from this person: they are the one
+     * waiting on it until it answers.
+     */
+    public function run(?string $userId): void
+    {
+        $this->status = self::WORKING;
+        $this->error = null;
+        $this->runBy = $userId;
+        $this->touch($userId);
     }
 
     /**
@@ -137,6 +170,8 @@ class Session
             'source' => $this->source,
             'blueprint' => $this->blueprint,
             'applied_at' => $this->appliedAt,
+            'touched_by' => $this->touchedBy,
+            'run_by' => $this->runBy,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
         ];

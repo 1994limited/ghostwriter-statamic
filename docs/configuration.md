@@ -54,6 +54,7 @@ If you published the config before 1.1.0, its `provider` line reads `env('GHOSTW
 | `plan.path` | `resources/ghostwriter/ideas.yaml` | The content plan |
 | `images.guide_path` | `resources/ghostwriter/imagery.md` | The image style guide |
 | `voice.path` | `resources/ghostwriter/voice.md` | The voice guide |
+| `shared_conversations` | `true` | Everyone with Ghostwriter access sees and can carry on with every conversation; `false` keeps each to its starter (super users aside) |
 | `sessions_path` | `storage/ghostwriter/sessions` | Working state (the rest of `storage/ghostwriter/` sits beside it) |
 | `writer` | `SchemaEntryWriter::class` | The class that turns a draft into an entry; bind your own to take over |
 

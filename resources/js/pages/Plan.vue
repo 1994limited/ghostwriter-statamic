@@ -234,7 +234,7 @@ export default {
                         <div v-for="idea in started" :key="idea.id" class="flex items-center gap-4 p-4">
                             <div class="min-w-0 flex-1">
                                 <Heading :text="idea.title" />
-                                <p class="mt-1 text-sm text-gray-500">{{ idea.collection_title }} · {{ stageText(idea.stage) }}</p>
+                                <p class="mt-1 text-sm text-gray-500">{{ [idea.collection_title, stageText(idea.stage), idea.started_by ? __('Started by :name', { name: idea.started_by }) : null, idea.touched_by ? __('last changed by :name', { name: idea.touched_by }) : null].filter(Boolean).join(' · ') }}</p>
                             </div>
                             <Button v-if="idea.resume_url" size="sm" variant="primary" :icon="ghost" :href="idea.resume_url" :text="__('Resume')" />
                             <Button size="sm" variant="ghost" :text="__('Back to ideas')" @click="mark(idea, 'open')" />

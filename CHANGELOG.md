@@ -43,6 +43,13 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - The dashboard says "Nothing being written right now." with nothing in progress, the teach-a-kind box explains itself, and ⌘S saves a kind.
 - Photo credits link to the photo on the library's site; thumbnails that won't load are left out; making a picture with the field button says it is under way.
 
+**Shared conversations** (decision E7):
+
+- Conversations are shared with everyone who has the Ghostwriter permission, from the dashboard, the widget, the content plan, the panel and the entry. Before, each was its starter's alone (super users aside).
+- Each message says who sent it; pieces say who started them and who last changed them.
+- One run at a time: while someone's request runs, others see "Ada is waiting on Ghostwriter", and sending, editing the draft or its YAML waits until it has answered.
+- `shared_conversations` in the config (`GHOSTWRITER_SHARED_CONVERSATIONS`, on by default). Set it to `false` for private conversations as before.
+
 **Fixes** (from the UX parity audit of the three addons):
 
 - **Editing keeps what you typed.** "Edit with Ghostwriter" now starts from what the entry's form holds, unsaved typing included, and "Use these changes" puts the new writing over the form as it stands. Before, both worked from the entry as last saved, so an image or setting changed in the form and not yet saved was put back.

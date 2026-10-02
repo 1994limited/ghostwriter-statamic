@@ -213,9 +213,9 @@ class PlanController
         $session = $idea['session'] ? $this->sessions->find($idea['session']) : null;
         $progress = $session ? $this->presenter->summary($session) : null;
 
-        // Another person's conversation shows where the piece has got to, but
-        // is not theirs to open.
-        $mine = $session?->belongsTo(User::current()) ?? false;
+        // Another person's conversation shows where the piece has got to; it
+        // is theirs to open too when conversations are shared.
+        $mine = $session && $this->sessions->canSee($session, User::current());
 
         // A piece whose conversation was removed is back to being just an idea.
         if ($idea['status'] === IdeaRepository::DRAFTED && ! $session) {
@@ -228,6 +228,8 @@ class PlanController
             'finished' => $progress['finished'] ?? false,
             'resume_url' => $mine ? ($progress['url'] ?? null) : null,
             'entry_url' => $progress['entry_url'] ?? null,
+            'started_by' => $progress['started_by'] ?? null,
+            'touched_by' => $progress['touched_by'] ?? null,
             'collection_title' => $collection?->title() ?? $idea['collection'],
             'type_title' => $type?->title,
             'update_url' => cp_route('ghostwriter.plan.update', $idea['id']),
