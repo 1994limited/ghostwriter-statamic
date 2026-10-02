@@ -410,6 +410,24 @@ class WritingTest extends TestCase
 
         $this->patchJson(cp_route('ghostwriter.types.update', 'articles'), ['title' => ''])->assertStatus(422);
 
+        // A kind needs a question: without one it is the general brief.
+        $this->patchJson(cp_route('ghostwriter.types.update', 'articles'), ['title' => 'Project article', 'questions' => []])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.questions.0', 'A kind of content needs at least one question.');
+
+        // Handles are not shown: a question keeps the one it had, and a new
+        // one gets one made from its wording, never a duplicate.
+        $this->patchJson(cp_route('ghostwriter.types.update', 'articles'), [
+            'title' => 'Project article',
+            'questions' => [
+                ['label' => 'Who was it for, really?', 'handle' => 'who', 'type' => 'text'],
+                ['label' => 'What did it cost?', 'handle' => null, 'type' => 'textarea'],
+                ['label' => 'Who', 'type' => 'text'],
+            ],
+        ])->assertOk();
+
+        $this->assertSame(['who', 'what_did_it_cost', 'who_2'], array_column(app(TypeRepository::class)->find('articles')->questions, 'handle'));
+
         $this->deleteJson(cp_route('ghostwriter.types.destroy', 'articles'))->assertOk();
         $this->assertNull(app(TypeRepository::class)->find('articles'));
     }
@@ -742,7 +760,6 @@ class WritingTest extends TestCase
         $this->getJson(cp_route('ghostwriter.sessions.photos', $theirs->id, ['key' => 'x']))->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.photo', $theirs->id), ['key' => 'x', 'source' => 'unsplash', 'id' => '1'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.image.copy', $theirs->id), ['key' => 'x'])->assertForbidden();
-        $this->post(cp_route('ghostwriter.sessions.logo-card', $theirs->id), ['key' => 'x'], ['Accept' => 'application/json'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.entry', $theirs->id))->assertForbidden();
         $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $theirs->id))->assertForbidden();
 
@@ -808,6 +825,54 @@ class WritingTest extends TestCase
 
         // Finished pieces are not offered to carry on with.
         $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonPath('sessions', []);
+    }
+
+    public function test_replies_are_rendered_as_markdown_with_html_escaped(): void
+    {
+        $this->signIn();
+        $this->makeType();
+
+        $session = $this->sessionWithDraft(self::DRAFT);
+        $session->addMessage('assistant', "Two things:\n\n- **Shorter** opening\n- <script>alert(1)</script> gone");
+        app(SessionRepository::class)->save($session);
+
+        $messages = $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))->json('messages');
+        $reply = end($messages);
+
+        $this->assertStringContainsString('<li><strong>Shorter</strong> opening</li>', $reply['html']);
+        $this->assertStringContainsString('&lt;script&gt;', $reply['html']);
+        $this->assertStringNotContainsString('<script>', $reply['html']);
+        // The person's own words are left as they are.
+        $this->assertArrayNotHasKey('html', $messages[0]);
+    }
+
+    public function test_a_piece_is_finished_only_once_its_entry_is_saved(): void
+    {
+        $this->signIn();
+        $this->makeType();
+
+        // An older entry that happens to share the title is not this piece.
+        Entry::make()->collection('articles')->slug('old-cost')->published(true)->data(['title' => 'What does a website cost?', 'updated_at' => now()->subDay()->timestamp])->save();
+
+        $session = $this->sessionWithDraft(self::DRAFT);
+        $summary = fn (string $id) => array_intersect_key(app(Presenter::class)->summary(app(SessionRepository::class)->find($id)), ['stage' => 1, 'finished' => 1]);
+
+        $this->assertSame(['stage' => 'draft', 'finished' => false], $summary($session->id));
+
+        // Changes to an existing entry: put into its form is not saved.
+        Entry::make()->collection('articles')->slug('existing')->published(true)->data(['title' => 'Existing Piece', 'summary' => 'Old.', 'updated_at' => now()->subHour()->timestamp])->save();
+        $entry = Entry::query()->where('slug', 'existing')->first();
+        $editing = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->json('id');
+
+        $edit = app(SessionRepository::class)->find($editing);
+        $edit->appliedAt = now()->toIso8601String();
+        app(SessionRepository::class)->save($edit);
+
+        $this->assertSame(['stage' => 'changed', 'finished' => false], $summary($editing));
+
+        // The form is saved: now it is done.
+        $entry->set('updated_at', now()->addSecond()->timestamp)->save();
+        $this->assertSame(['stage' => 'published', 'finished' => true], $summary($editing));
     }
 
     public function test_writing_can_be_changed_where_it_is_shown(): void

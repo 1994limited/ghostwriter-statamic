@@ -11,7 +11,6 @@ use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
 use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
 use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\LogoCard;
 use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
@@ -24,8 +23,8 @@ use Statamic\Fields\Field;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The image button on an assets field: find a photograph, have one made,
- * or compose a logo card, for one field on the form being edited.
+ * The image button on an assets field: find a photograph, or have one
+ * made, for one field on the form being edited.
  */
 class ImagesController
 {
@@ -45,7 +44,6 @@ class ImagesController
         return response()->json([
             'find' => $this->stock->sources() !== [],
             'make' => $this->studio->configured(),
-            'logo_card' => LogoCard::available(),
             'suggests' => $this->text->configured(),
         ]);
     }
@@ -138,49 +136,6 @@ class ImagesController
                     'title' => trim((string) ($data['direction'] ?? '')) !== '' ? mb_substr(trim($data['direction']), 0, 80) : $slot->title,
                 ]);
             }
-        } catch (InvalidArgumentException $exception) {
-            abort(422, $exception->getMessage());
-        }
-
-        return response()->json($this->kept($slot, $asset, (array) $request->input('current', [])));
-    }
-
-    /**
-     * A logo centred on a flat or gradient ground, drawn in code so the
-     * logo comes out exactly as it went in.
-     */
-    public function logo(Request $request, LogoCard $card): JsonResponse
-    {
-        $slot = $this->slot($request);
-
-        $this->ensureCanUploadTo($slot);
-
-        abort_unless(LogoCard::available(), 422, 'Logo cards need the Imagick PHP extension, which this server does not have.');
-
-        $validated = $request->validate([
-            'logo' => ['required', 'file', 'max:5120', 'mimes:png,webp,svg', 'mimetypes:image/png,image/webp,image/svg+xml,image/svg'],
-            'colour' => ['nullable', 'string', 'max:7'],
-            'colour_to' => ['nullable', 'string', 'max:7'],
-            'white' => ['nullable', 'boolean'],
-        ]);
-
-        $reference = $slot->references()[0] ?? null;
-        $width = (int) $reference?->width() ?: 1600;
-        $height = (int) $reference?->height() ?: 1200;
-
-        try {
-            $made = $card->compose(
-                (string) file_get_contents($request->file('logo')->getRealPath()),
-                min($width, 2400),
-                (int) round($height * min($width, 2400) / $width),
-                $validated['colour'] ?? null,
-                $validated['colour_to'] ?? null,
-                (bool) ($validated['white'] ?? true),
-                type: (string) $request->file('logo')->guessExtension(),
-            );
-
-            $name = pathinfo((string) $request->file('logo')->getClientOriginalName(), PATHINFO_FILENAME);
-            $asset = $this->images->keep($slot, $made['content'], 'jpg', ['title' => trim(str_replace(['-', '_'], ' ', $name)) ?: 'Logo']);
         } catch (InvalidArgumentException $exception) {
             abort(422, $exception->getMessage());
         }

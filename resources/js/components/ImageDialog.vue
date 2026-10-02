@@ -1,15 +1,14 @@
 <!--
     The dialog behind the Ghostwriter button on an assets field: find a
-    photograph, have a picture made, or compose a logo card, for that one
-    field, matched to the pictures already in the same place on the site's
+    photograph, or have a picture made, for that one field, matched to the pictures already in the same place on the site's
     other entries. The chosen image goes straight into the field.
 -->
 <script>
 import ghost from '../icon.js';
-import { Alert, Button, Checkbox, Input, Modal, Subheading, Textarea } from '@statamic/cms/ui';
+import { Alert, Button, Input, Modal, Subheading, Textarea } from '@statamic/cms/ui';
 
 export default {
-    components: { Alert, Button, Checkbox, Input, Modal, Subheading, Textarea },
+    components: { Alert, Button, Input, Modal, Subheading, Textarea },
 
     props: {
         baseUrl: { type: String, required: true },
@@ -30,10 +29,6 @@ export default {
             words: '',
             direction: '',
             source: null,
-            logo: null,
-            colour: '',
-            colourTo: '',
-            white: true,
             request: null,
             busy: false,
             more: false,
@@ -54,11 +49,16 @@ export default {
             return this.more ? options : options.slice(0, 3);
         },
 
+        // Whether the model compared these with the images already here, or
+        // they are just the top result of each search.
+        judged() {
+            return (this.request?.options ?? []).some((photo) => photo.picked);
+        },
+
         tabs() {
             return [
                 this.tools?.find && { key: 'find', label: this.__('Find a photo') },
                 this.tools?.make && { key: 'make', label: this.__('Make one') },
-                this.tools?.logo_card && { key: 'logo', label: this.__('Logo card') },
             ].filter(Boolean);
         },
     },
@@ -80,7 +80,6 @@ export default {
             this.words = '';
             this.direction = '';
             this.source = null;
-            this.logo = null;
             this.more = false;
             this.open = true;
 
@@ -88,7 +87,7 @@ export default {
                 try {
                     this.tools = (await this.$axios.get(`${this.baseUrl}/images/tools`)).data;
                 } catch (error) {
-                    this.tools = { find: false, make: false, logo_card: false };
+                    this.tools = { find: false, make: false };
                 }
             }
 
@@ -189,29 +188,6 @@ export default {
             }
         },
 
-        async makeLogo() {
-            if (!this.logo) return;
-
-            const form = new FormData();
-
-            Object.entries(this.slot()).forEach(([key, value]) => value !== null && form.append(key, value));
-            form.append('logo', this.logo);
-            form.append('colour', this.colour);
-            form.append('colour_to', this.colourTo);
-            form.append('white', this.white ? '1' : '0');
-            this.current().forEach((id) => form.append('current[]', id));
-
-            this.busy = true;
-
-            try {
-                this.place((await this.$axios.post(`${this.baseUrl}/images/logo`, form)).data);
-            } catch (error) {
-                this.fail(error);
-            } finally {
-                this.busy = false;
-            }
-        },
-
         current() {
             const value = this.field.value;
 
@@ -246,7 +222,7 @@ export default {
 </script>
 
 <template>
-    <Modal v-model:open="open" :title="field ? __('An image for :field', { field: field.label }) : __('Ghostwriter')" :icon="ghost">
+    <Modal v-model:open="open" class="max-w-3xl!" :title="field ? __('An image for :field', { field: field.label }) : __('Ghostwriter')" :icon="ghost">
         <div v-if="field" class="p-1">
             <div v-if="tabs.length > 1" class="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-700!">
                 <button
@@ -259,7 +235,7 @@ export default {
                 >{{ item.label }}</button>
             </div>
 
-            <Alert v-if="!tabs.length" variant="warning" :text="__('No image tools are switched on. Add OPENAI_API_KEY or GEMINI_API_KEY to make pictures, or turn on Openverse in the settings to find photographs.')" />
+            <Alert v-if="tools && !tabs.length" variant="warning" :text="__('No image tools are available. Add OPENAI_API_KEY or GEMINI_API_KEY to your .env file to make pictures, or add a photo library key (or turn Openverse back on) to find photographs.')" />
 
             <!-- Find a photograph -->
             <div v-if="tab === 'find' && tools?.find" class="space-y-3">
@@ -271,23 +247,25 @@ export default {
                 <Alert v-if="request?.status === 'failed'" variant="error" :text="request.error" />
                 <p v-if="working" class="text-sm text-gray-500"><span class="animate-pulse">{{ __('Choosing searches, running them, and comparing the results with the images already here…') }}</span></p>
                 <template v-if="request?.status === 'done' && request.mode === 'find'">
-                    <p class="text-sm text-gray-500">{{ __('Searched for: :terms. Click one to use it.', { terms: request.terms.join('; ') }) }}</p>
+                    <p class="text-sm text-gray-500">{{ __('Searched for: :terms. Choose one to use it.', { terms: request.terms.join('; ') }) }}</p>
                     <p v-if="!request.options.length" class="text-sm">{{ __('Nothing found. Try other words.') }}</p>
-                    <div class="grid grid-cols-2 items-start gap-3 md:grid-cols-3">
-                        <button
+                    <p v-else-if="!judged" class="text-sm text-gray-500">{{ __('These are the top results of each search. They weren’t compared with the images already in this place.') }}</p>
+                    <div class="grid grid-cols-3 items-start gap-3">
+                        <div
                             v-for="photo in shown"
                             :key="photo.source + photo.id"
-                            type="button"
-                            class="relative overflow-hidden rounded-md border border-gray-200 text-start hover:border-gray-500! disabled:opacity-50! dark:border-gray-700!"
-                            :disabled="busy"
-                            :title="`${photo.credit} · ${photo.licence}`"
-                            @click="use(photo)"
+                            class="relative flex flex-col overflow-hidden rounded-md border border-gray-200 hover:border-gray-500! dark:border-gray-700!"
                         >
-                            <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
-                            <img :src="photo.thumb" alt="" loading="lazy" class="block h-auto w-full" />
-                            <span class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
-                            <span class="block truncate px-1.5 py-1 text-xs text-gray-500">{{ photo.credit }}</span>
-                        </button>
+                            <button type="button" class="block text-start disabled:opacity-50!" :disabled="busy" :title="`${photo.credit} · ${photo.licence}`" @click="use(photo)">
+                                <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
+                                <img :src="photo.thumb" alt="" loading="lazy" class="block aspect-[4/3] w-full object-cover" />
+                                <span class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
+                                <span class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }} · {{ photo.licence }}</span>
+                            </button>
+                            <div class="px-1.5 py-1.5">
+                                <Button size="xs" :text="__('Use this')" :disabled="busy" @click="use(photo)" />
+                            </div>
+                        </div>
                     </div>
                     <Button v-if="request.options.length > 3" size="sm" variant="ghost" :text="more ? __('Show the best three') : __('View :count more', { count: request.options.length - 3 })" @click="more = !more" />
                 </template>
@@ -314,22 +292,6 @@ export default {
                 </div>
             </div>
 
-            <!-- A logo on a coloured ground -->
-            <div v-if="tab === 'logo' && tools?.logo_card" class="space-y-3">
-                <Subheading :text="__('A logo centred on a flat or gradient colour, drawn in code so it comes out exactly as it went in, at the size the images here already are.')" />
-                <label class="block text-sm">
-                    {{ __('Logo (SVG or transparent PNG)') }}:
-                    <input type="file" accept="image/svg+xml,image/png,image/webp" class="ms-1 text-sm" @change="logo = $event.target.files[0] ?? null" />
-                </label>
-                <div class="grid gap-3 md:grid-cols-2">
-                    <Input v-model="colour" :placeholder="__('Background, e.g. #ff2d20. Blank uses the logo’s own colour.')" />
-                    <Input v-model="colourTo" :placeholder="__('Second colour for a gradient (optional)')" />
-                </div>
-                <Checkbox v-model="white" :label="__('Turn the logo white')" />
-                <div class="flex justify-end">
-                    <Button variant="primary" :text="__('Make the card')" :loading="busy" :disabled="busy || !logo" @click="makeLogo" />
-                </div>
-            </div>
         </div>
     </Modal>
 </template>

@@ -18,6 +18,7 @@ use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\Types\TypeState;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
+use Statamic\Facades\Addon;
 use Statamic\Facades\Collection as Collections;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
@@ -173,6 +174,9 @@ class Onboarding
         return [
             'can_change_settings' => $this->settings->canChange(),
             'settings_url' => $this->settings->urlForCurrentUser(),
+            // Set in config/ghostwriter.php, so not to be chosen here.
+            'collections_locked' => $this->settings->isOverridden('collections'),
+            'voice_locked' => $this->settings->isOverridden('voice_collections'),
             'provider' => $this->providerName($this->studio->provider()),
             'key_name' => $this->keyName($this->studio->provider()),
             'collections' => Collections::all()->map(fn ($collection) => [
@@ -191,6 +195,8 @@ class Onboarding
                 'state' => $this->kinds->get($collection->handle())['status'],
                 'error' => $this->kinds->get($collection->handle())['error'],
                 'suggestions' => array_map(fn (array $kind) => array_intersect_key($kind, array_flip(['id', 'title', 'description', 'why'])) + [
+                    // The entries that show it, so the person can judge it.
+                    'titles' => array_slice(array_values(array_filter(array_map(fn (string $id) => Entry::find($id)?->get('title'), (array) ($kind['examples'] ?? [])))), 0, 3),
                     'learn_url' => cp_route('ghostwriter.kinds.learn', [$collection->handle(), $kind['id']]),
                     'dismiss_url' => cp_route('ghostwriter.kinds.dismiss', [$collection->handle(), $kind['id']]),
                 ], $this->kinds->get($collection->handle())['suggestions']),
@@ -230,29 +236,62 @@ class Onboarding
     }
 
     /**
-     * @return array{done: int, total: int, complete: bool, hidden: bool, next: ?array<string, mixed>}
+     * How far setup has got. Only the required steps are counted, so the bar
+     * reaches the end when setup is complete; the optional ones are offered
+     * as the next step once the required ones are done.
+     *
+     * @return array{done: int, total: int, complete: bool, hidden: bool, can_toggle: bool, next: ?array<string, mixed>}
      */
     public function progress(): array
     {
         $steps = $this->steps();
         $required = array_filter($steps, fn (array $step) => ! $step['optional']);
-        $done = count(array_filter($steps, fn (array $step) => $step['done']));
         $next = null;
 
-        foreach ($steps as $i => $step) {
-            if (! $step['done']) {
-                $next = ['number' => $i + 1, 'key' => $step['key'], 'title' => $step['title'], 'optional' => $step['optional']];
-                break;
+        foreach ([false, true] as $optional) {
+            foreach ($steps as $i => $step) {
+                if ($step['optional'] === $optional && ! $step['done']) {
+                    $next ??= ['number' => $i + 1, 'key' => $step['key'], 'title' => $step['title'], 'optional' => $step['optional']];
+                }
             }
         }
 
         return [
-            'done' => $done,
-            'total' => count($steps),
+            'done' => count(array_filter($required, fn (array $step) => $step['done'])),
+            'total' => count($required),
             'complete' => ! array_filter($required, fn (array $step) => ! $step['done']),
             'hidden' => $this->hidden(),
+            // Hiding Get started hides it for the whole site, so it is for
+            // those who look after Ghostwriter's settings.
+            'can_toggle' => $this->settings->canChange(),
             'next' => $next,
         ];
+    }
+
+    /**
+     * Choose, from Get started, which collections Ghostwriter writes for and
+     * learns the voice from. Every collection ticked is saved as none, which
+     * means all, so a collection added later is included too.
+     *
+     * @param  array<int, string>|null  $write
+     * @param  array<int, string>|null  $voice
+     */
+    public function chooseCollections(?array $write, ?array $voice): void
+    {
+        $all = Collections::all()->map->handle()->values()->all();
+        $tidy = fn (array $chosen) => array_values(array_intersect($all, $chosen));
+        $settings = Addon::get(Settings::ADDON)->settings();
+
+        foreach (['collections' => $write, 'voice_collections' => $voice] as $key => $chosen) {
+            if ($chosen === null || $this->settings->isOverridden($key)) {
+                continue;
+            }
+
+            $chosen = $tidy($chosen);
+            $settings->set($key, count($chosen) === count($all) ? [] : $chosen);
+        }
+
+        $settings->save();
     }
 
     public function hidden(): bool
