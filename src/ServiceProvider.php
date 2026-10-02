@@ -188,6 +188,7 @@ class ServiceProvider extends AddonServiceProvider
                 ->can('access ghostwriter')
                 ->children(array_filter([
                     app(Onboarding::class)->hidden() ? null : $nav->item('Get started')->route('ghostwriter.setup.show')->can('access ghostwriter'),
+                    $nav->item('Overview')->route('ghostwriter.index')->can('access ghostwriter'),
                     $nav->item('Content plan')->route('ghostwriter.plan.show')->can('access ghostwriter'),
                     $nav->item('Voice guide')->route('ghostwriter.voice.show')->can('access ghostwriter'),
                     $nav->item('Image style')->route('ghostwriter.imagery.show')->can('access ghostwriter'),

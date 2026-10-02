@@ -519,7 +519,7 @@ export default {
                 v-if="!info.has_voice && step !== 'write'"
                 variant="warning"
                 :heading="__('No voice guide yet')"
-                :text="__('Ghostwriter will still write, but in a plain voice rather than yours. Create the voice guide from the Ghostwriter screen for a better draft.')"
+                :text="__('Ghostwriter will still write, but in a plain voice rather than yours. Write it under Ghostwriter → Voice guide for a better draft.')"
                 class="mb-6"
             />
 
@@ -771,7 +771,7 @@ export default {
                                 <Button size="sm" :text="__('Save changes')" :loading="busy" @click="saveDraft" />
                             </template>
                             <template v-else>
-                                <Button size="sm" :text="__('Edit')" :disabled="working" @click="editing = true" />
+                                <Button size="sm" :text="__('Edit YAML')" :disabled="working" @click="editing = true" />
                                 <Button
                                     size="sm"
                                     variant="primary"
@@ -809,7 +809,10 @@ export default {
 
                             <Textarea v-if="editing || session.draft_problem" v-model="raw" elastic :rows="24" class="font-mono text-sm" @focus="editing = true" />
 
-                            <DraftPreview v-else :nodes="session.preview" :view="view" :editable="!working" @edit="editField" />
+                            <template v-else>
+                                <p v-if="!working" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
+                                <DraftPreview :nodes="session.preview" :view="view" :editable="!working" @edit="editField" />
+                            </template>
 
                             <ImageSlots
                                 v-if="session.images?.length && !session.draft_problem"

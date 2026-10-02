@@ -202,7 +202,7 @@ export default {
         // moment its value arrives.
         // A field already holding as many images as it takes is left alone;
         // the image is in the container, and the person is told so.
-        place({ value, meta, asset, full, message }) {
+        place({ value, meta, full, message }) {
             if (full) {
                 this.open = false;
                 this.$toast.error(message, { duration: 10000 });
@@ -213,7 +213,7 @@ export default {
             this.field.updateMeta({ ...(this.field.meta ?? {}), ...meta });
             this.field.update(value);
             this.open = false;
-            this.$toast.success(this.__('Added to the field: :title', { title: asset.title || asset.path }));
+            this.$toast.success(this.__('Image added. Save to keep it.'));
         },
 
         fail(error) {
@@ -226,7 +226,7 @@ export default {
 </script>
 
 <template>
-    <Modal v-model:open="open" class="max-w-3xl!" :title="field ? __('An image for :field', { field: field.label }) : __('Ghostwriter')" :icon="ghost">
+    <Modal v-model:open="open" class="max-w-3xl!" :title="field ? __('Image for :label', { label: field.label }) : __('Ghostwriter')" :icon="ghost">
         <div v-if="field" class="p-1">
             <div v-if="tabs.length > 1" class="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-700!">
                 <button
@@ -299,7 +299,7 @@ export default {
                     </div>
                 </div>
                 <div v-else class="flex justify-end">
-                    <Button variant="primary" :text="working ? __('Making the image…') : __('Make image')" :loading="working || busy" :disabled="working || busy" @click="start('make')" />
+                    <Button variant="primary" :text="working ? __('Making the image…') : __('Make the picture')" :loading="working || busy" :disabled="working || busy" @click="start('make')" />
                 </div>
             </div>
 

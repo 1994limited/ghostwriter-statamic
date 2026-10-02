@@ -140,7 +140,7 @@ export default {
                             <Button
                                 v-if="tools.generate"
                                 size="sm"
-                                :text="image.url ? __('Make another') : __('Make image')"
+                                :text="image.url ? __('Make another') : __('Make the picture')"
                                 :loading="image.status === 'working'"
                                 :disabled="image.status === 'working'"
                                 @click="make(image)"
