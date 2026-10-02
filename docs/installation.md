@@ -5,8 +5,8 @@ This page covers what Ghostwriter needs, installing it, the queue it runs on, an
 ## Requirements
 
 - PHP 8.3 or later, with the GD extension (it draws the striped image placeholders).
-- Statamic 6.
-- An API key for one writing provider: Anthropic (Claude), OpenAI (ChatGPT) or Google (Gemini). See [API keys](api-keys.md).
+- Statamic 6.30 or later. Ghostwriter is tested on 6.30 (with Laravel 12.40) through 6.35 (with Laravel 13). Roles, permissions and shared conversations need Statamic Pro; see [Permissions](permissions.md).
+- An API key for one writing provider: Anthropic (Claude), OpenAI (ChatGPT) or Google (Gemini). The provider bills your account for what Ghostwriter uses, pay as you go (Gemini has a limited free tier). See [API keys](api-keys.md).
 - A queue worker, or PHP-FPM if your site uses the `sync` queue. See [The queue](#the-queue).
 
 Optional:
@@ -40,7 +40,7 @@ Add the key for your provider to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-.
 
 ## Who can use it
 
-Ghostwriter adds one permission, **Write content and edit the voice guide with Ghostwriter**. See [Permissions](permissions.md).
+Ghostwriter adds one permission, **Write content and edit the voice guide with Ghostwriter**. Roles and permissions are part of Statamic Pro; on Statamic Core the one super user can use and manage everything. See [Permissions](permissions.md).
 
 ## The queue
 
@@ -73,6 +73,6 @@ A running worker keeps the old code until it restarts, hence the last line. See 
 composer remove 1994/ghostwriter-statamic
 ```
 
-Ghostwriter adds no database tables. Its guides, kinds and plan stay in `resources/ghostwriter/`, its settings in `resources/addons/ghostwriter-statamic.yaml`, and its working files in `storage/ghostwriter/`, until you delete them. Assets it saved stay in your containers: photos, made images and the striped placeholder, and any logo cards made before version 1.1.0.
+Ghostwriter adds no database tables. Its guides, kinds and plan stay in `resources/ghostwriter/`, its settings in `resources/addons/ghostwriter-statamic.yaml`, and its working files in `storage/ghostwriter/`, until you delete them. Assets it saved stay in your containers: photos, made images and the striped placeholder.
 
 Next: [Get started](getting-started.md).

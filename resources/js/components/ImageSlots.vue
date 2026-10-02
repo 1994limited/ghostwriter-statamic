@@ -103,7 +103,7 @@ export default {
         />
 
         <div v-for="image in images" :key="image.key" class="mb-4 rounded-lg border border-gray-200 p-3 dark:border-gray-700!">
-            <div class="flex gap-4">
+            <div class="flex gap-4 max-sm:flex-col">
                 <div class="flex min-h-28 w-44 shrink-0 items-center justify-center self-start overflow-hidden rounded-md border border-dashed border-gray-300 text-center text-xs text-gray-500 dark:border-gray-600!">
                     <img v-if="image.url && image.status !== 'working'" :src="image.url" :alt="image.label" class="block h-auto w-full" />
                     <span v-else-if="image.status === 'working'" class="animate-pulse">{{ __('Making the image…') }}</span>
@@ -128,7 +128,7 @@ export default {
                         </label>
                         <span v-else />
 
-                        <div class="flex gap-2">
+                        <div class="flex flex-wrap gap-2">
                             <Button
                                 v-if="tools.search.length"
                                 size="sm"

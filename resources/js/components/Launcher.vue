@@ -164,7 +164,8 @@ export default {
 <template>
     <div>
         <Teleport v-if="slot" :to="slot">
-            <Button :icon="ghost" :text="label" :loading="starting" @click="launch" />
+            <!-- On a phone the header has no room for the label beside Save, so only the ghost shows. -->
+            <Button :icon="ghost" :text="label" :title="label" :loading="starting" class="max-sm:gap-0! max-sm:px-3! max-sm:[&>div]:sr-only!" @click="launch" />
         </Teleport>
 
         <div v-else class="fixed end-6 bottom-6 z-10">

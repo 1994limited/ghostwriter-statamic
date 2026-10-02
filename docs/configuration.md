@@ -32,8 +32,6 @@ A value set in `config/ghostwriter.php`, or by its `.env` variable, wins over th
 
 The settings that work this way are `provider`, `model`, `collections`, `voice.collections`, `suggest_kinds`, `images.provider`, `images.model`, `images.placeholders` and `images.openverse`. Leave one `null` (or a list empty) to let the screen decide.
 
-If you published the config before 1.1.0, its `provider` line reads `env('GHOSTWRITER_PROVIDER', 'anthropic')`, which now fixes the provider to Claude. Change it to `env('GHOSTWRITER_PROVIDER')` to choose the provider on the screen again, and do the same for `suggest_kinds` and `images.placeholders`.
-
 ### The time limit
 
 Each model call may take `timeout` seconds, 300 by default. It is set in the config (or `GHOSTWRITER_TIMEOUT`) only, not on the screen. Queued jobs are allowed three times this plus 60 seconds; see [The queue](installation.md#the-queue).

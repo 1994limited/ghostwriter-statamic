@@ -4,6 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use NineteenNinetyFour\Ghostwriter\Actions\WriteWithGhostwriter;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
@@ -91,6 +92,7 @@ class WritingTest extends TestCase
 
         $analyse = function (): string {
             $this->app->forgetInstance(CoreStudio::class);
+            Log::forgetChannel('ghostwriter-test');
             File::delete($this->workspace.'/ghostwriter.log');
             $this->ai->respond('type-analyst', 'Sorry, I cannot help with SECRET-REPLY-TEXT.', 'Still no.');
 

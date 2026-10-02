@@ -2,6 +2,8 @@
 
 This page covers who can use Ghostwriter, who can manage it, and how conversations are shared.
 
+> **Statamic Pro only.** Roles, permissions and more than one Control Panel user are features of Statamic Pro. On Statamic Core (Solo) there is a single super user, who can do everything on this page, so the Ghostwriter permission, manager rights and shared conversations make no difference there.
+
 ## Using Ghostwriter
 
 Ghostwriter adds one permission, in a role under **Permissions**: **Write content and edit the voice guide with Ghostwriter** (`access ghostwriter`).
@@ -23,6 +25,8 @@ Managers are super users, and people with Statamic's permission to edit the addo
 - delete a piece someone else started, when conversations are shared.
 
 ## Shared conversations
+
+This needs Statamic Pro, which allows more than one user.
 
 Every conversation is shared with everyone who has the Ghostwriter permission. Anyone can open a piece from the content plan, the [Overview](dashboard.md), the widget, the panel's **Or carry on with**, or the entry itself, and carry it on.
 
