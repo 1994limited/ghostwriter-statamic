@@ -6,3 +6,4 @@ composer.lock
 /resources/dist/hot
 /docs/promo/frames
 /docs/promo/recording
+/build

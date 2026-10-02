@@ -68,8 +68,18 @@ return [
     'anthropic_fallbacks' => (bool) env('GHOSTWRITER_ANTHROPIC_FALLBACKS', true),
 
     // The log channel calls are recorded on: provider, model, tokens and
-    // time, never the words sent or received. Null uses the default.
+    // time, never the words sent or received. Replies that were cut off or
+    // could not be read are noted here too. Null uses the default.
     'log_channel' => env('GHOSTWRITER_LOG_CHANNEL'),
+
+    // For tracking down a problem: when a reply can't be read, put the
+    // model's whole reply in the log entry (under "reply"), not just what was
+    // wrong with it. Replies can hold what your site has published and
+    // what was written in a session, so leave it off otherwise. Prompts and
+    // keys are never logged. Set here only.
+    'debug' => [
+        'log_replies' => (bool) env('GHOSTWRITER_LOG_REPLIES', false),
+    ],
 
     /*
     |--------------------------------------------------------------------------

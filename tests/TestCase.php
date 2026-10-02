@@ -2,6 +2,8 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Tests;
 
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
@@ -11,11 +13,14 @@ use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\FakeProvider;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\MockHttpClient;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Testing\RequestLog;
 use NineteenNinetyFour\Ghostwriter\ServiceProvider;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Psr\Http\Message\RequestInterface;
+use Ramsey\Uuid\Uuid;
+use Statamic\Events\EntrySaved;
 use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -69,6 +74,18 @@ abstract class TestCase extends AddonTestCase
 
         $this->ai = $this->app->make(Providers::class)->fake();
         $this->app->instance(FakeProvider::class, $this->ai);
+
+        // When recording requests, the clock, entry IDs and the entries'
+        // file times (and so the order entries are listed in) are the same
+        // on every run.
+        if (getenv('GHOSTWRITER_RECORD_REQUESTS')) {
+            Carbon::setTestNow('2026-01-01 12:00:00');
+            Event::listen(EntrySaved::class, fn (EntrySaved $event) => is_file($path = (string) $event->entry->path()) && touch($path, Carbon::now()->getTimestamp()));
+            $count = 0;
+            Str::createUuidsUsing(function () use (&$count) {
+                return Uuid::fromString(sprintf('00000000-0000-4000-8000-%012d', ++$count));
+            });
+        }
     }
 
     /**
@@ -134,6 +151,12 @@ abstract class TestCase extends AddonTestCase
 
     protected function tearDown(): void
     {
+        // Writes down what was sent, to compare two runs (docs: core's studio.md).
+        if ($path = getenv('GHOSTWRITER_RECORD_REQUESTS')) {
+            RequestLog::append($path, static::class.'::'.$this->name(), $this->ai->requests());
+            Str::createUuidsNormally();
+        }
+
         $this->assertSame([], $this->http->requests, 'A request reached the network layer.');
 
         File::deleteDirectory($this->workspace);

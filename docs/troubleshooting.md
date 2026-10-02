@@ -71,7 +71,9 @@ The free tier covers Flash models only, with daily limits. Leave **Model** blank
 
 ## Seeing what went wrong
 
-Ghostwriter logs errors and replies it couldn't read to Laravel's log, `storage/logs/laravel.log`, prefixed "Ghostwriter:". Each model call is logged too, with its provider, model, tokens and time. Set `log_channel` to send these lines elsewhere. Failed queued jobs are listed by `php artisan queue:failed`.
+Ghostwriter logs errors to Laravel's log, `storage/logs/laravel.log`, prefixed "Ghostwriter:". Each model call is logged too, with its provider, model, tokens and time. Set `log_channel` to send these lines elsewhere. Failed queued jobs are listed by `php artisan queue:failed`.
+
+When a model's reply can't be read (no `<type>` block, say, or YAML that doesn't parse), the log says what was wrong with it, such as "the type analysis for articles could not be read (the YAML did not parse at line 3)", but not the reply itself, which can quote your site's content and what was written in a conversation. To see the whole reply while tracking a problem down, set `GHOSTWRITER_LOG_REPLIES=true` in `.env` (`debug.log_replies` in `config/ghostwriter.php`): it is then added to the log entry under `reply`. Turn it off again afterwards. Prompts and keys are never logged.
 
 ## The Control Panel screens look broken
 
