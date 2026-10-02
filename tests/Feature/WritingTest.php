@@ -10,21 +10,24 @@ use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\StopReason;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextResponse;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\Analysis;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindSuggestions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
-use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
-use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
-use NineteenNinetyFour\Ghostwriter\Types\TypeState;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Widgets\Ghostwriter;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
@@ -52,14 +55,14 @@ class WritingTest extends TestCase
     {
         $this->ai->respond('type-analyst', "<type>\ntitle: Project article\ndescription: A write-up of one project.\nquestions:\n  - handle: what\n    label: What was built?\n    type: textarea\n    required: true\n  - handle: avoid\n    label: What must not appear?\nguidance: |\n  Open on the reader.\nchecklist:\n  - Facts come from the brief.\n</type>");
 
-        (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+        $this->runJob(new AnalyseCollection('articles'));
 
         $type = app(TypeRepository::class)->find('articles');
 
         $this->assertSame('Project article', $type->title);
-        $this->assertSame('articles', $type->collection);
+        $this->assertSame('articles', $type->group);
         $this->assertSame(['what', 'avoid'], array_column($type->questions, 'handle'));
-        $this->assertSame(TypeState::IDLE, app(TypeState::class)->get('articles')['status']);
+        $this->assertSame('idle', app(KindStore::class)->analysis('articles')->status);
 
         // The analyst was shown the fields, the pattern and a real entry.
         $this->ai->assertSent('type-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'in this order: hero, long_form, cards, related')
@@ -70,10 +73,10 @@ class WritingTest extends TestCase
     {
         $this->ai->respond('type-analyst', 'Sorry, I cannot help with that.', 'Still no.');
 
-        (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+        $this->runJob(new AnalyseCollection('articles'));
 
         $this->assertNull(app(TypeRepository::class)->find('articles'));
-        $this->assertSame(TypeState::FAILED, app(TypeState::class)->get('articles')['status']);
+        $this->assertSame('failed', app(KindStore::class)->analysis('articles')->status);
 
         // The second ask said what was wrong with the first answer.
         $this->ai->assertSent('type-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'could not be read: there was no <type> block'));
@@ -91,7 +94,7 @@ class WritingTest extends TestCase
             File::delete($this->workspace.'/ghostwriter.log');
             $this->ai->respond('type-analyst', 'Sorry, I cannot help with SECRET-REPLY-TEXT.', 'Still no.');
 
-            (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+            $this->runJob(new AnalyseCollection('articles'));
 
             return (string) File::get($this->workspace.'/ghostwriter.log');
         };
@@ -112,7 +115,7 @@ class WritingTest extends TestCase
             "<type>\n```yaml\ntitle: Fenced\nquestions:\n  - handle: what\n    label: What?\n```\n</type>",
         );
 
-        (new AnalyseCollection('articles'))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+        $this->runJob(new AnalyseCollection('articles'));
 
         $this->assertSame('Fenced', app(TypeRepository::class)->find('articles')->title);
         $this->ai->assertSent('type-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'could not be read: it had no questions'));
@@ -128,15 +131,15 @@ class WritingTest extends TestCase
 
         $this->ai->respond('kind-finder', "<kinds>\n- title: Project write-up\n  description: One project told start to finish.\n  why: Three entries share the hero, long form and cards.\n  examples: [\"{$ids['one']}\", \"{$ids['two']}\", \"nowhere\"]\n- title: Article\n  description: Already taught, so left out.\n  examples: [\"{$ids['one']}\", \"{$ids['two']}\"]\n- title: Lonely\n  description: Only one example.\n  examples: [\"{$ids['three']}\"]\n</kinds>");
 
-        (new SuggestKinds(['articles', 'nowhere']))->handle(app(Studio::class), app(TypeRepository::class), app(KindSuggestions::class));
+        $this->runJob(new SuggestKinds(['articles', 'nowhere']));
 
-        $state = app(KindSuggestions::class)->get('articles');
+        $state = app(KindStore::class)->suggestions('articles');
 
-        $this->assertSame(KindSuggestions::IDLE, $state['status']);
-        $this->assertSame(3, $state['entries']);
-        $this->assertSame(['Project write-up'], array_column($state['suggestions'], 'title'));
-        $this->assertSame([$ids['one'], $ids['two']], $state['suggestions'][0]['examples']);
-        $this->assertSame('article', $state['suggestions'][0]['blueprint']);
+        $this->assertSame('idle', $state->status);
+        $this->assertSame(3, $state->records);
+        $this->assertSame(['Project write-up'], array_column($state->suggestions, 'title'));
+        $this->assertSame([$ids['one'], $ids['two']], $state->suggestions[0]['examples']);
+        $this->assertSame('article', $state->suggestions[0]['blueprint']);
 
         // The scout was shown each entry: its title, how it is built and how it opens.
         $this->ai->assertSent('kind-finder', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'built as: hero, long_form, cards, related') && str_contains($prompt->prompt, 'opens: "A summary line about One'));
@@ -147,7 +150,7 @@ class WritingTest extends TestCase
         $this->assertSame(['One', 'Two'], $suggestion['titles']);
 
         // Learned: the same job as teaching by hand, with the kind's name and entries.
-        $this->postJson($suggestion['learn_url'])->assertOk()->assertJsonPath('state.status', TypeState::WORKING)->assertJsonPath('kinds.suggestions', []);
+        $this->postJson($suggestion['learn_url'])->assertOk()->assertJsonPath('state.status', 'working')->assertJsonPath('kinds.suggestions', []);
 
         Bus::assertDispatchedAfterResponse(AnalyseCollection::class, fn ($job) => $job->title === 'Project write-up' && $job->examples === [$ids['one'], $ids['two']]);
 
@@ -159,15 +162,15 @@ class WritingTest extends TestCase
         $this->signIn();
         $this->makeArticlesCollection();
 
-        app(TypeState::class)->set('articles', TypeState::WORKING);
+        app(KindStore::class)->saveAnalysis('articles', new Analysis('working'));
         $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))->assertOk()->assertJsonPath('state.status', 'working');
 
-        app(TypeState::class)->set('articles', TypeState::FAILED, 'The model gave up.');
+        app(KindStore::class)->saveAnalysis('articles', new Analysis('failed', 'The model gave up.'));
         $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))
             ->assertJsonPath('state.status', 'failed')
             ->assertJsonPath('state.error', 'The model gave up.');
 
-        app(TypeState::class)->set('articles', TypeState::IDLE);
+        app(KindStore::class)->saveAnalysis('articles', new Analysis('idle'));
         $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))->assertJsonPath('state.status', 'idle');
     }
 
@@ -176,13 +179,13 @@ class WritingTest extends TestCase
         $this->makeType();
         $this->ai->respond('kind-finder', 'Both entries are already covered by the Article kind, so there is nothing to suggest.');
 
-        (new SuggestKinds(['articles']))->handle(app(Studio::class), app(TypeRepository::class), app(KindSuggestions::class));
+        $this->runJob(new SuggestKinds(['articles']));
 
-        $state = app(KindSuggestions::class)->get('articles');
+        $state = app(KindStore::class)->suggestions('articles');
 
-        $this->assertSame(KindSuggestions::IDLE, $state['status']);
-        $this->assertSame([], $state['suggestions']);
-        $this->assertNotNull($state['checked_at']);
+        $this->assertSame('idle', $state->status);
+        $this->assertSame([], $state->suggestions);
+        $this->assertNotNull($state->checkedAt);
     }
 
     public function test_a_turned_down_kind_is_not_suggested_again_and_learn_all_queues_the_rest(): void
@@ -190,21 +193,20 @@ class WritingTest extends TestCase
         Bus::fake([AnalyseCollection::class]);
         $this->signIn();
 
-        $suggestions = app(KindSuggestions::class);
-        $suggestions->store('articles', [
+        app(WorkStates::class)->changeSuggestions('articles', fn (KindSuggestions $state) => $state->store([
             ['title' => 'Press release', 'description' => '', 'why' => '', 'examples' => ['a', 'b'], 'blueprint' => null],
             ['title' => 'Event', 'description' => '', 'why' => '', 'examples' => ['c', 'd'], 'blueprint' => null],
             ['title' => 'Award', 'description' => '', 'why' => '', 'examples' => ['e', 'f'], 'blueprint' => null],
-        ], 3);
+        ], 3));
 
-        $first = $suggestions->get('articles')['suggestions'][0];
+        $first = app(KindStore::class)->suggestions('articles')->suggestions[0];
 
         $this->postJson(cp_route('ghostwriter.kinds.dismiss', ['articles', $first['id']]))->assertOk()->assertJsonCount(2, 'kinds.suggestions');
-        $this->assertSame(['Press release'], $suggestions->get('articles')['dismissed']);
+        $this->assertSame(['Press release'], app(KindStore::class)->suggestions('articles')->dismissed);
 
         // Next time the scout looks, it is told what was turned down.
         $this->ai->respond('kind-finder', "<kinds>\n- title: Press release\n  examples: [\"x\", \"y\"]\n</kinds>");
-        app(Studio::class)->suggestKinds(Collection::findByHandle('articles'), app(TypeRepository::class), $suggestions);
+        app(Studio::class)->suggestKinds(Collection::findByHandle('articles'), app(TypeRepository::class), app(KindStore::class)->suggestions('articles')->dismissed);
         $this->ai->assertSent('kind-finder');
 
         $this->postJson(cp_route('ghostwriter.kinds.learn_all', 'articles'))->assertOk()->assertJsonPath('kinds.suggestions', []);
@@ -219,12 +221,12 @@ class WritingTest extends TestCase
         $this->makePostsCollection();
 
         // One already being looked at is left to finish.
-        app(KindSuggestions::class)->update('posts', ['status' => KindSuggestions::WORKING, 'error' => null]);
+        app(WorkStates::class)->changeSuggestions('posts', fn (KindSuggestions $state) => $state->status = 'working');
 
         $this->postJson(cp_route('ghostwriter.kinds.suggest_all'))
             ->assertOk()
-            ->assertJsonPath('collections.articles.kinds.status', KindSuggestions::WORKING)
-            ->assertJsonPath('collections.posts.kinds.status', KindSuggestions::WORKING);
+            ->assertJsonPath('collections.articles.kinds.status', 'working')
+            ->assertJsonPath('collections.posts.kinds.status', 'working');
 
         Bus::assertDispatchedAfterResponse(SuggestKinds::class, fn (SuggestKinds $job) => $job->collections === ['articles']);
 
@@ -240,13 +242,12 @@ class WritingTest extends TestCase
             'Nonsense again.',
         );
 
-        (new AnalyseCollection('articles', kinds: [['title' => 'Event', 'examples' => []], ['title' => 'Award', 'examples' => []]]))
-            ->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+        $this->runJob(new AnalyseCollection('articles', kinds: [['title' => 'Event', 'examples' => []], ['title' => 'Award', 'examples' => []]]));
 
         $this->assertSame('Event', app(TypeRepository::class)->find('event')->title);
         $this->assertNull(app(TypeRepository::class)->find('award'));
-        $this->assertSame(TypeState::FAILED, app(TypeState::class)->get('articles')['status']);
-        $this->assertStringStartsWith('Award: ', app(TypeState::class)->get('articles')['error']);
+        $this->assertSame('failed', app(KindStore::class)->analysis('articles')->status);
+        $this->assertStringStartsWith('Award: ', app(KindStore::class)->analysis('articles')->error);
 
         // A second type with the same title gets its own handle.
         $this->assertSame('event-2', app(TypeRepository::class)->handleFor('Event', 'articles'));
@@ -259,10 +260,10 @@ class WritingTest extends TestCase
 
         $this->get(cp_route('ghostwriter.setup.show'))->assertOk();
         Bus::assertDispatchedAfterResponse(SuggestKinds::class, fn ($job) => $job->collections === ['articles']);
-        $this->assertSame(KindSuggestions::WORKING, app(KindSuggestions::class)->get('articles')['status']);
+        $this->assertSame('working', app(KindStore::class)->suggestions('articles')->status);
 
         // Checked, with three entries: not again until ten more are published.
-        app(KindSuggestions::class)->store('articles', [], 3);
+        app(WorkStates::class)->changeSuggestions('articles', fn (KindSuggestions $state) => $state->store([], 3));
         Bus::fake([SuggestKinds::class]);
         $this->get(cp_route('ghostwriter.setup.show'))->assertOk();
         Bus::assertNotDispatchedAfterResponse(SuggestKinds::class);
@@ -276,7 +277,10 @@ class WritingTest extends TestCase
 
         // Switched off, nothing happens by itself.
         config(['ghostwriter.suggest_kinds' => false]);
-        app(KindSuggestions::class)->update('articles', ['status' => KindSuggestions::IDLE, 'checked_at' => null]);
+        app(WorkStates::class)->changeSuggestions('articles', function (KindSuggestions $state) {
+            $state->status = 'idle';
+            $state->checkedAt = null;
+        });
         Bus::fake([SuggestKinds::class]);
         $this->get(cp_route('ghostwriter.setup.show'))->assertOk();
         Bus::assertNotDispatchedAfterResponse(SuggestKinds::class);
@@ -290,7 +294,7 @@ class WritingTest extends TestCase
         // A collection never looked at, and one with plenty new since: the
         // dashboard waits for a click all the same.
         $this->makePostsCollection();
-        app(KindSuggestions::class)->store('posts', [], 0);
+        app(WorkStates::class)->changeSuggestions('posts', fn (KindSuggestions $state) => $state->store([], 0));
         foreach (range(1, 12) as $n) {
             $this->makeArticle("more-{$n}", "More {$n}", 'Another paragraph long enough to be read as a sample of writing.');
         }
@@ -299,7 +303,7 @@ class WritingTest extends TestCase
 
         Bus::assertNotDispatched(SuggestKinds::class);
         Bus::assertNotDispatchedAfterResponse(SuggestKinds::class);
-        $this->assertNotSame(KindSuggestions::WORKING, app(KindSuggestions::class)->get('articles')['status']);
+        $this->assertNotSame('working', app(KindStore::class)->suggestions('articles')->status);
 
         // Asked for, it starts.
         $this->postJson(cp_route('ghostwriter.kinds.suggest', 'articles'))->assertOk();
@@ -322,9 +326,9 @@ class WritingTest extends TestCase
 
         $piece = function () use ($ada) {
             $session = $this->sessionWithDraft(self::DRAFT);
-            $session->userId = (string) $ada->id();
+            $session->startedBy = (string) $ada->id();
 
-            return app(SessionRepository::class)->save($session)->id;
+            return $this->sessions()->save($session)->id;
         };
 
         $first = $piece();
@@ -337,20 +341,20 @@ class WritingTest extends TestCase
         $this->getJson(cp_route('ghostwriter.sessions.show', $first))->assertOk();
         $this->assertNull($deleteUrl());
         $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $first))->assertForbidden();
-        $this->assertNotNull(app(SessionRepository::class)->find($first));
+        $this->assertNotNull($this->sessions()->find($first));
 
         // Ada started it: she may.
         $this->actingAs($ada);
         $this->assertNotNull($deleteUrl());
         $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $first))->assertOk();
-        $this->assertNull(app(SessionRepository::class)->find($first));
+        $this->assertNull($this->sessions()->find($first));
 
         // So may someone who manages Ghostwriter.
         $first = $piece();
         $this->actingAs($mia);
         $this->assertNotNull($deleteUrl());
         $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $first))->assertOk();
-        $this->assertNull(app(SessionRepository::class)->find($first));
+        $this->assertNull($this->sessions()->find($first));
     }
 
     public function test_the_panel_is_told_about_its_collection(): void
@@ -369,7 +373,7 @@ class WritingTest extends TestCase
 
         $this->postJson(cp_route('ghostwriter.collections.analyse', 'articles'))
             ->assertOk()
-            ->assertJsonPath('state.status', TypeState::WORKING);
+            ->assertJsonPath('state.status', 'working');
 
         Bus::assertDispatchedAfterResponse(AnalyseCollection::class, fn ($job) => $job->collection === 'articles');
 
@@ -402,7 +406,7 @@ class WritingTest extends TestCase
             ->json('id');
 
         // Entries from another collection cannot be the model.
-        $session = app(SessionRepository::class)->find($id);
+        $session = $this->sessions()->find($id);
         $this->assertSame([$one], $session->examples);
         $this->assertStringContainsString('We moved in May.', $session->messages[0]['content']);
 
@@ -489,13 +493,13 @@ class WritingTest extends TestCase
 
         $this->ai->respond('type-analyst', "<type>\ntitle: Ignored\ndescription: A landing page.\nquestions:\n  - handle: what\n    label: What is it for?\nguidance: Short.\n</type>");
 
-        (new AnalyseCollection('articles', 'Landing page', [$landing]))->handle(app(Studio::class), app(TypeRepository::class), app(TypeState::class));
+        $this->runJob(new AnalyseCollection('articles', 'Landing page', [$landing]));
 
         $type = app(TypeRepository::class)->find('landing-page');
 
         $this->assertSame('Landing page', $type->title);
         $this->assertSame([$landing], $type->examples);
-        $this->assertSame('article', $type->blueprint);
+        $this->assertSame('article', $type->variant);
 
         // The writer is shown that entry's pattern, not the collection's.
         $instructions = app(Studio::class)->writerInstructions($type, '');
@@ -526,7 +530,7 @@ class WritingTest extends TestCase
         $type = app(TypeRepository::class)->find('articles');
 
         $this->assertSame('Project article', $type->title);
-        $this->assertSame('articles', $type->collection);
+        $this->assertSame('articles', $type->group);
         $this->assertSame([['handle' => 'who', 'label' => 'Who was it for?', 'instructions' => 'A description will do.', 'type' => 'text', 'required' => true]], $type->questions);
         $this->assertSame(['No invented figures.'], $type->checklist);
 
@@ -591,7 +595,7 @@ class WritingTest extends TestCase
         $this->ai->assertSent('brief-writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Working title: Faceted search') && str_contains($prompt->prompt, 'For a kitchen appliance maker.'));
 
         // Nothing has been started.
-        $this->assertCount(0, app(SessionRepository::class)->all());
+        $this->assertCount(0, $this->sessions()->all());
 
         $this->ai->reset('brief-writer')->respond('brief-writer', 'I would rather chat about it.');
 
@@ -622,9 +626,9 @@ class WritingTest extends TestCase
             ->assertJsonPath('status', Session::WORKING)
             ->json('id');
 
-        $session = app(SessionRepository::class)->find($id);
+        $session = $this->sessions()->find($id);
 
-        $this->assertSame($user->id(), $session->userId);
+        $this->assertSame($user->id(), $session->startedBy);
         $this->assertStringContainsString('A faceted search.', $session->messages[0]['content']);
         $this->assertStringContainsString('(not answered)', $session->messages[0]['content']);
 
@@ -633,7 +637,7 @@ class WritingTest extends TestCase
 
     public function test_the_writer_can_interview_first_and_draft_second(): void
     {
-        app(VoiceGuide::class)->save("# Tone of voice\n\nTwo punchlines at most.");
+        app(GuideStore::class)->saveGuide(new Guide(Guide::VOICE, "# Tone of voice\n\nTwo punchlines at most."));
 
         $type = $this->makeType();
         $session = $this->startedSession();
@@ -645,7 +649,7 @@ class WritingTest extends TestCase
 
         $this->runTurn($session);
 
-        $session = app(SessionRepository::class)->find($session->id);
+        $session = $this->sessions()->find($session->id);
         $this->assertNull($session->draft);
         $this->assertSame('1. Which projects can I cite?', end($session->messages)['content']);
 
@@ -653,11 +657,11 @@ class WritingTest extends TestCase
         $this->assertTrue(app(Presenter::class)->detail($session)['waiting_on_you']);
 
         $session->addMessage('user', 'The pub and the fitness app.');
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $this->runTurn($session);
 
-        $session = app(SessionRepository::class)->find($session->id);
+        $session = $this->sessions()->find($session->id);
         $this->assertSame(self::DRAFT, $session->draft);
         $this->assertFalse(app(Presenter::class)->detail($session)['waiting_on_you']);
 
@@ -671,7 +675,7 @@ class WritingTest extends TestCase
 
         // The writer's instructions carry the voice, the type's guidance, the
         // fields read from the blueprint, the pattern and a real example.
-        $instructions = app(Studio::class)->writerInstructions($type, app(VoiceGuide::class)->get());
+        $instructions = app(Studio::class)->writerInstructions($type, app(GuideStore::class)->guide(Guide::VOICE)->body);
 
         foreach (['Two punchlines at most.', 'Open on the reader. Two sections.', '`long_form`: Long Form', 'in this order: hero, long_form, cards, related', '<example number="1">', 'A paragraph about'] as $expected) {
             $this->assertStringContainsString($expected, $instructions);
@@ -687,13 +691,13 @@ class WritingTest extends TestCase
         $session->draft = self::DRAFT;
         $session->addMessage('assistant', 'Here is the draft.');
         $session->addMessage('user', 'Shorten the opening.');
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $this->ai->respond('writer', '<reply>Shortened.</reply><draft>'.str_replace('Because they are for **different** websites.', 'Different websites.', self::DRAFT).'</draft>');
 
         $this->runTurn($session);
 
-        $this->assertStringContainsString('Different websites.', app(SessionRepository::class)->find($session->id)->draft);
+        $this->assertStringContainsString('Different websites.', $this->sessions()->find($session->id)->draft);
 
         $this->ai->assertSent('writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, '<current_draft>') && str_contains($prompt->prompt, 'Shorten the opening.'));
     }
@@ -703,13 +707,13 @@ class WritingTest extends TestCase
         $this->makeType();
         $session = $this->startedSession();
         $session->draft = self::DRAFT;
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $this->ai->respond('writer', fn () => throw new \RuntimeException('The provider is overloaded.'));
 
         $this->runTurn($session);
 
-        $session = app(SessionRepository::class)->find($session->id);
+        $session = $this->sessions()->find($session->id);
         $this->assertSame(Session::FAILED, $session->status);
         $this->assertSame('The provider is overloaded.', $session->error);
         $this->assertSame(self::DRAFT, $session->draft);
@@ -742,7 +746,36 @@ class WritingTest extends TestCase
         Bus::assertDispatchedAfterResponse(RunSessionTurn::class, fn (RunSessionTurn $job) => $job->sessionId === $session->id);
 
         // The same message, not a second copy of it.
-        $this->assertCount(1, app(SessionRepository::class)->find($session->id)->messages);
+        $this->assertCount(1, $this->sessions()->find($session->id)->messages);
+    }
+
+    public function test_a_turn_whose_worker_stopped_shows_as_failed_and_can_be_tried_again(): void
+    {
+        Bus::fake([RunSessionTurn::class]);
+        $this->signIn();
+        $this->makeType();
+
+        // Started an hour ago, and its worker killed before it could answer.
+        $session = $this->makeSession('articles', ['what' => 'A faceted search.']);
+        $session->addMessage('user', 'Write it.');
+        $session->claim(null, app(DomainOptions::class), now()->subHour());
+        $this->sessions()->save($session);
+
+        $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))
+            ->assertJsonPath('status', Session::FAILED)
+            ->assertJsonPath('error', DomainOptions::STOPPED)
+            ->assertJsonPath('can_retry', true);
+
+        $this->postJson(cp_route('ghostwriter.sessions.retry', $session->id))
+            ->assertOk()
+            ->assertJsonPath('status', Session::WORKING);
+
+        Bus::assertDispatchedAfterResponse(RunSessionTurn::class, fn (RunSessionTurn $job) => $job->sessionId === $session->id);
+
+        // Running again since a moment ago, it is working, and a message waits for it.
+        $this->postJson(cp_route('ghostwriter.sessions.message', $session->id), ['message' => 'And shorter.'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Ghostwriter is still working on the last message.');
     }
 
     public function test_a_turn_no_worker_has_picked_up_says_so_after_thirty_seconds(): void
@@ -753,7 +786,7 @@ class WritingTest extends TestCase
 
         $session = $this->startedSession();
         $session->status = Session::IDLE;
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         // A real queue, with no worker.
         Queue::fake();
@@ -770,7 +803,7 @@ class WritingTest extends TestCase
 
         // A worker starts it: nothing more to say.
         $this->ai->respond('writer', '<reply>Shorter.</reply>');
-        $this->runTurn(app(SessionRepository::class)->find($session->id));
+        $this->runTurn($this->sessions()->find($session->id));
 
         $this->assertNull(app(Waiting::class)->waited('session:'.$session->id));
 
@@ -778,7 +811,7 @@ class WritingTest extends TestCase
         config(['queue.default' => 'sync']);
         app(Waiting::class)->queued('session:'.$session->id);
         $this->travel(60)->seconds();
-        $this->assertNull(app(Waiting::class)->notice('session:'.$session->id));
+        $this->assertNull(app(Waiting::class)->notice('session:'.$session->id, 'php artisan queue:work'));
     }
 
     public function test_a_draft_cut_off_twice_is_not_kept(): void
@@ -786,7 +819,7 @@ class WritingTest extends TestCase
         $this->makeType();
         $session = $this->startedSession();
         $session->draft = self::DRAFT;
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $this->ai->respond('writer', new TextResponse("<reply>Here.</reply>\n<draft>\ntitle: Half", StopReason::MaxTokens));
 
@@ -795,7 +828,7 @@ class WritingTest extends TestCase
         // Asked once at the writer's limit, then once with twice the room.
         $this->assertSame([16000, 32000], array_map(fn (TextRequest $request) => $request->resolvedMaxTokens(), $this->ai->prompted('writer')));
 
-        $session = app(SessionRepository::class)->find($session->id);
+        $session = $this->sessions()->find($session->id);
         $this->assertSame(Session::FAILED, $session->status);
         $this->assertStringContainsString('was cut off', $session->error);
         $this->assertSame(self::DRAFT, $session->draft);
@@ -814,8 +847,8 @@ class WritingTest extends TestCase
         $this->runTurn($session);
 
         $this->assertCount(2, $this->ai->prompted('writer'));
-        $this->assertSame(Session::IDLE, app(SessionRepository::class)->find($session->id)->status);
-        $this->assertStringContainsString('Because they are for **different** websites.', app(SessionRepository::class)->find($session->id)->draft);
+        $this->assertSame(Session::IDLE, $this->sessions()->find($session->id)->status);
+        $this->assertStringContainsString('Because they are for **different** websites.', $this->sessions()->find($session->id)->draft);
     }
 
     public function test_a_message_cannot_be_sent_while_the_last_one_is_being_answered(): void
@@ -829,7 +862,7 @@ class WritingTest extends TestCase
         $this->postJson(cp_route('ghostwriter.sessions.message', $session->id), ['message' => 'Hello?'])->assertStatus(409);
 
         $session->status = Session::IDLE;
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $this->postJson(cp_route('ghostwriter.sessions.message', $session->id), ['message' => 'Shorten it.'])
             ->assertOk()
@@ -915,7 +948,7 @@ class WritingTest extends TestCase
         $this->assertFalse($entry->published());
         $this->assertSame('Why quotes vary, and what moves the number.', $entry->get('summary'));
         $this->assertSame(['hero', 'long_form', 'related'], array_column($entry->get('page_builder'), 'type'));
-        $this->assertSame($entry->id(), app(SessionRepository::class)->find($session->id)->entryId);
+        $this->assertSame($entry->id(), $this->sessions()->find($session->id)->recordId);
 
         // A second entry from the same draft does not overwrite the first.
         $this->postJson(cp_route('ghostwriter.sessions.entry', $session->id))->assertOk();
@@ -930,8 +963,8 @@ class WritingTest extends TestCase
         $this->makeType();
 
         $theirs = $this->sessionWithDraft(self::DRAFT);
-        $theirs->userId = 'someone-else';
-        app(SessionRepository::class)->save($theirs);
+        $theirs->startedBy = 'someone-else';
+        $this->sessions()->save($theirs);
 
         // Nobody else sees it listed, or can open it, read it, write in it,
         // use its draft or remove it.
@@ -953,13 +986,13 @@ class WritingTest extends TestCase
         $this->postJson(cp_route('ghostwriter.sessions.entry', $theirs->id))->assertForbidden();
         $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $theirs->id))->assertForbidden();
 
-        $this->assertNotNull(app(SessionRepository::class)->find($theirs->id));
+        $this->assertNotNull($this->sessions()->find($theirs->id));
         $this->assertSame(0, Entry::query()->where('collection', 'articles')->where('slug', 'what-does-a-website-cost')->count());
 
         // The owner, and a super user, carry on as before.
         $mine = $this->sessionWithDraft(self::DRAFT);
-        $mine->userId = (string) User::current()->id();
-        app(SessionRepository::class)->save($mine);
+        $mine->startedBy = (string) User::current()->id();
+        $this->sessions()->save($mine);
 
         $this->getJson(cp_route('ghostwriter.sessions.show', $mine->id))->assertOk();
         $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertJsonCount(1, 'sessions');
@@ -983,11 +1016,11 @@ class WritingTest extends TestCase
         // Ada starts a piece.
         $this->actingAs($ada);
         $session = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'A faceted search.']])->assertOk()->json();
-        $stored = app(SessionRepository::class)->find($session['id']);
+        $stored = $this->sessions()->find($session['id']);
         $stored->addMessage('assistant', 'Here is a draft.');
         $stored->status = Session::IDLE;
         $stored->draft = self::DRAFT;
-        app(SessionRepository::class)->save($stored);
+        $this->sessions()->save($stored);
 
         // Bob sees it everywhere Ada would, says who started it, and can carry on.
         $this->actingAs($bob);
@@ -1042,16 +1075,16 @@ class WritingTest extends TestCase
 
         $this->actingAs($ada);
         $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'A faceted search.']])->assertOk()->json('id');
-        $stored = app(SessionRepository::class)->find($id);
+        $stored = $this->sessions()->find($id);
         $stored->status = Session::FAILED;
         $stored->error = 'The provider is overloaded.';
-        app(SessionRepository::class)->save($stored);
+        $this->sessions()->save($stored);
 
         // Bob asks again: he is the one waiting now, and a second go is refused.
         $this->actingAs($bob);
         $this->postJson(cp_route('ghostwriter.sessions.retry', $id))->assertOk()->assertJsonPath('waiting_on', null);
         $this->postJson(cp_route('ghostwriter.sessions.retry', $id))->assertStatus(409);
-        $this->assertSame((string) $bob->id(), app(SessionRepository::class)->find($id)->runBy);
+        $this->assertSame((string) $bob->id(), $this->sessions()->find($id)->runBy);
 
         $this->actingAs($ada);
         $this->getJson(cp_route('ghostwriter.sessions.show', $id))->assertJsonPath('waiting_on', 'Bob Byte');
@@ -1071,12 +1104,12 @@ class WritingTest extends TestCase
         $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id))->assertForbidden();
 
         $this->assertSame(0, Entry::query()->where('collection', 'articles')->where('slug', 'what-does-a-website-cost')->count());
-        $this->assertNull(app(SessionRepository::class)->find($session->id)->entryId);
+        $this->assertNull($this->sessions()->find($session->id)->recordId);
 
         // Editing an entry they may edit is still allowed.
         $this->makeArticle('older', 'Older', 'An older piece.');
         $session->source = Entry::query()->where('slug', 'older')->first()->id();
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id))->assertOk();
     }
@@ -1087,7 +1120,7 @@ class WritingTest extends TestCase
         $this->makeType();
 
         $session = $this->sessionWithDraft(self::DRAFT);
-        $stage = fn () => array_intersect_key(app(Presenter::class)->summary(app(SessionRepository::class)->find($session->id)), ['stage' => 1, 'finished' => 1]);
+        $stage = fn () => array_intersect_key(app(Presenter::class)->summary($this->sessions()->find($session->id)), ['stage' => 1, 'finished' => 1]);
 
         $this->assertSame(['stage' => 'draft', 'finished' => false], $stage());
 
@@ -1114,7 +1147,7 @@ class WritingTest extends TestCase
 
         $session = $this->sessionWithDraft(self::DRAFT);
         $session->addMessage('assistant', "Two things:\n\n- **Shorter** opening\n- <script>alert(1)</script> gone");
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $messages = $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))->json('messages');
         $reply = end($messages);
@@ -1135,7 +1168,7 @@ class WritingTest extends TestCase
         Entry::make()->collection('articles')->slug('old-cost')->published(true)->data(['title' => 'What does a website cost?', 'updated_at' => now()->subDay()->timestamp])->save();
 
         $session = $this->sessionWithDraft(self::DRAFT);
-        $summary = fn (string $id) => array_intersect_key(app(Presenter::class)->summary(app(SessionRepository::class)->find($id)), ['stage' => 1, 'finished' => 1]);
+        $summary = fn (string $id) => array_intersect_key(app(Presenter::class)->summary($this->sessions()->find($id)), ['stage' => 1, 'finished' => 1]);
 
         $this->assertSame(['stage' => 'draft', 'finished' => false], $summary($session->id));
 
@@ -1144,9 +1177,9 @@ class WritingTest extends TestCase
         $entry = Entry::query()->where('slug', 'existing')->first();
         $editing = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->json('id');
 
-        $edit = app(SessionRepository::class)->find($editing);
+        $edit = $this->sessions()->find($editing);
         $edit->appliedAt = now()->toIso8601String();
-        app(SessionRepository::class)->save($edit);
+        $this->sessions()->save($edit);
 
         $this->assertSame(['stage' => 'changed', 'finished' => false], $summary($editing));
 
@@ -1179,7 +1212,7 @@ class WritingTest extends TestCase
         $this->patchJson(cp_route('ghostwriter.sessions.field', $session->id), ['path' => ['page_builder', '1', 'content'], 'value' => '<h2>Why so far apart?</h2><p>Because they are for <em>different</em> sites.</p>', 'format' => 'html'])
             ->assertOk();
 
-        $draft = app(SessionRepository::class)->find($session->id)->draft;
+        $draft = $this->sessions()->find($session->id)->draft;
 
         $this->assertStringContainsString('## Why so far apart?', $draft);
         $this->assertStringContainsString('Because they are for *different* sites.', $draft);
@@ -1201,11 +1234,11 @@ class WritingTest extends TestCase
         $id = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertOk()->json('id');
 
         // A change asked for and written, but not yet put into the entry.
-        $session = app(SessionRepository::class)->find($id);
+        $session = $this->sessions()->find($id);
         $session->addMessage('user', 'Shorten the summary.');
         $session->addMessage('assistant', 'Done.');
         $session->draft = "title: Existing Piece\nsummary: Shorter.";
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         // Reopened: the changes are still there.
         $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertJsonPath('id', $id)->assertJsonPath('draft', "title: Existing Piece\nsummary: Shorter.");
@@ -1217,10 +1250,10 @@ class WritingTest extends TestCase
         $this->assertStringContainsString('Start again from the entry', end($detail['messages'])['content'] === 'I have the entry as it stands. Tell me what to change.' ? $detail['messages'][count($detail['messages']) - 2]['content'] : '');
 
         // Once the changes have been put into the entry, reopening starts afresh too.
-        $session = app(SessionRepository::class)->find($id);
+        $session = $this->sessions()->find($id);
         $session->draft = "title: Existing Piece\nsummary: Shorter still.";
         $session->appliedAt = now()->toIso8601String();
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertJsonPath('id', $id)->assertJsonPath('draft', fn ($draft) => str_contains($draft, 'The old summary.'));
     }
@@ -1277,7 +1310,7 @@ class WritingTest extends TestCase
         $this->ai->respond('writer', "<reply>Done.</reply>\n<draft>\ntitle: Existing Piece\nsummary: The new summary.\npage_builder:\n  - type: long_form\n    content: New words.\n  - type: hero\n    heading: New heading\n  - type: cards\n    heading: Uses\n    items:\n      - text: First, reworded\n      - text: Second\n      - text: Third\n</draft>");
 
         $this->postJson(cp_route('ghostwriter.sessions.message', $detail['id']), ['message' => 'New heading and summary, move the prose first.'])->assertOk();
-        $this->runTurn(app(SessionRepository::class)->find($detail['id']));
+        $this->runTurn($this->sessions()->find($detail['id']));
 
         // The writer was shown the entry as the current draft.
         $this->ai->assertSent('writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, '<current_draft>') && str_contains($prompt->prompt, 'Old heading'));
@@ -1327,7 +1360,7 @@ class WritingTest extends TestCase
 
         $this->ai->respond('writer', "<reply>Done.</reply>\n<draft>\ntitle: Existing Piece\nsummary: Typed but not saved.\npage_builder:\n  - type: hero\n    heading: New heading\n</draft>");
         $this->postJson(cp_route('ghostwriter.sessions.message', $detail['id']), ['message' => 'A new heading.'])->assertOk();
-        $this->runTurn(app(SessionRepository::class)->find($detail['id']));
+        $this->runTurn($this->sessions()->find($detail['id']));
 
         $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']), ['values' => $form])->assertOk()->json('values');
 
@@ -1345,11 +1378,11 @@ class WritingTest extends TestCase
     {
         $type = app(TypeRepository::class)->find('articles');
 
-        $session = Session::start('articles', ['what' => 'A faceted search.']);
+        $session = $this->makeSession('articles', ['what' => 'A faceted search.']);
         $session->addMessage('user', app(Studio::class)->brief($type, $session));
         $session->status = Session::WORKING;
 
-        return app(SessionRepository::class)->save($session);
+        return $this->sessions()->save($session);
     }
 
     private function sessionWithDraft(string $draft): Session
@@ -1358,11 +1391,11 @@ class WritingTest extends TestCase
         $session->draft = $draft;
         $session->status = Session::IDLE;
 
-        return app(SessionRepository::class)->save($session);
+        return $this->sessions()->save($session);
     }
 
     private function runTurn(Session $session): void
     {
-        (new RunSessionTurn($session->id))->handle(app(SessionRepository::class), app(TypeRepository::class), app(Studio::class), app(VoiceGuide::class));
+        $this->runJob(new RunSessionTurn($session->id));
     }
 }

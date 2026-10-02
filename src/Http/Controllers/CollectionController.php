@@ -7,21 +7,25 @@ use Illuminate\Http\Request;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Conflict;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\Analysis;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindSuggestions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
-use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
-use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
-use NineteenNinetyFour\Ghostwriter\Types\TypeState;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Contracts\Entries\Collection as StatamicCollection;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry as Entries;
-use Statamic\Facades\User;
 
 /**
  * What the Ghostwriter panel needs to know about a collection, and the
@@ -32,13 +36,12 @@ class CollectionController
     public function __construct(
         private Studio $studio,
         private TypeRepository $types,
-        private TypeState $state,
-        private VoiceGuide $guide,
-        private SessionRepository $sessions,
+        private WorkStates $states,
+        private GuideStore $guides,
+        private SessionGuard $sessions,
         private Presenter $presenter,
         private EntryLayouts $layouts,
         private SchemaReader $reader,
-        private KindSuggestions $suggestions,
     ) {}
 
     public function show(Request $request, string $collection): JsonResponse
@@ -55,7 +58,7 @@ class CollectionController
         $this->ensureEnabled($collection);
 
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
-        abort_if($this->state->get($collection)['status'] === TypeState::WORKING, 409, 'Ghostwriter is already learning this collection.');
+        abort_if($this->states->analysis($collection)->isWorking(), 409, 'Ghostwriter is already learning this collection.');
 
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:60'],
@@ -68,7 +71,7 @@ class CollectionController
             ->values()
             ->all();
 
-        $this->state->set($collection, TypeState::WORKING);
+        $this->learning($collection, 'Ghostwriter is already learning this collection.');
 
         AnalyseCollection::start($collection, $validated['title'] ?? null, $examples);
 
@@ -84,7 +87,7 @@ class CollectionController
     {
         $this->ensureEnabled($collection);
 
-        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->state->get($collection)]);
+        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->states->analysis($collection)->toArray()]);
     }
 
     /**
@@ -96,9 +99,7 @@ class CollectionController
 
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
 
-        if ($this->suggestions->get($collection)['status'] !== KindSuggestions::WORKING) {
-            $this->suggestions->update($collection, ['status' => KindSuggestions::WORKING, 'error' => null]);
-
+        if ($this->startSuggesting($collection)) {
             SuggestKinds::start([$collection]);
         }
 
@@ -114,11 +115,7 @@ class CollectionController
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
 
         $handles = $this->types->collections()->map->handle()->values()->all();
-        $due = array_values(array_filter($handles, fn (string $handle) => $this->suggestions->get($handle)['status'] !== KindSuggestions::WORKING));
-
-        foreach ($due as $handle) {
-            $this->suggestions->update($handle, ['status' => KindSuggestions::WORKING, 'error' => null]);
-        }
+        $due = array_values(array_filter($handles, fn (string $handle) => $this->startSuggesting($handle)));
 
         if ($due !== []) {
             SuggestKinds::start($due);
@@ -135,18 +132,18 @@ class CollectionController
     {
         $this->ensureEnabled($collection);
 
-        $suggestion = $this->suggestions->find($collection, $id) ?? abort(404, 'That suggestion has gone.');
+        $suggestion = $this->states->suggestions($collection)->find($id) ?? abort(404, 'That suggestion has gone.');
 
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
-        abort_if($this->state->get($collection)['status'] === TypeState::WORKING, 409, 'Ghostwriter is already learning a kind in this collection. Try again in a minute.');
+        abort_if($this->states->analysis($collection)->isWorking(), 409, self::LEARNING);
 
-        $this->state->set($collection, TypeState::WORKING);
+        $this->learning($collection, self::LEARNING);
 
         AnalyseCollection::start($collection, $suggestion['title'], $suggestion['examples']);
 
-        $this->suggestions->remove($collection, $id);
+        $this->states->changeSuggestions($collection, fn (KindSuggestions $state) => $state->remove($id));
 
-        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->state->get($collection)]);
+        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->states->analysis($collection)->toArray()]);
     }
 
     /**
@@ -156,21 +153,23 @@ class CollectionController
     {
         $this->ensureEnabled($collection);
 
-        $suggestions = $this->suggestions->get($collection)['suggestions'];
+        $suggestions = $this->states->suggestions($collection)->suggestions;
 
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
         abort_if($suggestions === [], 422, 'There is nothing suggested to learn.');
-        abort_if($this->state->get($collection)['status'] === TypeState::WORKING, 409, 'Ghostwriter is already learning a kind in this collection. Try again in a minute.');
+        abort_if($this->states->analysis($collection)->isWorking(), 409, self::LEARNING);
 
-        $this->state->set($collection, TypeState::WORKING);
+        $this->learning($collection, self::LEARNING);
 
         AnalyseCollection::start($collection, null, [], array_map(fn (array $suggestion) => ['title' => $suggestion['title'], 'examples' => $suggestion['examples']], $suggestions));
 
-        foreach ($suggestions as $suggestion) {
-            $this->suggestions->remove($collection, $suggestion['id']);
-        }
+        $this->states->changeSuggestions($collection, function (KindSuggestions $state) use ($suggestions) {
+            foreach ($suggestions as $suggestion) {
+                $state->remove((string) $suggestion['id']);
+            }
+        });
 
-        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->state->get($collection)]);
+        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->states->analysis($collection)->toArray()]);
     }
 
     /**
@@ -180,7 +179,7 @@ class CollectionController
     {
         $this->ensureEnabled($collection);
 
-        $this->suggestions->remove($collection, $id, dismissed: true);
+        $this->states->changeSuggestions($collection, fn (KindSuggestions $state) => $state->remove($id, dismissed: true));
 
         return response()->json(['kinds' => $this->kindState($collection)]);
     }
@@ -190,17 +189,17 @@ class CollectionController
      */
     private function kindState(string $collection): array
     {
-        $state = $this->suggestions->get($collection);
+        $state = $this->states->suggestions($collection);
 
         return [
-            'status' => $state['status'],
-            'error' => $state['error'],
-            'checked_at' => $state['checked_at'],
+            'status' => $state->status,
+            'error' => $state->error,
+            'checked_at' => $state->checkedAt,
             'suggestions' => array_map(fn (array $suggestion) => $suggestion + [
-                'titles' => array_values(array_filter(array_map(fn (string $id) => Entries::find($id)?->get('title'), $suggestion['examples']))),
+                'titles' => array_values(array_filter(array_map(fn (string $id) => Entries::find($id)?->get('title'), (array) ($suggestion['examples'] ?? [])))),
                 'learn_url' => cp_route('ghostwriter.kinds.learn', [$collection, $suggestion['id']]),
                 'dismiss_url' => cp_route('ghostwriter.kinds.dismiss', [$collection, $suggestion['id']]),
-            ], $state['suggestions']),
+            ], $state->suggestions),
             'urls' => [
                 'status' => cp_route('ghostwriter.kinds.show', $collection),
                 'suggest' => cp_route('ghostwriter.kinds.suggest', $collection),
@@ -222,15 +221,15 @@ class CollectionController
         return [
             'configured' => $this->studio->configured(),
             'provider' => $this->studio->provider(),
-            'has_voice' => $this->guide->exists(),
+            'has_voice' => $this->guides->guide(Guide::VOICE)->exists(),
             'voice_url' => cp_route('ghostwriter.voice.show'),
             'collection' => ['handle' => $handle, 'title' => $collection->title()],
-            'state' => $this->state->get($handle),
+            'state' => $this->states->analysis($handle)->toArray(),
             'kinds_suggested' => $this->kindState($handle),
             // On a form for one blueprint, only the types written for it.
             'types' => $types
-                ->filter(fn (ContentType $type) => ! $blueprint || ! $type->blueprint || $type->blueprint === $blueprint)
-                ->map(fn (ContentType $type) => $type->forQuestionnaire())
+                ->filter(fn (ContentType $type) => ! $blueprint || ! $type->variant || $type->variant === $blueprint)
+                ->map(fn (ContentType $type) => TypeRepository::forQuestionnaire($type))
                 ->values(),
             // Kinds of entry found by how the existing ones are built, offered
             // as ready-made models for something new.
@@ -239,12 +238,12 @@ class CollectionController
                 : [],
             'entries' => $this->entries($collection),
             // Ideas from the content plan waiting to be written here.
-            'ideas' => app(IdeaRepository::class)->all()
-                ->filter(fn (array $idea) => $idea['collection'] === $handle && $idea['status'] === IdeaRepository::OPEN)
-                ->map(fn (array $idea) => array_intersect_key($idea, array_flip(['id', 'title', 'type', 'why', 'notes'])))
+            'ideas' => collect(app(PlanStore::class)->ideas())
+                ->filter(fn (Idea $idea) => $idea->group === $handle && $idea->isOpen())
+                ->map(fn (Idea $idea) => ['id' => (string) $idea->id, 'title' => $idea->title, 'type' => $idea->kind, 'why' => $idea->why, 'notes' => $idea->notes])
                 ->values(),
-            'sessions' => $this->sessions->visibleTo(User::current())
-                ->filter(fn ($session) => $types->has($session->type) && $session->entryId === null && $session->source === null)
+            'sessions' => collect($this->sessions->visible(Presenter::viewer()))
+                ->filter(fn (Session $session) => $types->has($session->kind) && $session->recordId === null && $session->source === null)
                 ->map(fn ($session) => $this->presenter->summary($session))
                 ->reject(fn (array $session) => $session['finished'])
                 ->take(8)
@@ -283,6 +282,39 @@ class CollectionController
             ->take(200)
             ->map(fn (Entry $entry) => $present($entry))
             ->values();
+    }
+
+    /** Said when a kind is asked for while one is being learned. */
+    private const LEARNING = 'Ghostwriter is already learning a kind in this collection. Try again in a minute.';
+
+    /**
+     * Mark the collection as being studied; refused when it already is.
+     */
+    private function learning(string $collection, string $busy): void
+    {
+        try {
+            $this->states->changeAnalysis($collection, fn (Analysis $state) => $state->begin(null, $busy));
+        } catch (Conflict $conflict) {
+            abort(409, $conflict->getMessage());
+        }
+    }
+
+    /**
+     * Mark the collection as having its kinds looked for, unless they
+     * already are. Whether a look should start.
+     */
+    private function startSuggesting(string $collection): bool
+    {
+        if ($this->states->suggestions($collection)->isWorking()) {
+            return false;
+        }
+
+        $this->states->changeSuggestions($collection, function (KindSuggestions $state) {
+            $state->status = 'working';
+            $state->error = null;
+        });
+
+        return true;
     }
 
     private function ensureEnabled(string $collection): void

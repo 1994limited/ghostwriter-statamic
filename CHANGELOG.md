@@ -48,3 +48,4 @@ First release. Ghostwriter learns how your site writes and what its pictures loo
 - PHP 8.3 or later, with GD; Statamic 6.
 - An API key for Anthropic, OpenAI or Gemini.
 - A queue worker (`--timeout=960`), or PHP-FPM on the `sync` queue.
+- Work whose worker was stopped before it finished (a time limit, a restart) shows as failed after a while, ready to try again.

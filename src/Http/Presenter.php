@@ -6,14 +6,19 @@ use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Progress;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Record;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionAccess;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
+use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\Entry;
@@ -39,56 +44,38 @@ class Presenter
      */
     public function summary(Session $session): array
     {
-        $type = $this->types->find($session->type);
-        $collection = $type?->statamicCollection();
+        $type = $this->types->find($session->kind);
+        $collection = $type ? TypeRepository::collectionOf($type) : null;
 
         $entry = $this->entryFor($session, $type);
+
+        // Done with once its entry is saved: the draft has become an entry,
+        // or the changes put into an existing one's form have been saved.
+        // Put into the form and not saved is not done (E6).
+        $progress = Progress::of($session, $entry ? Record::saved($entry->published(), $entry->lastModified()) : Record::none(), $this->options());
 
         return [
             'id' => $session->id,
             'title' => $session->title(),
-            'type' => $type?->title ?? $session->type,
+            'type' => $type?->title ?? $session->kind,
             'collection' => $collection?->title(),
             'status' => $session->status,
             'has_draft' => $session->draft !== null,
-            'stage' => $this->stage($session, $entry),
-            // Done with once its entry is saved: the draft has become an
-            // entry, or the changes put into an existing one's form have
-            // been saved. Put into the form and not saved is not done.
-            'finished' => $session->status !== Session::WORKING && $this->saved($session, $entry),
+            'stage' => $progress->stage,
+            'finished' => $progress->finished,
             'entry_url' => $entry?->editUrl(),
             // Shared pieces are deleted by their starter or a manager only.
-            'delete_url' => app(SessionRepository::class)->canDelete($session, User::current()) ? cp_route('ghostwriter.sessions.destroy', $session->id) : null,
+            'delete_url' => $this->access()->canDelete($session, self::viewer()) ? cp_route('ghostwriter.sessions.destroy', $session->id) : null,
             'updated_at' => Carbon::parse($session->updatedAt)->diffForHumans(),
             ...$this->people($session),
             // Sessions are resumed where they were started: on the entry
             // being edited, or on the collection's create screen.
             'url' => match (true) {
-                $session->source && ($entry = Entry::find($session->source)) => $entry->editUrl().'?ghostwriter='.$session->id,
+                $session->source !== null && ($entry = Entry::find((string) $session->source)) => $entry->editUrl().'?ghostwriter='.$session->id,
                 $collection !== null => $collection->createEntryUrl().'?ghostwriter='.$session->id,
                 default => null,
             },
         ];
-    }
-
-    /**
-     * Whether the piece's entry has been saved: for a new piece, that there
-     * is one; for changes to an existing entry, that it was saved after
-     * they were put into its form.
-     */
-    private function saved(Session $session, ?EntryContract $entry): bool
-    {
-        if ($entry === null) {
-            return false;
-        }
-
-        if ($session->source === null) {
-            return true;
-        }
-
-        $modified = $entry->lastModified();
-
-        return $session->appliedAt !== null && $modified !== null && $modified->getTimestamp() >= Carbon::parse($session->appliedAt)->getTimestamp();
     }
 
     /**
@@ -99,8 +86,8 @@ class Presenter
      */
     private function entryFor(Session $session, ?ContentType $type): ?EntryContract
     {
-        if ($id = $session->source ?? $session->entryId) {
-            return Entry::find($id);
+        if (($id = $session->source ?? $session->recordId) !== null) {
+            return Entry::find((string) $id);
         }
 
         if (! $type || $session->draft === null) {
@@ -110,27 +97,10 @@ class Presenter
         $title = mb_strtolower($session->title());
         $started = $session->createdAt ? Carbon::parse($session->createdAt)->getTimestamp() : null;
 
-        return Entry::query()->where('collection', $type->collection)->get()
+        return Entry::query()->where('collection', $type->group)->get()
             ->first(fn (EntryContract $entry) => mb_strtolower(trim((string) $entry->get('title'))) === $title
                 // An older entry that happens to share the title is not this piece.
                 && ($started === null || ($modified = $entry->lastModified()) === null || $modified->getTimestamp() >= $started));
-    }
-
-    private function stage(Session $session, ?EntryContract $entry): string
-    {
-        return match (true) {
-            $session->status === Session::FAILED => 'failed',
-            $session->status === Session::WORKING => 'working',
-            $session->source !== null => match (true) {
-                $this->saved($session, $entry) => $entry->published() ? 'published' : 'saved',
-                $session->appliedAt !== null => 'changed',
-                default => 'editing',
-            },
-            $entry !== null => $entry->published() ? 'published' : 'saved',
-            $session->appliedAt !== null => 'in_form',
-            $session->draft !== null => 'draft',
-            default => 'interview',
-        };
     }
 
     /**
@@ -138,8 +108,8 @@ class Presenter
      */
     public function detail(Session $session): array
     {
-        $shared = app(SessionRepository::class)->shared();
-        $type = $this->types->find($session->type);
+        $shared = $this->options()->shared;
+        $type = $this->types->find($session->kind);
         $problem = null;
         $words = 0;
         $preview = [];
@@ -149,7 +119,7 @@ class Presenter
                 $draft = Draft::parse($session->draft);
                 $words = $draft->wordCount();
 
-                if ($blueprint = $type?->forSession($session)->statamicBlueprint()) {
+                if ($type && ($blueprint = TypeRepository::blueprintOf($type->forSession($session)))) {
                     $preview = $this->preview->render($draft->data, $this->reader->read($blueprint));
                 }
             } catch (InvalidArgumentException $exception) {
@@ -159,22 +129,22 @@ class Presenter
 
         return [
             'id' => $session->id,
-            'editing' => $session->source !== null,
+            'editing' => $session->isEditing(),
             // Whether the writer has asked something and is waiting for an answer.
             'waiting_on_you' => $session->status === Session::IDLE
-                && ($last = end($session->messages)) !== false
-                && $last['role'] === 'assistant'
-                && ($last['asks'] ?? ($session->draft === null && $session->source === null)),
-            'type' => $type?->forQuestionnaire(),
+                && ($last = $session->lastMessage()) !== null
+                && ($last['role'] ?? null) === 'assistant'
+                && ($last['asks'] ?? ($session->draft === null && ! $session->isEditing())),
+            'type' => $type ? TypeRepository::forQuestionnaire($type) : null,
             'title' => $session->title(),
             'status' => $session->status,
             'error' => $session->error,
             // A failed turn can be run again when the message it was answering is the last one.
-            'can_retry' => $session->status === Session::FAILED && ($last = end($session->messages)) !== false && $last['role'] === 'user',
+            'can_retry' => $session->canRetry(),
             // Put into a publish form already; using it again replaces that.
             'applied' => $session->appliedAt !== null,
             // No worker has picked the turn up after a while: say so.
-            'queue_waiting' => $session->status === Session::WORKING ? app(Waiting::class)->notice('session:'.$session->id) : null,
+            'queue_waiting' => $session->isWorking() ? app(Waiting::class)->notice('session:'.$session->id, app(Settings::class)->workerCommand()) : null,
             // Ghostwriter's replies, rendered as the markdown they are
             // written in, with any HTML in them escaped.
             // Each person's message says who sent it, when the conversation
@@ -182,8 +152,8 @@ class Presenter
             'messages' => array_map(fn (array $message) => $message['role'] === 'assistant'
                 ? $message + ['html' => $this->markdown()->convert((string) $message['content'])->getContent()]
                 : $message + [
-                    'mine' => ($by = $message['by'] ?? $session->userId) === null || $by === $this->me(),
-                    'from' => $shared ? self::name($message['by'] ?? $session->userId) : null,
+                    'mine' => ($by = self::id($message['by'] ?? $session->startedBy)) === null || $by === $this->me(),
+                    'from' => $shared ? self::name(self::id($message['by'] ?? $session->startedBy)) : null,
                 ], $session->messages),
             ...$this->people($session),
             'draft' => $session->draft,
@@ -206,14 +176,16 @@ class Presenter
     private function people(Session $session): array
     {
         $me = $this->me();
-        $shared = app(SessionRepository::class)->shared();
-        $touched = $session->touchedBy ?? $session->userId;
+        $shared = $this->options()->shared;
+        $started = self::id($session->startedBy);
+        $touched = self::id($session->touchedBy) ?? $started;
+        $waiting = self::id($session->waitingOn(self::viewer()));
         $who = fn (?string $id) => $id !== null && $id === $me ? 'you' : self::name($id);
 
         return [
-            'started_by' => $shared && $session->userId !== null ? $who($session->userId) : null,
-            'touched_by' => $shared && $touched !== null && $touched !== $session->userId ? $who($touched) : null,
-            'waiting_on' => $session->status === Session::WORKING && $session->runBy !== null && $session->runBy !== $me ? self::name($session->runBy) : null,
+            'started_by' => $shared && $started !== null ? $who($started) : null,
+            'touched_by' => $shared && $touched !== null && $touched !== $started ? $who($touched) : null,
+            'waiting_on' => $waiting !== null ? self::name($waiting) : null,
         ];
     }
 
@@ -228,11 +200,43 @@ class Presenter
         return $user ? (string) ($user->name() ?: $user->email()) : 'Someone';
     }
 
+    /**
+     * The person asking, as core's rules see them: whether they manage
+     * Ghostwriter (its settings permission) and whether they are a super
+     * user, who sees every piece.
+     */
+    public static function viewer(): Viewer
+    {
+        $user = User::current();
+
+        if (! $user) {
+            return Viewer::nobody();
+        }
+
+        return new Viewer((string) $user->id(), manager: (bool) $user->can('edit '.Settings::ADDON.' settings'), admin: (bool) $user->isSuper());
+    }
+
     private function me(): ?string
     {
-        $id = User::current()?->id();
+        return self::id(User::current()?->id());
+    }
 
-        return $id === null ? null : (string) $id;
+    /**
+     * A user reference as text, as Statamic keeps them.
+     */
+    private static function id(int|string|null $id): ?string
+    {
+        return $id === null || $id === '' ? null : (string) $id;
+    }
+
+    private function access(): SessionAccess
+    {
+        return new SessionAccess($this->options());
+    }
+
+    private function options(): DomainOptions
+    {
+        return app(DomainOptions::class);
     }
 
     private function markdown(): GithubFlavoredMarkdownConverter

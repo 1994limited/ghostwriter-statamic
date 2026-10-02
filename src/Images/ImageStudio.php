@@ -8,6 +8,10 @@ use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Photo;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoContext;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFile;
@@ -17,8 +21,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Images\Shrinker;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
+use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\AssetContainer;
@@ -43,7 +46,7 @@ class ImageStudio
 
     private Shrinker $shrinker;
 
-    public function __construct(private SchemaReader $reader, private PhotoFinder $finder, private ImageryGuide $guide, private PromptLibrary $prompts, private Providers $providers)
+    public function __construct(private SchemaReader $reader, private PhotoFinder $finder, private GuideStore $guides, private PromptLibrary $prompts, private Providers $providers)
     {
         $this->shrinker = new Shrinker;
     }
@@ -71,7 +74,7 @@ class ImageStudio
      */
     public function slots(Session $session, ContentType $type): array
     {
-        $blueprint = $type->statamicBlueprint();
+        $blueprint = TypeRepository::blueprintOf($type);
 
         if ($session->draft === null || ! $blueprint) {
             return [];
@@ -191,7 +194,7 @@ class ImageStudio
      */
     public function describe(ContentType $type): string
     {
-        $blueprint = $type->statamicBlueprint();
+        $blueprint = TypeRepository::blueprintOf($type);
         $canFind = $this->finder->canFind();
         $canMake = $this->configured();
 
@@ -231,7 +234,7 @@ class ImageStudio
             ."Actions:\n".implode("\n", $actions)."\n\n"
             .'Words: for `find` and `fill`, three different searches separated by semicolons, each two to four plain words naming something concrete that can be photographed: objects, places, scenes. Make them three different angles, not three wordings of one. No brand names, no abstract ideas. The photographs that best match the images this site already uses are then chosen from the results.'
             ."\n\nChoosing what to search for is the part that matters. When the entry is about a thing (a project, a product, a place), search for that thing as the site's other images would show it. When it is about an idea, do not search for the activity it literally describes, which returns stock clichés; name a concrete, good-looking object or scene that stands for the argument the entry makes. An entry arguing that a careful repair can beat a replacement is pottery mended with gold, not builders on scaffolding. Whatever you choose must look at home beside the site's other images."
-            .(($style = $this->guide->for((string) $type->statamicCollection()?->title())) !== '' ? "\n\nThe house style for images in this section of the site:\n\n{$style}" : '')
+            .(($style = $this->style($type)) !== '' ? "\n\nThe house style for images in this section of the site:\n\n{$style}" : '')
             .($canMake ? ' For `make`, one sentence describing the image.' : '')
             ."\n\nInclude a line only for an image that should change, and leave the block out otherwise. Say in your reply what you did about images, in a few words. Images are part of your job here: never say you cannot help with them."
             .($canMake ? '' : ' This site cannot make new images, only find photographs; if asked to generate one, say so and offer to find one.')
@@ -371,7 +374,7 @@ class ImageStudio
             pageText: mb_substr(self::words($draft), 0, 6000),
             summary: $summary,
             shape: $this->shape($slot['references'][0] ?? null),
-            style: $this->guide->for((string) $type->statamicCollection()?->title()),
+            style: $this->style($type),
         );
     }
 
@@ -416,7 +419,7 @@ class ImageStudio
             ?? throw new InvalidArgumentException('That image field is no longer part of the draft.');
 
         $summary = $session->draft && preg_match('/^(?:summary|excerpt|description|intro):\s*(.+)$/mu', $session->draft, $m) ? trim($m[1], " \t\"'") : '';
-        $image = $this->make($slot['references'], $session->title(), $summary, $slot['label'], $direction, $source, $this->guide->for((string) $type->statamicCollection()?->title()));
+        $image = $this->make($slot['references'], $session->title(), $summary, $slot['label'], $direction, $source, $this->style($type));
 
         return $this->store($session, $slot, $image->data, $image->extension());
     }
@@ -426,10 +429,12 @@ class ImageStudio
      * already in that place on the site's other entries.
      *
      * @param  array<int, Asset>  $references
-     * @param  string|null  $source  Path to an image the editor supplied, such as a logo, to be used in the picture.
+     * @param  Image|string|null  $source  An image the editor supplied, such as a logo, to be used in the picture, or the path to one.
      */
-    public function make(array $references, string $title, string $summary, string $label, string $direction = '', ?string $source = null, string $style = ''): Image
+    public function make(array $references, string $title, string $summary, string $label, string $direction = '', Image|string|null $source = null, string $style = ''): Image
     {
+        $source = is_string($source) ? Image::fromPath($source) : $source;
+
         $provider = $this->providers->image()
             ?? throw new InvalidArgumentException('No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
 
@@ -437,7 +442,7 @@ class ImageStudio
 
         $attachments = $references
             ->map(fn (Asset $asset) => new Image((string) $asset->contents(), (string) $asset->mimeType()))
-            ->when($source, fn ($all) => $all->push(Image::fromPath($source)))
+            ->when($source, fn ($all) => $all->push($source))
             ->values()
             ->all();
 
@@ -619,6 +624,14 @@ class ImageStudio
     }
 
     /**
+     * What the image style guide says about the kind's collection.
+     */
+    public function style(ContentType $type): string
+    {
+        return $this->guides->guide(Guide::IMAGERY)->section((string) TypeRepository::collectionOf($type)?->title());
+    }
+
+    /**
      * The entries whose pictures set the style: the ones the piece is
      * modelled on first, then the collection's newest. The picked entries
      * may have no pictures of their own (drafts often do not), and the rest
@@ -639,10 +652,10 @@ class ImageStudio
     private function newest(ContentType $type): Collection
     {
         return Entries::query()
-            ->where('collection', $type->collection)
+            ->where('collection', $type->group)
             ->where('published', true)
             ->get()
-            ->when($type->blueprint, fn ($all) => $all->filter(fn (Entry $entry) => $entry->blueprint()?->handle() === $type->blueprint))
+            ->when($type->variant, fn ($all) => $all->filter(fn (Entry $entry) => $entry->blueprint()?->handle() === $type->variant))
             ->sortByDesc(fn (Entry $entry) => $entry->date()?->timestamp ?? $entry->lastModified()?->timestamp ?? 0)
             ->take(self::SAMPLE)
             ->values();

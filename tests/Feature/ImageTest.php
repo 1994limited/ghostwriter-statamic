@@ -10,19 +10,19 @@ use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Pattern;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImageryGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
@@ -99,7 +99,7 @@ class ImageTest extends TestCase
 
         $session = $this->draftSession();
         $session->examples = [Entry::query()->where('slug', 'bare')->first()->id()];
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $images = $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))->json('images');
 
@@ -139,7 +139,7 @@ class ImageTest extends TestCase
 
         Bus::assertNotDispatched(GenerateImage::class);
         $this->assertSame(['stories/one.png', 'stories/two.png'], Storage::disk('assets')->files('stories'));
-        $this->assertNull(app(SessionRepository::class)->find($session->id)->images['cover'] ?? null);
+        $this->assertNull($this->sessions()->find($session->id)->images['cover'] ?? null);
     }
 
     public function test_free_photographs_can_be_searched_for(): void
@@ -203,7 +203,7 @@ class ImageTest extends TestCase
             ->assertJsonPath('images.0.status', 'done')
             ->assertJsonPath('images.0.credit', 'Ada on Unsplash');
 
-        $path = app(SessionRepository::class)->find($session->id)->images['cover']['path'];
+        $path = $this->sessions()->find($session->id)->images['cover']['path'];
 
         // The library says nothing about this one, so it is named after the piece.
         $this->assertStringStartsWith('stories/a-new-story-', $path);
@@ -218,7 +218,7 @@ class ImageTest extends TestCase
             ->assertOk()
             ->assertJsonPath('images.0.credit', 'Cy on Pixabay');
 
-        $path = app(SessionRepository::class)->find($session->id)->images['cover']['path'];
+        $path = $this->sessions()->find($session->id)->images['cover']['path'];
         $this->assertStringStartsWith('stories/red-boat-harbour-', $path);
         $this->assertSame('Red boat, harbour', AssetContainer::find('assets')->asset($path)->get('title'));
 
@@ -256,9 +256,9 @@ class ImageTest extends TestCase
 
         $session = $this->draftSession();
 
-        (new GenerateImage($session->id, 'blocks:banner:0:picture', 'A lighthouse at dusk'))->handle(app(SessionRepository::class), app(TypeRepository::class), app(ImageStudio::class));
+        $this->runJob(new GenerateImage($session->id, 'blocks:banner:0:picture', 'A lighthouse at dusk'));
 
-        $image = app(SessionRepository::class)->find($session->id)->images['blocks:banner:0:picture'];
+        $image = $this->sessions()->find($session->id)->images['blocks:banner:0:picture'];
 
         $this->assertSame('done', $image['status']);
         $this->assertStringStartsWith('banners/a-new-story-', $image['path']);
@@ -277,9 +277,9 @@ class ImageTest extends TestCase
 
         $session = $this->draftSession();
 
-        (new GenerateImage($session->id, 'cover'))->handle(app(SessionRepository::class), app(TypeRepository::class), app(ImageStudio::class));
+        $this->runJob(new GenerateImage($session->id, 'cover'));
 
-        $session = app(SessionRepository::class)->find($session->id);
+        $session = $this->sessions()->find($session->id);
 
         $this->assertSame('failed', $session->images['cover']['status']);
         $this->assertSame('The provider said no.', $session->images['cover']['error']);
@@ -296,7 +296,7 @@ class ImageTest extends TestCase
             'blocks:banner:0:picture' => ['status' => 'done', 'path' => 'banners/two.png'],
             'blocks:text:0:aside' => ['status' => 'failed', 'error' => 'No.'],
         ];
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id))->assertOk()->json('values');
 
@@ -367,15 +367,15 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         // the second of two; and the same again when asked to fill the cover.
         $this->ai->respond('photo-picker', "4: harbour\n1: lighthouse\n5: sea", '2: boats', "4: harbour\n1: lighthouse\n5: sea");
 
-        $session = Session::start('any:stories', ['subject' => 'A new story.']);
+        $session = $this->makeSession('any:stories', ['subject' => 'A new story.']);
         $session->addMessage('user', 'The brief.');
-        $session = app(SessionRepository::class)->save($session);
+        $session = $this->sessions()->save($session);
 
-        $run = fn () => (new RunSessionTurn($session->id))->handle(app(SessionRepository::class), app(TypeRepository::class), app(Studio::class), app(VoiceGuide::class));
+        $run = fn () => $this->runJob(new RunSessionTurn($session->id));
 
         $run();
 
-        $session = app(SessionRepository::class)->find($session->id);
+        $session = $this->sessions()->find($session->id);
 
         // Options are waiting without anyone pressing a button, and the
         // images block is not shown as part of the reply.
@@ -400,11 +400,11 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         // "Add the images for me": the best match goes straight in.
         $session->addMessage('user', 'Please add the cover image for me.');
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $run();
 
-        $session = app(SessionRepository::class)->find($session->id);
+        $session = $this->sessions()->find($session->id);
 
         $this->assertSame('done', $session->images['cover']['status']);
         Storage::disk('assets')->assertExists($session->images['cover']['path']);
@@ -421,13 +421,13 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
             'cover' => ['status' => 'done', 'path' => 'stories/one.png', 'url' => '/assets/stories/one.png', 'credit' => 'Ada on Unsplash'],
             'blocks:banner:0:picture' => ['status' => 'empty', 'query' => 'harbour boats', 'options' => [['id' => 'kept']]],
         ];
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $copy = fn (string $key, string $from) => $this->postJson(cp_route('ghostwriter.sessions.image.copy', $session->id), ['key' => $key, 'from' => $from]);
 
         $copy('blocks:banner:0:picture', 'cover')->assertOk()->assertJsonPath('images.1.status', 'done')->assertJsonPath('images.1.credit', 'Ada on Unsplash');
 
-        $banner = app(SessionRepository::class)->find($session->id)->images['blocks:banner:0:picture'];
+        $banner = $this->sessions()->find($session->id)->images['blocks:banner:0:picture'];
 
         // Same file, and the photographs it was offered are still there.
         $this->assertSame('stories/one.png', $banner['path']);
@@ -440,7 +440,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         // Not from itself, and not from a field with nothing in it.
         $copy('cover', 'cover')->assertStatus(422);
         $session->images = [];
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
         $copy('cover', 'blocks:banner:0:picture')->assertStatus(422);
     }
 
@@ -477,14 +477,14 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         $this->ai->respond('imagery-analyst', '<document>**What they are.** Bright photographs of finished things.</document>');
 
-        (new GenerateImageryGuide(['stories', 'nowhere']))->handle(app(ImageStudio::class), app(Studio::class), app(ImageryGuide::class), app(ImageryState::class));
+        $this->runJob(new GenerateImageryGuide(['stories', 'nowhere']));
 
-        $guide = app(ImageryGuide::class);
+        $guide = app(GuideStore::class)->guide(Guide::IMAGERY);
 
-        $this->assertSame("# Image style\n\n## Stories\n\n**What they are.** Bright photographs of finished things.\n", $guide->get());
-        $this->assertSame('**What they are.** Bright photographs of finished things.', $guide->for('Stories'));
-        $this->assertSame('', $guide->for('Elsewhere'));
-        $this->assertSame(ImageryState::IDLE, app(ImageryState::class)->get()['status']);
+        $this->assertSame("# Image style\n\n## Stories\n\n**What they are.** Bright photographs of finished things.\n", $guide->body);
+        $this->assertSame('**What they are.** Bright photographs of finished things.', $guide->section('Stories'));
+        $this->assertSame('', $guide->section('Elsewhere'));
+        $this->assertSame('idle', app(GuideStore::class)->state(Guide::IMAGERY)->status);
 
         // The analyst was shown the images, labelled by field and entry.
         $this->ai->assertSent('imagery-analyst', fn (TextRequest $prompt) => count($prompt->images) === 5
@@ -505,7 +505,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         $this->postJson(cp_route('ghostwriter.imagery.scan'), ['collections' => ['stories']])
             ->assertOk()
-            ->assertJsonPath('status', ImageryState::WORKING);
+            ->assertJsonPath('status', 'working');
 
         Bus::assertDispatchedAfterResponse(GenerateImageryGuide::class, fn ($job) => $job->collections === ['stories']);
 
@@ -513,7 +513,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
             ->assertOk()
             ->assertJsonPath('exists', true);
 
-        $this->assertSame('Never people.', app(ImageryGuide::class)->for('Stories'));
+        $this->assertSame('Never people.', app(GuideStore::class)->guide(Guide::IMAGERY)->section('Stories'));
     }
 
     public function test_the_judge_can_turn_everything_down_and_say_what_to_look_for(): void
@@ -564,8 +564,8 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $session = $this->draftSession();
         $session->images = ['blocks:banner:0:picture' => ['status' => 'done', 'path' => 'banners/one.png', 'url' => '/assets/banners/one.png']];
         $session->addMessage('user', 'Make the banner new.');
-        $session->run(null);
-        app(SessionRepository::class)->save($session);
+        $session->claim(null, app(DomainOptions::class));
+        $this->sessions()->save($session);
 
         $changed = str_replace('heading: Hello', 'heading: Hello again', self::DRAFT);
 
@@ -577,9 +577,9 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
             return "<reply>A new banner is on its way.</reply>\n<draft>\n{$changed}\n</draft>\n<images>\nblocks:banner:0:picture | make | a lighthouse at dusk\n</images>";
         });
 
-        (new RunSessionTurn($session->id))->handle(app(SessionRepository::class), app(TypeRepository::class), app(Studio::class), app(VoiceGuide::class));
+        $this->runJob(new RunSessionTurn($session->id));
 
-        $saved = app(SessionRepository::class)->find($session->id);
+        $saved = $this->sessions()->find($session->id);
 
         // The turn's work is saved, and so is the choice made meanwhile.
         $this->assertSame($changed, $saved->draft);
@@ -598,39 +598,39 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         $session = $this->draftSession();
         $session->addMessage('user', 'Make a cover.');
-        $session->run(null);
-        app(SessionRepository::class)->save($session);
+        $session->claim(null, app(DomainOptions::class));
+        $this->sessions()->save($session);
 
         // The person chooses a cover while the writer asks for one to be made.
         $this->ai->respond('writer', function () use ($session) {
-            app(SessionRepository::class)->update($session->id, fn (Session $latest) => $latest->images['cover'] = ['status' => 'done', 'path' => 'stories/two.png', 'url' => '/assets/stories/two.png', 'error' => null]);
+            app(SessionGuard::class)->change($session->id, fn (Session $latest) => $latest->images['cover'] = ['status' => 'done', 'path' => 'stories/two.png', 'url' => '/assets/stories/two.png', 'error' => null]);
 
             return "<reply>Making one.</reply>\n<images>\ncover | make | a harbour\n</images>";
         });
 
-        $run = fn () => (new RunSessionTurn($session->id))->handle(app(SessionRepository::class), app(TypeRepository::class), app(Studio::class), app(VoiceGuide::class));
+        $run = fn () => $this->runJob(new RunSessionTurn($session->id));
         $run();
 
-        $this->assertSame('stories/two.png', app(SessionRepository::class)->find($session->id)->images['cover']['path']);
-        $this->assertSame('done', app(SessionRepository::class)->find($session->id)->images['cover']['status']);
+        $this->assertSame('stories/two.png', $this->sessions()->find($session->id)->images['cover']['path']);
+        $this->assertSame('done', $this->sessions()->find($session->id)->images['cover']['status']);
 
         // Removed while the writer worked: the turn does not bring it back.
         $this->ai->reset('writer')->respond('writer', function () use ($session) {
-            app(SessionRepository::class)->delete(app(SessionRepository::class)->find($session->id));
+            $this->sessions()->delete($session->id);
 
             return '<reply>Done.</reply>';
         });
 
-        $again = app(SessionRepository::class)->find($session->id);
-        $again->run(null);
-        app(SessionRepository::class)->save($again);
+        $again = $this->sessions()->find($session->id);
+        $again->claim(null, app(DomainOptions::class));
+        $this->sessions()->save($again);
         $run();
 
-        $this->assertNull(app(SessionRepository::class)->find($session->id));
+        $this->assertNull($this->sessions()->find($session->id));
 
         // Nor does an image finished after it went.
-        (new GenerateImage($session->id, 'cover'))->handle(app(SessionRepository::class), app(TypeRepository::class), app(ImageStudio::class));
-        $this->assertNull(app(SessionRepository::class)->find($session->id));
+        $this->runJob(new GenerateImage($session->id, 'cover'));
+        $this->assertNull($this->sessions()->find($session->id));
     }
 
     public function test_using_the_draft_keeps_an_image_already_chosen_in_the_form(): void
@@ -648,9 +648,9 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         $this->assertSame(['assets::stories/two.png'], (array) $values['cover']);
 
         // One chosen in the panel goes in all the same.
-        $session = app(SessionRepository::class)->find($session->id);
+        $session = $this->sessions()->find($session->id);
         $session->images = ['cover' => ['status' => 'done', 'path' => 'stories/one.png']];
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => ['cover' => ['assets::stories/two.png']]])->assertOk()->json('values');
         $this->assertSame(['assets::stories/one.png'], (array) $values['cover']);
@@ -658,10 +658,10 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
     private function draftSession(): Session
     {
-        $session = Session::start('any:stories', ['subject' => 'A new story.']);
+        $session = $this->makeSession('any:stories', ['subject' => 'A new story.']);
         $session->draft = self::DRAFT;
 
-        return app(SessionRepository::class)->save($session);
+        return $this->sessions()->save($session);
     }
 
     private function png(): string

@@ -6,9 +6,9 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\ImageRequests;
 use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
 use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
-use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use Throwable;
 
@@ -35,25 +35,25 @@ class FindImages implements ShouldQueue
     {
         $this->allowTimeToFinish();
 
-        $data = $requests->find($this->request);
+        $request = $requests->find($this->request);
 
-        if (! $data) {
+        if (! $request) {
             return;
         }
 
         try {
-            $slot = FieldSlot::find(...$data['slot']) ?? throw new \InvalidArgumentException('That image field is no longer on the page.');
-            $results = $images->find($slot, $data['terms'] ?? []);
+            $slot = FieldSlot::find(...(array) ($request->details['slot'] ?? [])) ?? throw new \InvalidArgumentException('That image field is no longer on the page.');
+            $results = $images->find($slot, $request->terms);
 
             if ($results->terms === []) {
                 throw new \InvalidArgumentException('Type what the picture should show: there is nothing on the page to go by yet.');
             }
 
-            $requests->update($this->request, ['status' => ImageRequests::DONE, 'error' => null] + ImageStudio::offered($results) + ['terms' => $results->terms]);
+            $requests->succeed($this->request, ImageStudio::offered($results) + ['terms' => $results->terms]);
         } catch (Throwable $exception) {
             report($exception);
 
-            $requests->update($this->request, ['status' => ImageRequests::FAILED, 'error' => $exception->getMessage()]);
+            $requests->fail($this->request, $exception->getMessage());
         }
     }
 }

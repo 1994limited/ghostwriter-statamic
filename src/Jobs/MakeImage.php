@@ -6,10 +6,11 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\File;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\ImageRequests;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\StoredFile;
 use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
 use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
-use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
 use Throwable;
 
 /**
@@ -35,25 +36,24 @@ class MakeImage implements ShouldQueue
     {
         $this->allowTimeToFinish();
 
-        $data = $requests->find($this->request);
+        $request = $requests->find($this->request);
 
-        if (! $data) {
+        if (! $request) {
             return;
         }
 
         try {
-            $slot = FieldSlot::find(...$data['slot']) ?? throw new \InvalidArgumentException('That image field is no longer on the page.');
-            $made = $images->make($slot, (string) ($data['direction'] ?? ''), $data['source'] ?? null);
+            $slot = FieldSlot::find(...(array) ($request->details['slot'] ?? [])) ?? throw new \InvalidArgumentException('That image field is no longer on the page.');
+            $source = $requests->file($this->request, StoredFile::SOURCE);
+            $made = $images->make($slot, (string) ($request->details['direction'] ?? ''), $source ? Image::fromString($source->content) : null);
             $extension = str_replace('jpeg', 'jpg', (string) substr((string) $made['mime'], 6)) ?: 'png';
-            $file = $requests->file($this->request, $extension);
 
-            File::put($file, $made['content']);
-
-            $requests->update($this->request, ['status' => ImageRequests::DONE, 'file' => $file, 'mime' => $made['mime'], 'error' => null]);
+            $requests->putFile($this->request, StoredFile::MADE, new StoredFile($made['content'], $made['mime'], $extension));
+            $requests->succeed($this->request);
         } catch (Throwable $exception) {
             report($exception);
 
-            $requests->update($this->request, ['status' => ImageRequests::FAILED, 'error' => $exception->getMessage()]);
+            $requests->fail($this->request, $exception->getMessage());
         }
     }
 }

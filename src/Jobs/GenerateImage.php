@@ -8,8 +8,10 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Throwable;
 
@@ -26,7 +28,7 @@ class GenerateImage implements ShouldQueue
 
     public function __construct(public string $sessionId, public string $key, public string $direction = '', public ?string $source = null) {}
 
-    public function handle(SessionRepository $sessions, TypeRepository $types, ImageStudio $studio): void
+    public function handle(SessionStore $sessions, SessionGuard $guard, TypeRepository $types, ImageStudio $studio): void
     {
         $this->allowTimeToFinish();
 
@@ -37,8 +39,8 @@ class GenerateImage implements ShouldQueue
         }
 
         try {
-            $type = $types->find($session->type)
-                ?? throw new InvalidArgumentException("The content type \"{$session->type}\" no longer exists.");
+            $type = $types->find($session->kind)
+                ?? throw new InvalidArgumentException("The content type \"{$session->kind}\" no longer exists.");
 
             $asset = $studio->generate($session, $type->forSession($session), $this->key, $this->direction, $this->source);
 
@@ -56,7 +58,7 @@ class GenerateImage implements ShouldQueue
         // The conversation may have moved on while the image was being made,
         // so only this image's record is written to the session as it stands
         // now, under its lock. A piece removed meanwhile stays removed.
-        $sessions->update($this->sessionId, function ($session) use ($result) {
+        $guard->change($this->sessionId, function (Session $session) use ($result) {
             $session->images[$this->key] = $result + ['direction' => $this->direction, 'credit' => null] + ($session->images[$this->key] ?? []);
         });
     }

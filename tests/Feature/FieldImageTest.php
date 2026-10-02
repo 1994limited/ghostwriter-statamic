@@ -7,10 +7,11 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\ImageRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
-use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Format;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\ImageRequest as StoredRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\ImageRequestStore;
+use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
 use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
-use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
-use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
 use NineteenNinetyFour\Ghostwriter\Jobs\MakeImage;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
@@ -101,8 +102,8 @@ class FieldImageTest extends TestCase
 
         Bus::assertDispatchedAfterResponse(FindImages::class);
 
-        $request = collect(app(ImageRequests::class)->find($this->postJson(cp_route('ghostwriter.images.start'), $slot + ['mode' => 'find', 'words' => 'harbour boats; stormy sea'])->json('id')));
-        $this->assertSame(['harbour boats', 'stormy sea'], $request['terms']);
+        $request = app(ImageRequestStore::class)->find($this->postJson(cp_route('ghostwriter.images.start'), $slot + ['mode' => 'find', 'words' => 'harbour boats; stormy sea'])->json('id'));
+        $this->assertSame(['harbour boats', 'stormy sea'], $request->terms);
 
         // Run the job: with no words typed, the scout chooses from the block and the page.
         $this->ai->respond('photo-researcher', 'lighthouse at dusk; coastal path; harbour boats');
@@ -120,22 +121,22 @@ class FieldImageTest extends TestCase
             'images.unsplash.com/*' => $this->png(),
         ]);
 
-        $blank = app(ImageRequests::class)->create(['user' => (string) User::current()->id(), 'mode' => 'find', 'terms' => [], 'slot' => ['stories', null, 'blocks.0.picture', 'grid_left', null, 'A Tale', 'A lighthouse keeper', 'All about the coast.']]);
+        $blank = $this->findRequest((string) User::current()->id(), [], ['stories', null, 'blocks.0.picture', 'grid_left', null, 'A Tale', 'A lighthouse keeper', 'All about the coast.']);
 
-        (new FindImages($blank['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
+        $this->runJob(new FindImages($blank->id));
 
-        $found = app(ImageRequests::class)->find($blank['id']);
+        $found = app(ImageRequestStore::class)->find($blank->id);
 
-        $this->assertSame('done', $found['status']);
-        $this->assertSame(['lighthouse at dusk', 'coastal path', 'harbour boats'], $found['terms']);
+        $this->assertSame('done', $found->status);
+        $this->assertSame(['lighthouse at dusk', 'coastal path', 'harbour boats'], $found->terms);
         // Judged: only the ones that fit, best first, and those marked.
-        $this->assertSame(['light2', 'light1'], array_column($found['options'], 'id'));
-        $this->assertTrue($found['options'][0]['picked']);
-        $this->assertTrue($found['judged']);
-        $this->assertTrue($found['with_references']);
-        $this->assertFalse($found['none_fit']);
+        $this->assertSame(['light2', 'light1'], array_column($found->options, 'id'));
+        $this->assertTrue($found->options[0]['picked']);
+        $this->assertTrue($found->details['judged']);
+        $this->assertTrue($found->details['with_references']);
+        $this->assertFalse($found->details['none_fit']);
 
-        $status = $this->getJson(cp_route('ghostwriter.images.status', $blank['id']))->assertOk();
+        $status = $this->getJson(cp_route('ghostwriter.images.status', $blank->id))->assertOk();
         $status->assertJsonPath('judged', true)->assertJsonPath('terms', ['lighthouse at dusk', 'coastal path', 'harbour boats']);
 
         $this->ai->assertSent('photo-researcher', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'The picture goes in: Grid — Left: Picture') && str_contains($prompt->prompt, 'A lighthouse keeper'));
@@ -146,7 +147,7 @@ class FieldImageTest extends TestCase
         // what the library says it shows, with its credit; the field's new
         // value and meta come back for the form.
 
-        $kept = $this->postJson(cp_route('ghostwriter.images.use', $blank['id']), ['source' => 'unsplash', 'photo' => 'light2', 'term' => 'lighthouse at dusk', 'current' => ['assets::'.Placeholders::PATH]])
+        $kept = $this->postJson(cp_route('ghostwriter.images.use', $blank->id), ['source' => 'unsplash', 'photo' => 'light2', 'term' => 'lighthouse at dusk', 'current' => ['assets::'.ContainerAssetSink::PATH]])
             ->assertOk()
             ->json();
 
@@ -162,8 +163,8 @@ class FieldImageTest extends TestCase
         $this->assertArrayHasKey('data', $kept['meta']);
 
         // Not someone else's request.
-        $other = app(ImageRequests::class)->create(['user' => 'someone-else', 'mode' => 'find', 'terms' => [], 'slot' => $blank['slot']]);
-        $this->getJson(cp_route('ghostwriter.images.status', $other['id']))->assertForbidden();
+        $other = $this->findRequest('someone-else', [], $blank->details['slot']);
+        $this->getJson(cp_route('ghostwriter.images.status', $other->id))->assertForbidden();
     }
 
     public function test_the_button_makes_a_picture_to_look_at_first_then_keeps_it(): void
@@ -176,7 +177,7 @@ class FieldImageTest extends TestCase
             'source' => UploadedFile::fake()->createWithContent('logo.png', $this->png()),
         ], ['Accept' => 'application/json'])->assertOk()->json();
 
-        (new MakeImage($started['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
+        $this->runJob(new MakeImage($started['id']));
 
         $status = $this->getJson(cp_route('ghostwriter.images.status', $started['id']))->assertOk()->json();
 
@@ -206,16 +207,16 @@ class FieldImageTest extends TestCase
         ]);
 
         // No model: the top result of each search comes first, unmarked.
-        $request = app(ImageRequests::class)->create(['user' => (string) User::current()->id(), 'mode' => 'find', 'terms' => ['boats', 'harbour'], 'slot' => ['stories', null, 'gallery', null, null, 'A Tale', '', '']]);
+        $request = $this->findRequest((string) User::current()->id(), ['boats', 'harbour'], ['stories', null, 'gallery', null, null, 'A Tale', '', '']);
 
-        (new FindImages($request['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
+        $this->runJob(new FindImages($request->id));
 
-        $found = app(ImageRequests::class)->find($request['id']);
+        $found = app(ImageRequestStore::class)->find($request->id);
 
-        $this->assertCount(6, $found['options']);
-        $this->assertSame(['b1', 'h1', 'b2'], array_slice(array_column($found['options'], 'id'), 0, 3));
-        $this->assertSame([], array_filter(array_column($found['options'], 'picked')), 'Nothing was judged, so nothing is the best match.');
-        $this->assertFalse($found['judged']);
+        $this->assertCount(6, $found->options);
+        $this->assertSame(['b1', 'h1', 'b2'], array_slice(array_column($found->options, 'id'), 0, 3));
+        $this->assertSame([], array_filter(array_column($found->options, 'picked')), 'Nothing was judged, so nothing is the best match.');
+        $this->assertFalse($found->details['judged']);
         $this->ai->assertNotSent('photo-picker');
     }
 
@@ -235,15 +236,15 @@ class FieldImageTest extends TestCase
         // the model still checks each photo against the page's words.
         $this->ai->respond('photo-picker', "1: boats in a harbour\n3: the harbour wall");
 
-        $request = app(ImageRequests::class)->create(['user' => (string) User::current()->id(), 'mode' => 'find', 'terms' => ['boats', 'harbour'], 'slot' => ['stories', null, 'gallery', null, null, 'A Tale', '', 'A day in the fishing harbour.']]);
+        $request = $this->findRequest((string) User::current()->id(), ['boats', 'harbour'], ['stories', null, 'gallery', null, null, 'A Tale', '', 'A day in the fishing harbour.']);
 
-        (new FindImages($request['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
+        $this->runJob(new FindImages($request->id));
 
-        $found = app(ImageRequests::class)->find($request['id']);
+        $found = app(ImageRequestStore::class)->find($request->id);
 
-        $this->assertSame(['b1', 'h1'], array_column($found['options'], 'id'), 'The toy boat is left out.');
-        $this->assertTrue($found['judged']);
-        $this->assertFalse($found['with_references']);
+        $this->assertSame(['b1', 'h1'], array_column($found->options, 'id'), 'The toy boat is left out.');
+        $this->assertTrue($found->details['judged']);
+        $this->assertFalse($found->details['with_references']);
         $this->ai->assertSent('photo-picker', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'There are no reference images') && str_contains($prompt->prompt, 'a toy boat in a bath'));
     }
 
@@ -252,7 +253,7 @@ class FieldImageTest extends TestCase
         $this->signIn();
 
         $make = fn () => tap($this->postJson(cp_route('ghostwriter.images.start'), ['collection' => 'stories', 'path' => 'gallery', 'mode' => 'make', 'direction' => 'A boat'])->assertOk()->json(),
-            fn (array $started) => (new MakeImage($started['id']))->handle(app(ImageRequests::class), app(FieldImages::class)));
+            fn (array $started) => $this->runJob(new MakeImage($started['id'])));
 
         // Room for one more: it goes in beside the one already there.
         $added = $this->postJson(cp_route('ghostwriter.images.use', $make()['id']), ['current' => ['assets::grids/one.png']])->assertOk()->json();
@@ -267,7 +268,7 @@ class FieldImageTest extends TestCase
         $this->assertTrue(Storage::disk('assets')->exists($refused['asset']['path']), 'The image is still kept in the container.');
 
         // A placeholder does not count towards the limit.
-        $placeholder = $this->postJson(cp_route('ghostwriter.images.use', $make()['id']), ['current' => ['assets::grids/one.png', 'assets::'.Placeholders::PATH]])->assertOk()->json();
+        $placeholder = $this->postJson(cp_route('ghostwriter.images.use', $make()['id']), ['current' => ['assets::grids/one.png', 'assets::'.ContainerAssetSink::PATH]])->assertOk()->json();
         $this->assertFalse($placeholder['full']);
     }
 
@@ -293,7 +294,7 @@ class FieldImageTest extends TestCase
         $this->signInWith(['access ghostwriter', 'view stories entries', 'edit stories entries']);
 
         $started = $this->postJson(cp_route('ghostwriter.images.start'), ['collection' => 'stories', 'path' => 'cover', 'mode' => 'make', 'direction' => 'A lighthouse'])->assertOk()->json();
-        (new MakeImage($started['id']))->handle(app(ImageRequests::class), app(FieldImages::class));
+        $this->runJob(new MakeImage($started['id']));
 
         $this->postJson(cp_route('ghostwriter.images.use', $started['id']), ['current' => []])->assertForbidden();
 
@@ -303,5 +304,19 @@ class FieldImageTest extends TestCase
     private function png(): string
     {
         return base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+    }
+
+    /**
+     * A search for one field, as the image button would start it.
+     *
+     * @param  array<int, string>  $terms
+     * @param  array<int, mixed>  $slot
+     */
+    private function findRequest(string $user, array $terms, array $slot): StoredRequest
+    {
+        $request = StoredRequest::start(Format::Statamic, StoredRequest::FIND, $user, ['slot' => $slot]);
+        $request->terms = $terms;
+
+        return app(ImageRequestStore::class)->save($request);
     }
 }

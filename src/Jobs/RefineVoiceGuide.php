@@ -7,8 +7,10 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Throwable;
 
 /**
@@ -27,26 +29,28 @@ class RefineVoiceGuide implements ShouldQueue
         return 'guide:voice';
     }
 
-    public function handle(Studio $studio, VoiceGuide $guide, VoiceState $state): void
+    public function handle(Studio $studio, GuideStore $guides, WorkStates $states): void
     {
         $this->allowTimeToFinish();
 
         try {
-            $messages = $state->get()['messages'];
+            $messages = $guides->state(Guide::VOICE)->messages;
             $request = array_pop($messages);
 
-            $response = $studio->refineVoice($guide->get(), $messages, (string) ($request['content'] ?? ''));
+            $response = $studio->refineVoice($guides->guide(Guide::VOICE)->body, $messages, (string) ($request['content'] ?? ''));
 
             if ($response->document !== null) {
-                $guide->save($response->document);
+                $guides->saveGuide(new Guide(Guide::VOICE, $response->document));
             }
 
-            $state->addMessage('assistant', $response->reply !== '' ? $response->reply : 'Done.');
-            $state->update(['status' => VoiceState::IDLE, 'error' => null, 'task' => null]);
+            $states->changeGuide(Guide::VOICE, function (GuideState $state) use ($response) {
+                $state->addMessage('assistant', $response->reply !== '' ? $response->reply : 'Done.');
+                $state->succeed();
+            });
         } catch (Throwable $exception) {
             report($exception);
 
-            $state->update(['status' => VoiceState::FAILED, 'error' => $exception->getMessage(), 'task' => null]);
+            $states->changeGuide(Guide::VOICE, fn (GuideState $state) => $state->fail($exception->getMessage()));
         }
     }
 }

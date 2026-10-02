@@ -4,19 +4,24 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\ImageRequest;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\ImageRequests;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\StoredFile;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\NotAllowed;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\NotFound;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Http\Presenter;
+use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
 use NineteenNinetyFour\Ghostwriter\Images\FieldImages;
 use NineteenNinetyFour\Ghostwriter\Images\FieldSlot;
-use NineteenNinetyFour\Ghostwriter\Images\ImageRequests;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
-use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
 use NineteenNinetyFour\Ghostwriter\Jobs\MakeImage;
-use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
+use NineteenNinetyFour\Ghostwriter\Settings;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
@@ -65,10 +70,11 @@ class ImagesController
 
             abort_if($terms === [] && ! $this->text->configured() && $slot->title === '', 422, 'Type what the picture should show.');
 
-            $data = $this->requests->create($this->owner($request) + ['mode' => 'find', 'terms' => $terms, 'options' => []]);
-            FindImages::start($data['id']);
+            $started = $this->requests->start(ImageRequest::FIND, Presenter::viewer(), $this->owner($request));
+            $started = $this->requests->change($started->id, fn (ImageRequest $found) => $found->terms = $terms) ?? $started;
+            FindImages::start($started->id);
 
-            return response()->json($this->payload($data));
+            return response()->json($this->payload($started));
         }
 
         if ($mode === 'make') {
@@ -76,17 +82,17 @@ class ImagesController
 
             $request->validate(['source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'], 'direction' => ['nullable', 'string', 'max:2000']]);
 
-            $data = $this->requests->create($this->owner($request) + ['mode' => 'make', 'direction' => trim((string) $request->input('direction', ''))]);
+            $started = $this->requests->start(ImageRequest::MAKE, Presenter::viewer(), $this->owner($request) + ['direction' => trim((string) $request->input('direction', ''))]);
 
             if ($upload = $request->file('source')) {
-                $path = $this->requests->file($data['id'].'-source', $upload->extension() ?: 'png');
-                File::put($path, (string) file_get_contents($upload->getRealPath()));
-                $data = $this->requests->update($data['id'], ['source' => $path]);
+                $extension = $upload->extension() ?: 'png';
+                $this->requests->putFile($started->id, StoredFile::SOURCE, new StoredFile((string) file_get_contents($upload->getRealPath()), (string) $upload->getMimeType(), $extension));
+                $started = $this->requests->find($started->id) ?? $started;
             }
 
-            MakeImage::start($data['id']);
+            MakeImage::start($started->id);
 
-            return response()->json($this->payload($data));
+            return response()->json($this->payload($started));
         }
 
         abort(422, 'Choose to find a photograph or make a picture.');
@@ -102,11 +108,11 @@ class ImagesController
      */
     public function preview(string $id): Response
     {
-        $data = $this->mine($id);
+        $this->mine($id);
 
-        abort_unless(! empty($data['file']) && File::exists($data['file']), 404);
+        $file = $this->requests->file($id, StoredFile::MADE) ?? abort(404);
 
-        return response()->file($data['file'], ['Content-Type' => $data['mime'] ?? 'image/png']);
+        return response($file->content, 200, ['Content-Type' => $file->mime]);
     }
 
     /**
@@ -114,21 +120,22 @@ class ImagesController
      */
     public function use(Request $request, string $id): JsonResponse
     {
-        $data = $this->mine($id);
-        $slot = FieldSlot::find(...$data['slot']) ?? abort(422, 'That image field is no longer on the page.');
+        $found = $this->mine($id);
+        $slot = FieldSlot::find(...(array) ($found->details['slot'] ?? [])) ?? abort(422, 'That image field is no longer on the page.');
 
         $this->ensureCanUploadTo($slot);
 
         try {
-            if ($data['mode'] === 'find') {
+            if ($found->mode === ImageRequest::FIND) {
                 $validated = $request->validate(['source' => ['required', 'string'], 'photo' => ['required', 'string', 'max:64'], 'term' => ['nullable', 'string', 'max:200']]);
-                $term = (string) (($validated['term'] ?? null) ?: ($data['terms'][0] ?? ''));
+                $term = (string) (($validated['term'] ?? null) ?: ($found->terms[0] ?? ''));
                 $asset = $this->images->keepPhoto($slot, $this->stock->fetch($validated['source'], $validated['photo']), $term);
             } else {
-                abort_unless(! empty($data['file']) && File::exists($data['file']), 422, 'That picture is no longer here. Make it again.');
+                $file = $this->requests->file($id, StoredFile::MADE) ?? abort(422, 'That picture is no longer here. Make it again.');
+                $direction = trim((string) ($found->details['direction'] ?? ''));
 
-                $asset = $this->images->keep($slot, (string) File::get($data['file']), pathinfo($data['file'], PATHINFO_EXTENSION), [
-                    'title' => trim((string) ($data['direction'] ?? '')) !== '' ? mb_substr(trim($data['direction']), 0, 80) : $slot->title,
+                $asset = $this->images->keep($slot, $file->content, $file->extension, [
+                    'title' => $direction !== '' ? mb_substr($direction, 0, 80) : $slot->title,
                 ]);
             }
         } catch (InvalidArgumentException $exception) {
@@ -200,19 +207,21 @@ class ImagesController
     {
         $validated = $request->only(['collection', 'blueprint', 'path', 'set', 'entry', 'title', 'block_text', 'page_text']);
 
-        return ['user' => (string) User::current()?->id(), 'slot' => $this->slotArguments($validated)];
+        return ['slot' => $this->slotArguments($validated)];
     }
 
     /**
-     * @return array<string, mixed>
+     * The person's own request: nobody else's is theirs to see or use.
      */
-    private function mine(string $id): array
+    private function mine(string $id): ImageRequest
     {
-        $data = $this->requests->find($id) ?? abort(404);
-
-        abort_unless(($data['user'] ?? null) === (string) User::current()?->id(), 403);
-
-        return $data;
+        try {
+            return $this->requests->mine($id, Presenter::viewer());
+        } catch (NotFound) {
+            abort(404);
+        } catch (NotAllowed) {
+            abort(403);
+        }
     }
 
     /**
@@ -229,7 +238,7 @@ class ImagesController
     {
         $max = (int) ($slot->field['max_files'] ?? 0);
         $single = $max === 1;
-        $kept = $single ? [] : array_values(array_filter($current, fn ($id) => is_string($id) && ! str_ends_with($id, '::'.Placeholders::PATH) && $id !== Placeholders::PATH));
+        $kept = $single ? [] : array_values(array_filter($current, fn ($id) => is_string($id) && ! str_ends_with($id, '::'.ContainerAssetSink::PATH) && $id !== ContainerAssetSink::PATH));
         $about = ['id' => $asset->id(), 'path' => $asset->path(), 'url' => $asset->url(), 'title' => (string) $asset->get('title')];
 
         if ($max > 1 && count($kept) >= $max) {
@@ -280,25 +289,24 @@ class ImagesController
     }
 
     /**
-     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function payload(array $data): array
+    private function payload(ImageRequest $request): array
     {
         return [
-            'id' => $data['id'],
-            'mode' => $data['mode'],
-            'status' => $data['status'],
-            'error' => $data['error'] ?? null,
-            'waiting' => $data['status'] === ImageRequests::WORKING ? app(Waiting::class)->notice('image:'.$data['id']) : null,
-            'terms' => $data['terms'] ?? [],
-            'options' => $data['options'] ?? [],
-            'judged' => (bool) ($data['judged'] ?? false),
-            'none_fit' => (bool) ($data['none_fit'] ?? false),
-            'with_references' => (bool) ($data['with_references'] ?? false),
-            'preview_url' => ! empty($data['file']) ? cp_route('ghostwriter.images.preview', $data['id']) : null,
-            'status_url' => cp_route('ghostwriter.images.status', $data['id']),
-            'use_url' => cp_route('ghostwriter.images.use', $data['id']),
+            'id' => $request->id,
+            'mode' => $request->mode,
+            'status' => $request->status,
+            'error' => $request->error,
+            'waiting' => $request->isWorking() ? app(Waiting::class)->notice('image:'.$request->id, app(Settings::class)->workerCommand()) : null,
+            'terms' => $request->terms,
+            'options' => $request->options,
+            'judged' => (bool) ($request->details['judged'] ?? false),
+            'none_fit' => (bool) ($request->details['none_fit'] ?? false),
+            'with_references' => (bool) ($request->details['with_references'] ?? false),
+            'preview_url' => $request->file !== null && $request->file !== '' ? cp_route('ghostwriter.images.preview', $request->id) : null,
+            'status_url' => cp_route('ghostwriter.images.status', $request->id),
+            'use_url' => cp_route('ghostwriter.images.use', $request->id),
         ];
     }
 }

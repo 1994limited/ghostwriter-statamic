@@ -7,21 +7,18 @@ use League\CommonMark\GithubFlavoredMarkdownConverter;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\Credentials;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
-use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
-use NineteenNinetyFour\Ghostwriter\Planning\PlanState;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
-use NineteenNinetyFour\Ghostwriter\Types\KindSuggestions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
+use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
-use NineteenNinetyFour\Ghostwriter\Types\TypeState;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
 use Statamic\Facades\Addon;
 use Statamic\Facades\Collection as Collections;
 use Statamic\Facades\Entry;
-use Statamic\Facades\User;
 
 /**
  * Getting started: the steps that take a site from installed to writing,
@@ -35,15 +32,10 @@ class Onboarding
         private Studio $studio,
         private Settings $settings,
         private TypeRepository $types,
-        private TypeState $typeState,
-        private KindSuggestions $kinds,
-        private VoiceGuide $voice,
-        private VoiceState $voiceState,
-        private ImageryGuide $imagery,
-        private ImageryState $imageryState,
-        private IdeaRepository $ideas,
-        private PlanState $planState,
-        private SessionRepository $sessions,
+        private WorkStates $states,
+        private GuideStore $guides,
+        private PlanStore $ideas,
+        private SessionGuard $sessions,
         private Providers $providers,
     ) {}
 
@@ -58,10 +50,15 @@ class Onboarding
         $settingsUrl = $this->settings->urlForCurrentUser();
 
         $learned = $collections->sum(fn ($collection) => $this->types->forCollection($collection->handle())->count());
-        $suggested = $collections->sum(fn ($collection) => count($this->kinds->get($collection->handle())['suggestions']));
-        $kindsWorking = $collections->contains(fn ($collection) => $this->kinds->get($collection->handle())['status'] === KindSuggestions::WORKING || $this->typeState->get($collection->handle())['status'] === TypeState::WORKING);
-        $ideas = $this->ideas->all()->count();
-        $pending = count($this->planState->get()['pending']);
+        $suggested = $collections->sum(fn ($collection) => count($this->states->suggestions($collection->handle())->suggestions));
+        $kindsWorking = $collections->contains(fn ($collection) => $this->states->suggestions($collection->handle())->isWorking() || $this->states->analysis($collection->handle())->isWorking());
+        $ideas = count($this->ideas->ideas());
+        $plan = $this->states->plan();
+        $pending = count($plan->pending);
+        $voice = $this->guides->guide(Guide::VOICE)->exists();
+        $voiceState = $this->states->guide(Guide::VOICE);
+        $imagery = $this->guides->guide(Guide::IMAGERY)->exists();
+        $imageryState = $this->states->guide(Guide::IMAGERY);
         $names = $collections->map->title()->implode(', ');
 
         $settingsLink = $settingsUrl ? ['type' => 'link', 'label' => 'Open the settings', 'url' => $settingsUrl] : null;
@@ -93,11 +90,11 @@ class Onboarding
                 'key' => 'voice',
                 'title' => 'Learn your voice',
                 'text' => 'Ghostwriter reads what you have published and writes a guide to how you sound. Everything it writes follows the guide, which you can edit.',
-                'done' => $this->voice->exists(),
-                'working' => $this->voiceState->get()['status'] === VoiceState::WORKING,
+                'done' => $voice,
+                'working' => $voiceState->isWorking(),
                 'optional' => false,
-                'detail' => $this->voiceState->get()['status'] === VoiceState::FAILED ? $this->voiceState->get()['error'] : null,
-                'action' => $this->voice->exists()
+                'detail' => $voiceState->hasFailed() ? $voiceState->error : null,
+                'action' => $voice
                     ? ['type' => 'link', 'label' => 'Review the guide', 'url' => cp_route('ghostwriter.voice.show')]
                     : ['type' => 'post', 'label' => 'Write the voice guide', 'url' => cp_route('ghostwriter.voice.scan'), 'data' => [], 'needs_key' => true],
             ],
@@ -121,11 +118,11 @@ class Onboarding
                 'key' => 'imagery',
                 'title' => 'Describe your images',
                 'text' => 'Ghostwriter looks at the pictures your entries use and writes down the house style, so the photographs it finds and the images it makes belong beside them.',
-                'done' => $this->imagery->exists(),
-                'working' => $this->imageryState->get()['status'] === ImageryState::WORKING,
+                'done' => $imagery,
+                'working' => $imageryState->isWorking(),
                 'optional' => true,
-                'detail' => $this->imageryState->get()['status'] === ImageryState::FAILED ? $this->imageryState->get()['error'] : null,
-                'action' => $this->imagery->exists()
+                'detail' => $imageryState->hasFailed() ? $imageryState->error : null,
+                'action' => $imagery
                     ? ['type' => 'link', 'label' => 'Review the image style', 'url' => cp_route('ghostwriter.imagery.show')]
                     : ['type' => 'post', 'label' => 'Describe the images', 'url' => cp_route('ghostwriter.imagery.scan'), 'data' => ['collections' => $collections->map->handle()->values()->all()], 'needs_key' => true],
             ],
@@ -134,7 +131,7 @@ class Onboarding
                 'title' => 'Plan what to write',
                 'text' => 'Ghostwriter reads the whole site and suggests entries it is missing. Keep the good ones on the content plan; each opens a new entry with its brief filled in.',
                 'done' => $ideas > 0,
-                'working' => $this->planState->get()['status'] === PlanState::WORKING,
+                'working' => $plan->isWorking(),
                 'optional' => true,
                 'detail' => $pending > 0 ? ($pending === 1 ? '1 suggestion is waiting to be looked over.' : "{$pending} suggestions are waiting to be looked over.") : null,
                 'action' => $ideas > 0 || $pending > 0
@@ -145,7 +142,7 @@ class Onboarding
                 'key' => 'write',
                 'title' => 'Write something',
                 'text' => 'Start a new entry with Ghostwriter beside it. Answer a short brief, talk the draft through, then put it into the entry and save it as usual.',
-                'done' => $this->sessions->visibleTo(User::current())->isNotEmpty(),
+                'done' => $this->sessions->visible(Presenter::viewer()) !== [],
                 'working' => false,
                 'optional' => false,
                 'detail' => null,
@@ -187,29 +184,29 @@ class Onboarding
                 'chosen' => in_array($collection->handle(), $chosen, true),
                 'voice' => $forVoice === [] || in_array($collection->handle(), $forVoice, true),
             ])->values()->all(),
-            'voice' => $this->guide($this->voice->get(), $this->voiceState->get()),
-            'imagery' => $this->guide($this->imagery->get(), $this->imageryState->get()),
+            'voice' => $this->guide($this->guides->guide(Guide::VOICE)->body, $this->states->guide(Guide::VOICE)),
+            'imagery' => $this->guide($this->guides->guide(Guide::IMAGERY)->body, $this->states->guide(Guide::IMAGERY)),
             'kinds' => $this->types->collections()->map(fn ($collection) => [
                 'handle' => $collection->handle(),
                 'title' => $collection->title(),
-                'state' => $this->kinds->get($collection->handle())['status'],
-                'error' => $this->kinds->get($collection->handle())['error'],
+                'state' => $this->states->suggestions($collection->handle())->status,
+                'error' => $this->states->suggestions($collection->handle())->error,
                 'suggestions' => array_map(fn (array $kind) => array_intersect_key($kind, array_flip(['id', 'title', 'description', 'why'])) + [
                     // The entries that show it, so the person can judge it.
                     'titles' => array_slice(array_values(array_filter(array_map(fn (string $id) => Entry::find($id)?->get('title'), (array) ($kind['examples'] ?? [])))), 0, 3),
                     'learn_url' => cp_route('ghostwriter.kinds.learn', [$collection->handle(), $kind['id']]),
                     'dismiss_url' => cp_route('ghostwriter.kinds.dismiss', [$collection->handle(), $kind['id']]),
-                ], $this->kinds->get($collection->handle())['suggestions']),
-                'learning' => $this->typeState->get($collection->handle()),
+                ], $this->states->suggestions($collection->handle())->suggestions),
+                'learning' => $this->states->analysis($collection->handle())->toArray(),
                 'types' => $this->types->forCollection($collection->handle())->map(fn (ContentType $type) => ['title' => $type->title, 'url' => cp_route('ghostwriter.types.edit', $type->handle)])->values()->all(),
                 'suggest_url' => cp_route('ghostwriter.kinds.suggest', $collection->handle()),
                 'learn_all_url' => cp_route('ghostwriter.kinds.learn_all', $collection->handle()),
             ])->values()->all(),
             'plan' => [
-                'ideas' => $this->ideas->all()->where('status', IdeaRepository::OPEN)->count(),
-                'pending' => count($this->planState->get()['pending']),
-                'status' => $this->planState->get()['status'],
-                'error' => $this->planState->get()['error'],
+                'ideas' => count(array_filter($this->ideas->ideas(), fn (Idea $idea) => $idea->isOpen())),
+                'pending' => count(($plan = $this->states->plan())->pending),
+                'status' => $plan->status,
+                'error' => $plan->error,
                 'url' => cp_route('ghostwriter.plan.show'),
             ],
         ];
@@ -219,18 +216,17 @@ class Onboarding
      * A guide as the wizard shows it: its opening, rendered, and how the job
      * writing it stands.
      *
-     * @param  array<string, mixed>  $state
      * @return array<string, mixed>
      */
-    private function guide(string $markdown, array $state): array
+    private function guide(string $markdown, GuideState $state): array
     {
         $opening = mb_substr(trim($markdown), 0, 900);
 
         return [
             'exists' => trim($markdown) !== '',
-            'status' => $state['status'],
-            'error' => $state['error'],
-            'scanned' => count($state['scanned']),
+            'status' => $state->status,
+            'error' => $state->error,
+            'scanned' => count($state->scanned),
             'excerpt' => $opening === '' ? '' : (string) (new GithubFlavoredMarkdownConverter(['html_input' => 'escape', 'allow_unsafe_links' => false]))->convert($opening.(mb_strlen(trim($markdown)) > 900 ? ' …' : '')),
         ];
     }

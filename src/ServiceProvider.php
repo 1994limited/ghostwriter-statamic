@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
@@ -11,6 +12,19 @@ use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Http\GuzzleHttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Format;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\ImageRequests;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Images\ImageRequestStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Lock;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Plan;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\WaitingStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\LayoutOptions;
@@ -25,6 +39,13 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
+use NineteenNinetyFour\Ghostwriter\Storage\FileGuideStore;
+use NineteenNinetyFour\Ghostwriter\Storage\FileImageRequestStore;
+use NineteenNinetyFour\Ghostwriter\Storage\FileKindStore;
+use NineteenNinetyFour\Ghostwriter\Storage\FileLock;
+use NineteenNinetyFour\Ghostwriter\Storage\FilePlanStore;
+use NineteenNinetyFour\Ghostwriter\Storage\FileSessionStore;
+use NineteenNinetyFour\Ghostwriter\Storage\FileWaitingStore;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Addons\SettingsRepository;
 use Statamic\Events\AddonSettingsSaving;
@@ -119,6 +140,28 @@ class ServiceProvider extends AddonServiceProvider
         // copying it back, grid rows keep their IDs, and Bard is node trees.
         $this->app->bind(EntryMerger::class, fn () => new EntryMerger(keepMissing: false, mergeRows: true));
         $this->app->bind(EntrySimplifier::class, fn ($app) => PatternFinder::simplifier($app->make(BardDialect::class)));
+
+        // Core's domain: sessions, the content plan, kinds of content, the
+        // guides, image requests and the queue-waiting marks, kept in files
+        // as they always have been, with a file lock. The options read the
+        // config each time, as sharing can be switched at any time.
+        $this->app->bindIf(SessionStore::class, FileSessionStore::class);
+        $this->app->bindIf(PlanStore::class, FilePlanStore::class);
+        $this->app->bindIf(KindStore::class, FileKindStore::class);
+        $this->app->bindIf(GuideStore::class, FileGuideStore::class);
+        $this->app->bindIf(ImageRequestStore::class, FileImageRequestStore::class);
+        $this->app->bindIf(WaitingStore::class, FileWaitingStore::class);
+        $this->app->bindIf(Lock::class, FileLock::class);
+        $this->app->bind(DomainOptions::class, fn ($app) => DomainOptions::statamic(
+            shared: (bool) config('ghostwriter.shared_conversations', true),
+            jobTimeout: $app->make(Settings::class)->timeout(),
+        ));
+        $clock = fn () => Carbon::now()->toImmutable();
+        $this->app->bind(SessionGuard::class, fn ($app) => new SessionGuard($app->make(SessionStore::class), $app->make(Lock::class), $app->make(DomainOptions::class), $clock));
+        $this->app->bind(Plan::class, fn ($app) => new Plan($app->make(PlanStore::class), $app->make(Lock::class), Format::Statamic));
+        $this->app->bind(ImageRequests::class, fn ($app) => new ImageRequests($app->make(ImageRequestStore::class), $app->make(Lock::class), $app->make(DomainOptions::class), $clock));
+        // The sync queue runs work itself, after the response: nothing to wait for.
+        $this->app->bind(Waiting::class, fn ($app) => new Waiting($app->make(WaitingStore::class), $app->make(DomainOptions::class), runsItself: config('queue.default') === 'sync', clock: $clock));
 
         // Core's layout algorithms, as Statamic stores entries: Bard for rich
         // text, `entry::id` links, and new sets and rows with IDs of their own.

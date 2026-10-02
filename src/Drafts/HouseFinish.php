@@ -3,9 +3,10 @@
 namespace NineteenNinetyFour\Ghostwriter\Drafts;
 
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Pattern;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
-use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
+use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
 use NineteenNinetyFour\Ghostwriter\Settings;
 
 /**
@@ -34,11 +35,11 @@ class HouseFinish
         }
 
         if ($this->settings->placeholderImages()) {
-            $placeholders = new Placeholders($pattern->filled);
-            $data = $placeholders->fill($data, $schema->toSpecs());
+            $placeholders = new Placeholders(new ContainerAssetSink, $pattern->filled);
+            $data = $placeholders->fill($data, $schema);
 
-            if ($placeholders->filled()) {
-                $notes[] = 'A striped placeholder marks each image still to pick: '.implode('; ', $placeholders->filled()).'. Replace them before publishing.';
+            if ($note = $placeholders->note()) {
+                $notes[] = $note;
             }
         }
 

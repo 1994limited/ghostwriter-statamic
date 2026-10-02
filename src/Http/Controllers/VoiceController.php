@@ -4,21 +4,26 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Content\ContentScanner;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Conflict;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateVoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\RefineVoiceGuide;
-use NineteenNinetyFour\Ghostwriter\Jobs\Waiting;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
+use NineteenNinetyFour\Ghostwriter\Settings;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Blueprint as BlueprintFacade;
 use Statamic\Fields\Blueprint;
 
 class VoiceController
 {
-    public function __construct(private VoiceGuide $guide, private VoiceState $state, private Studio $studio) {}
+    public function __construct(private GuideStore $guides, private WorkStates $states, private Studio $studio) {}
 
     public function show(ContentScanner $scanner): Response
     {
@@ -26,7 +31,7 @@ class VoiceController
 
         return Inertia::render('ghostwriter::Voice', [
             'blueprint' => $blueprint->toPublishArray(),
-            'meta' => $blueprint->fields()->addValues(['document' => $this->guide->get()])->preProcess()->meta()->all(),
+            'meta' => $blueprint->fields()->addValues(['document' => $this->guides->guide(Guide::VOICE)->body])->preProcess()->meta()->all(),
             'configured' => $this->studio->configured(),
             'provider' => $this->studio->provider(),
             'collections' => $scanner->collections(),
@@ -55,7 +60,7 @@ class VoiceController
             'collections.*' => ['string'],
         ]);
 
-        $this->state->update(['status' => VoiceState::WORKING, 'error' => null, 'task' => 'scan']);
+        $this->begin(fn (GuideState $state) => $state->begin('scan'));
 
         GenerateVoiceGuide::start($validated['collections'] ?? null);
 
@@ -66,7 +71,7 @@ class VoiceController
     {
         $validated = $request->validate(['document' => ['required', 'string', 'max:60000']]);
 
-        $this->guide->save($validated['document']);
+        $this->guides->saveGuide(new Guide(Guide::VOICE, $validated['document']));
 
         return response()->json($this->payload());
     }
@@ -75,12 +80,14 @@ class VoiceController
     {
         $this->ensureReady();
 
-        abort_unless($this->guide->exists(), 422, 'Generate a voice guide before refining it.');
+        abort_unless($this->guides->guide(Guide::VOICE)->exists(), 422, 'Generate a voice guide before refining it.');
 
         $validated = $request->validate(['message' => ['required', 'string', 'max:4000']]);
 
-        $this->state->addMessage('user', $validated['message']);
-        $this->state->update(['status' => VoiceState::WORKING, 'error' => null, 'task' => 'refine']);
+        $this->begin(function (GuideState $state) use ($validated) {
+            $state->begin('refine');
+            $state->addMessage('user', $validated['message']);
+        });
 
         RefineVoiceGuide::start();
 
@@ -112,20 +119,35 @@ class VoiceController
      */
     private function payload(): array
     {
-        $state = $this->state->get();
+        $state = $this->states->guide(Guide::VOICE);
+        $guide = $this->guides->guide(Guide::VOICE);
 
-        return $state + [
+        return $state->toArray() + [
             // No worker has picked the job up after a while: say so.
-            'waiting' => ($state['status'] ?? null) === VoiceState::WORKING ? app(Waiting::class)->notice('guide:voice') : null,
-            'document' => $this->guide->get(),
-            'exists' => $this->guide->exists(),
-            'updated_at' => $this->guide->updatedAt()?->diffForHumans(),
+            'waiting' => $state->isWorking() ? app(Waiting::class)->notice('guide:voice', app(Settings::class)->workerCommand()) : null,
+            'document' => $guide->body,
+            'exists' => $guide->exists(),
+            'updated_at' => $guide->updatedAt ? Carbon::instance($guide->updatedAt)->diffForHumans() : null,
         ];
     }
 
     private function ensureReady(): void
     {
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
-        abort_if($this->state->get()['status'] === VoiceState::WORKING, 409, 'Ghostwriter is still working on the last request.');
+        abort_if($this->states->guide(Guide::VOICE)->isWorking(), 409, 'Ghostwriter is still working on the last request.');
+    }
+
+    /**
+     * Start a scan or a refinement; one at a time.
+     *
+     * @param  callable(GuideState): mixed  $start
+     */
+    private function begin(callable $start): void
+    {
+        try {
+            $this->states->changeGuide(Guide::VOICE, $start);
+        } catch (Conflict $conflict) {
+            abort(409, $conflict->getMessage());
+        }
     }
 }

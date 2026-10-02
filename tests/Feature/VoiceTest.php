@@ -3,15 +3,15 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Bus;
-use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Content\ContentScanner;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateVoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\RefineVoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceState;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 
 class VoiceTest extends TestCase
 {
@@ -45,11 +45,11 @@ class VoiceTest extends TestCase
     {
         $this->ai->respond('voice-analyst', "# Tone of voice\n\n## Who is talking, to whom\n\nWe, to you.");
 
-        (new GenerateVoiceGuide)->handle(app(ContentScanner::class), app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
+        $this->runJob(new GenerateVoiceGuide);
 
-        $this->assertStringContainsString('We, to you.', app(VoiceGuide::class)->get());
-        $this->assertSame(VoiceState::IDLE, app(VoiceState::class)->get()['status']);
-        $this->assertCount(2, app(VoiceState::class)->get()['scanned']);
+        $this->assertStringContainsString('We, to you.', app(GuideStore::class)->guide(Guide::VOICE)->body);
+        $this->assertSame('idle', app(GuideStore::class)->state(Guide::VOICE)->status);
+        $this->assertCount(2, app(GuideStore::class)->state(Guide::VOICE)->scanned);
 
         $this->ai->assertSent('voice-analyst', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Those high end sales? Vanished.'));
     }
@@ -57,38 +57,38 @@ class VoiceTest extends TestCase
     public function test_generating_with_nothing_to_read_fails_with_a_reason(): void
     {
 
-        (new GenerateVoiceGuide(['no-such-collection']))->handle(app(ContentScanner::class), app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
+        $this->runJob(new GenerateVoiceGuide(['no-such-collection']));
 
-        $this->assertSame(VoiceState::FAILED, app(VoiceState::class)->get()['status']);
-        $this->assertFalse(app(VoiceGuide::class)->exists());
+        $this->assertSame('failed', app(GuideStore::class)->state(Guide::VOICE)->status);
+        $this->assertFalse(app(GuideStore::class)->guide(Guide::VOICE)->exists());
         $this->ai->assertNotSent('voice-analyst');
     }
 
     public function test_refining_applies_the_change_and_records_the_reply(): void
     {
-        app(VoiceGuide::class)->save("# Tone of voice\n\nOriginal.");
-        app(VoiceState::class)->addMessage('user', 'Ban the word synergy.');
+        app(GuideStore::class)->saveGuide(new Guide(Guide::VOICE, "# Tone of voice\n\nOriginal."));
+        app(WorkStates::class)->changeGuide(Guide::VOICE, fn (GuideState $state) => $state->addMessage('user', 'Ban the word synergy.'));
 
         $this->ai->respond('voice-editor', "<reply>Added it.</reply>\n<document>\n# Tone of voice\n\nNever say synergy.\n</document>");
 
-        (new RefineVoiceGuide)->handle(app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
+        $this->runJob(new RefineVoiceGuide);
 
-        $this->assertStringContainsString('Never say synergy.', app(VoiceGuide::class)->get());
-        $this->assertSame('Added it.', app(VoiceState::class)->get()['messages'][1]['content']);
+        $this->assertStringContainsString('Never say synergy.', app(GuideStore::class)->guide(Guide::VOICE)->body);
+        $this->assertSame('Added it.', app(GuideStore::class)->state(Guide::VOICE)->messages[1]['content']);
 
         $this->ai->assertSent('voice-editor', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Original.') && str_contains($prompt->prompt, 'Ban the word synergy.'));
     }
 
     public function test_a_refinement_that_only_asks_a_question_leaves_the_guide_alone(): void
     {
-        app(VoiceGuide::class)->save("# Tone of voice\n\nOriginal.");
-        app(VoiceState::class)->addMessage('user', 'Make it better.');
+        app(GuideStore::class)->saveGuide(new Guide(Guide::VOICE, "# Tone of voice\n\nOriginal."));
+        app(WorkStates::class)->changeGuide(Guide::VOICE, fn (GuideState $state) => $state->addMessage('user', 'Make it better.'));
 
         $this->ai->respond('voice-editor', '<reply>Better in what way?</reply>');
 
-        (new RefineVoiceGuide)->handle(app(Studio::class), app(VoiceGuide::class), app(VoiceState::class));
+        $this->runJob(new RefineVoiceGuide);
 
-        $this->assertStringContainsString('Original.', app(VoiceGuide::class)->get());
+        $this->assertStringContainsString('Original.', app(GuideStore::class)->guide(Guide::VOICE)->body);
     }
 
     public function test_the_scan_endpoint_starts_the_job_and_reports_working(): void
@@ -98,7 +98,7 @@ class VoiceTest extends TestCase
 
         $this->postJson(cp_route('ghostwriter.voice.scan'), ['collections' => ['articles']])
             ->assertOk()
-            ->assertJsonPath('status', VoiceState::WORKING);
+            ->assertJsonPath('status', 'working');
 
         Bus::assertDispatchedAfterResponse(GenerateVoiceGuide::class, fn ($job) => $job->collections === ['articles']);
 
@@ -128,7 +128,7 @@ class VoiceTest extends TestCase
             ->assertOk()
             ->assertJsonPath('exists', true);
 
-        $this->assertStringContainsString('Edited by hand.', app(VoiceGuide::class)->get());
+        $this->assertStringContainsString('Edited by hand.', app(GuideStore::class)->guide(Guide::VOICE)->body);
     }
 
     public function test_users_without_the_permission_are_turned_away(): void
@@ -143,7 +143,7 @@ class VoiceTest extends TestCase
     {
         $this->signIn();
 
-        app(ImageryState::class)->update(['status' => ImageryState::FAILED, 'error' => 'Not enough images.', 'task' => 'scan']);
+        app(WorkStates::class)->changeGuide(Guide::IMAGERY, fn (GuideState $state) => $state->fail('Not enough images.'));
 
         // Seen once: still there, for whoever comes back to it.
         $this->get(cp_route('ghostwriter.imagery.show'))->assertOk();

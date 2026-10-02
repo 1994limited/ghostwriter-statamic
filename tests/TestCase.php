@@ -11,13 +11,16 @@ use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\FakeProvider;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\MockHttpClient;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Format;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Testing\LayoutLog;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Testing\RequestLog;
 use NineteenNinetyFour\Ghostwriter\ServiceProvider;
 use NineteenNinetyFour\Ghostwriter\Settings;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Psr\Http\Message\RequestInterface;
 use Ramsey\Uuid\Uuid;
@@ -255,7 +258,7 @@ abstract class TestCase extends AddonTestCase
 
     protected function makeType(string $handle = 'articles', string $collection = 'articles'): ContentType
     {
-        return app(TypeRepository::class)->save(ContentType::fromArray($handle, [
+        return app(TypeRepository::class)->save(TypeRepository::make($handle, [
             'title' => 'Article',
             'description' => 'A project write-up.',
             'collection' => $collection,
@@ -266,6 +269,33 @@ abstract class TestCase extends AddonTestCase
             'guidance' => 'Open on the reader. Two sections.',
             'checklist' => ['Every fact comes from the brief.'],
         ]));
+    }
+
+    /**
+     * A new piece, not yet saved, as core starts one.
+     *
+     * @param  array<string, mixed>  $answers
+     * @param  array<int, string>  $examples
+     */
+    protected function makeSession(string $kind, array $answers = [], int|string|null $user = null, array $examples = []): Session
+    {
+        return Session::start(Format::Statamic, $kind, $answers, $user, $examples, Carbon::now()->toImmutable());
+    }
+
+    /**
+     * Where sessions are kept.
+     */
+    protected function sessions(): SessionStore
+    {
+        return app(SessionStore::class);
+    }
+
+    /**
+     * Run a queued job's handle() as the queue would, with what it asks for.
+     */
+    protected function runJob(object $job): void
+    {
+        $this->app->call([$job, 'handle']);
     }
 
     /**

@@ -85,6 +85,18 @@ class Settings
     }
 
     /**
+     * The command that starts a worker for the queue Ghostwriter's work
+     * goes to, for the notice shown when nothing picks it up.
+     */
+    public function workerCommand(): string
+    {
+        $connection = (string) config('queue.default');
+        $queue = (string) (config("queue.connections.{$connection}.queue") ?: 'default');
+
+        return 'php artisan queue:work'.($queue !== 'default' ? " --queue={$queue}" : '');
+    }
+
+    /**
      * Whether a new entry's empty image fields get a striped placeholder.
      */
     public function placeholderImages(): bool

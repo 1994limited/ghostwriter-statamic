@@ -6,8 +6,9 @@ use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
+use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Auth\User;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\Entry as Entries;
@@ -28,13 +29,13 @@ class SchemaEntryWriter implements EntryWriter
 
     public function write(Draft $draft, ContentType $type, ?User $user = null): Entry
     {
-        $collection = $type->statamicCollection()
-            ?? throw new InvalidArgumentException("The collection \"{$type->collection}\" no longer exists.");
+        $collection = TypeRepository::collectionOf($type)
+            ?? throw new InvalidArgumentException("The collection \"{$type->group}\" no longer exists.");
 
-        $blueprint = $type->statamicBlueprint();
+        $blueprint = TypeRepository::blueprintOf($type);
         $schema = $this->reader->schema($blueprint);
 
-        $pattern = $this->layouts->pattern($schema, $collection->handle(), $type->blueprint, $type->where, $type->examples);
+        $pattern = $this->layouts->pattern($schema, $collection->handle(), $type->variant, $type->where, $type->examples);
         $built = $this->layouts->build($draft->data, $schema, $pattern, $type->defaults);
 
         $data = $this->finish->finish($built->data, $schema, $pattern, null, $draft->title())['data'];

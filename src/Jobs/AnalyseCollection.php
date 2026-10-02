@@ -8,8 +8,9 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\Analysis;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
-use NineteenNinetyFour\Ghostwriter\Types\TypeState;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 use Throwable;
@@ -32,7 +33,7 @@ class AnalyseCollection implements ShouldQueue
      */
     public function __construct(public string $collection, public ?string $title = null, public array $examples = [], public array $kinds = []) {}
 
-    public function handle(Studio $studio, TypeRepository $types, TypeState $state): void
+    public function handle(Studio $studio, TypeRepository $types, WorkStates $states): void
     {
         $this->allowTimeToFinish();
 
@@ -59,6 +60,6 @@ class AnalyseCollection implements ShouldQueue
             }
         }
 
-        $state->set($this->collection, $failed ? TypeState::FAILED : TypeState::IDLE, $failed ? implode(' ', $failed) : null);
+        $states->changeAnalysis($this->collection, fn (Analysis $state) => $failed ? $state->fail(implode(' ', $failed)) : $state->succeed());
     }
 }

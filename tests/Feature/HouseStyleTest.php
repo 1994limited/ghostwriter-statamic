@@ -5,14 +5,13 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\HouseRules;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Layouts;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\LinkDialect;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\EntryData;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
-use NineteenNinetyFour\Ghostwriter\Images\Placeholders;
-use NineteenNinetyFour\Ghostwriter\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
+use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Blueprint;
@@ -184,21 +183,21 @@ class HouseStyleTest extends TestCase
     public function test_striped_placeholders_go_where_an_image_belongs_and_nowhere_else(): void
     {
         $rates = ['featured_image' => 1.0, 'brochure' => 1.0, 'hero.image' => 1.0, 'hero.background' => 0.25];
-        $placeholders = new Placeholders($rates);
+        $placeholders = new Placeholders(new ContainerAssetSink, $rates);
 
-        $data = $placeholders->fill(['title' => 'New', 'page_builder' => [['type' => 'hero', 'heading' => []]]], $this->schema()->toSpecs());
+        $data = $placeholders->fill(['title' => 'New', 'page_builder' => [['type' => 'hero', 'heading' => []]]], $this->schema());
 
-        $this->assertSame(Placeholders::PATH, $data['featured_image']);
-        $this->assertSame(Placeholders::PATH, $data['page_builder'][0]['image']);
+        $this->assertSame(ContainerAssetSink::PATH, $data['featured_image']);
+        $this->assertSame(ContainerAssetSink::PATH, $data['page_builder'][0]['image']);
         // Optional background: left alone. Brochure takes PDFs: no picture.
         $this->assertArrayNotHasKey('background', $data['page_builder'][0]);
         $this->assertArrayNotHasKey('brochure', $data);
         $this->assertSame(['Featured Image', 'Hero: Image'], $placeholders->filled());
 
         // One shared file, drawn once.
-        Storage::disk('assets')->assertExists(Placeholders::PATH);
-        $this->assertSame('Image to choose (placeholder from Ghostwriter)', AssetContainer::find('assets')->asset(Placeholders::PATH)->get('title'));
-        [$width, $height] = getimagesizefromstring(Storage::disk('assets')->get(Placeholders::PATH));
+        Storage::disk('assets')->assertExists(ContainerAssetSink::PATH);
+        $this->assertSame('Image to choose (placeholder from Ghostwriter)', AssetContainer::find('assets')->asset(ContainerAssetSink::PATH)->get('title'));
+        [$width, $height] = getimagesizefromstring(Storage::disk('assets')->get(ContainerAssetSink::PATH));
         $this->assertSame([1600, 1000], [$width, $height]);
     }
 
@@ -219,9 +218,9 @@ class HouseStyleTest extends TestCase
         $this->assertSame('45/65', $pattern->house->positions['page_builder/spacer#0']['height']);
         $this->assertSame(1.0, $pattern->filled['hero.image']);
 
-        $session = Session::start('any:pages', ['subject' => 'Winches']);
+        $session = $this->makeSession('any:pages', ['subject' => 'Winches']);
         $session->draft = "title: Studio Winch\npage_builder:\n  - type: spacer\n  - type: hero\n    heading: |\n      # Winches, rigged right\n    button_text: Talk to us\n  - type: breadcrumbs\n  - type: spacer";
-        app(SessionRepository::class)->save($session);
+        $this->sessions()->save($session);
 
         $response = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id))->assertOk();
         $values = $response->json('values');
@@ -231,7 +230,7 @@ class HouseStyleTest extends TestCase
         $this->assertSame('entry::contact', $values['page_builder'][1]['button_link']);
         $this->assertSame('center', $values['page_builder'][1]['heading'][0]['attrs']['textAlign']);
         $this->assertCount(3, $values['page_builder'][2]['crumbs']);
-        $this->assertSame(['assets::'.Placeholders::PATH], (array) $values['featured_image']);
+        $this->assertSame(['assets::'.ContainerAssetSink::PATH], (array) $values['featured_image']);
         $this->assertStringContainsString('A striped placeholder marks each image still to pick: Featured Image; Hero: Image.', $notes);
 
         // Saved straight to an entry, it links to itself once it exists.

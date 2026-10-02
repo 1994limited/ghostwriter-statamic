@@ -7,10 +7,11 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
-use NineteenNinetyFour\Ghostwriter\Planning\PlanState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Plan;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
-use NineteenNinetyFour\Ghostwriter\Voice\VoiceGuide;
 use Throwable;
 
 /**
@@ -30,20 +31,20 @@ class SuggestIdeas implements ShouldQueue
      */
     public function __construct(public array $collections, public string $steer = '') {}
 
-    public function handle(Studio $studio, TypeRepository $types, IdeaRepository $ideas, VoiceGuide $guide, PlanState $state): void
+    public function handle(Studio $studio, TypeRepository $types, PlanStore $ideas, GuideStore $guides, Plan $plan): void
     {
         $this->allowTimeToFinish();
 
         try {
-            $suggested = $studio->suggestIdeas($this->collections, $types, $ideas->all()->values()->all(), $guide->get(), $this->steer);
+            $suggested = $studio->suggestIdeas($this->collections, $types, $ideas->ideas(), $guides->guide(Guide::VOICE)->body, $this->steer);
 
-            // Held for the person to look over; nothing joins the plan until
-            // they say which.
-            $state->update(['status' => PlanState::IDLE, 'error' => null, 'task' => null, 'pending' => array_values($suggested)]);
+            // Held for the person to look over, beside any batch still
+            // waiting; nothing joins the plan until they say which.
+            $plan->receive($suggested);
         } catch (Throwable $exception) {
             report($exception);
 
-            $state->update(['status' => PlanState::FAILED, 'error' => $exception->getMessage(), 'task' => null]);
+            $plan->failed($exception->getMessage());
         }
     }
 }

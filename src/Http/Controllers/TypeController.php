@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\Blueprint as BlueprintFacade;
 use Statamic\Fields\Blueprint;
@@ -29,7 +29,7 @@ class TypeController
         $fields = $blueprint->fields()->addValues($this->values($type))->preProcess();
 
         return Inertia::render('ghostwriter::Type', [
-            'type' => ['handle' => $type->handle, 'title' => $type->title, 'collection' => $type->statamicCollection()?->title() ?? $type->collection],
+            'type' => ['handle' => $type->handle, 'title' => $type->title, 'collection' => TypeRepository::collectionOf($type)?->title() ?? $type->group],
             'blueprint' => $blueprint->toPublishArray(),
             'values' => $fields->values()->all(),
             'meta' => $fields->meta()->all(),
@@ -57,7 +57,7 @@ class TypeController
         $values = $fields->process()->values()->all();
         $taken = [];
 
-        $this->types->save(ContentType::fromArray($type->handle, [
+        $this->types->save(TypeRepository::make($type->handle, [
             'title' => $values['title'],
             'description' => $values['description'] ?? '',
             'questions' => collect($values['questions'] ?? [])->map(function (array $question) use (&$taken) {
@@ -74,8 +74,8 @@ class TypeController
             'checklist' => $values['checklist'] ?? [],
             'examples' => $values['examples'] ?? [],
             // Not editable on this screen; kept exactly as they were.
-            'collection' => $type->collection,
-            'blueprint' => $type->blueprint,
+            'collection' => $type->group,
+            'blueprint' => $type->variant,
             'where' => $type->where,
             'defaults' => $type->defaults,
         ]));
@@ -169,7 +169,7 @@ class TypeController
                 'type' => 'entries',
                 'display' => 'Modelled on',
                 'instructions' => 'Entries this kind of content should resemble. Leave empty to use the newest published entries in the collection.',
-                'collections' => [$type->collection],
+                'collections' => [$type->group],
                 'mode' => 'default',
                 'max_items' => 6,
             ],
@@ -181,7 +181,7 @@ class TypeController
         $type = $this->types->find($handle);
 
         // The built-in general type has nothing to edit.
-        abort_unless($type && ! $type->isGeneric() && $this->types->enabled($type->collection), 404);
+        abort_unless($type && ! $type->isGeneric() && $this->types->enabled($type->group), 404);
 
         return $type;
     }

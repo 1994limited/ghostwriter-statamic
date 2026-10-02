@@ -8,16 +8,21 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\NotFound;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Plan;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Refused;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionAccess;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestIdeas;
-use NineteenNinetyFour\Ghostwriter\Planning\IdeaRepository;
-use NineteenNinetyFour\Ghostwriter\Planning\PlanState;
-use NineteenNinetyFour\Ghostwriter\Sessions\SessionRepository;
-use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Contracts\Entries\Collection;
 use Statamic\Facades\Collection as Collections;
-use Statamic\Facades\User;
 
 /**
  * The content plan: ideas for what the site is missing, each one a click
@@ -26,12 +31,13 @@ use Statamic\Facades\User;
 class PlanController
 {
     public function __construct(
-        private IdeaRepository $ideas,
-        private PlanState $state,
+        private Plan $plan,
+        private WorkStates $states,
         private TypeRepository $types,
         private Studio $studio,
-        private SessionRepository $sessions,
+        private SessionStore $sessions,
         private Presenter $presenter,
+        private DomainOptions $options,
     ) {}
 
     public function show(): Response
@@ -66,8 +72,8 @@ class PlanController
      */
     private function forgetFailure(): void
     {
-        if ($this->state->get()['status'] === PlanState::FAILED) {
-            $this->state->update(['status' => PlanState::IDLE, 'error' => null, 'task' => null]);
+        if ($this->plan->state()->hasFailed()) {
+            $this->plan->changeState(fn (PlanState $state) => $state->forgetFailure());
         }
     }
 
@@ -79,7 +85,7 @@ class PlanController
     public function suggest(Request $request): JsonResponse
     {
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
-        abort_if($this->state->get()['status'] === PlanState::WORKING, 409, 'Ghostwriter is already looking for ideas.');
+        abort_if($this->states->plan()->isWorking(), 409, 'Ghostwriter is already looking for ideas.');
 
         $validated = $request->validate([
             'collections' => ['nullable', 'array'],
@@ -92,7 +98,7 @@ class PlanController
 
         abort_if($collections === [], 422, 'Choose at least one collection to plan for.');
 
-        $this->state->update(['status' => PlanState::WORKING, 'error' => null, 'task' => 'suggest']);
+        $this->refused(fn () => $this->plan->begin());
 
         SuggestIdeas::start($collections, (string) ($validated['steer'] ?? ''));
 
@@ -106,7 +112,7 @@ class PlanController
      */
     public function accept(Request $request): JsonResponse
     {
-        $pending = $this->state->get()['pending'];
+        $pending = $this->plan->state()->pending;
 
         $validated = $request->validate([
             'chosen' => ['present', 'array'],
@@ -114,35 +120,43 @@ class PlanController
             'discard' => ['nullable', 'boolean'],
         ]);
 
-        if (! ($validated['discard'] ?? false)) {
-            foreach ($pending as $i => $idea) {
-                $added = $this->ideas->add($idea, 'suggested');
-
-                if (! in_array($i, $validated['chosen'], true)) {
-                    $this->ideas->update($added['id'], ['status' => IdeaRepository::DISMISSED]);
-                }
-            }
+        if ($validated['discard'] ?? false) {
+            $this->refused(fn () => $this->plan->drop());
+        } else {
+            $this->refused(fn () => $this->plan->keep($validated['chosen'], now()));
         }
-
-        $this->state->update(['pending' => []]);
 
         return response()->json($this->payload());
     }
 
     public function store(Request $request): JsonResponse
     {
-        $this->ideas->add($request->validate($this->rules(required: true)));
+        $this->plan->add($request->validate($this->rules(required: true)), now());
 
         return response()->json($this->payload());
     }
 
     public function update(Request $request, string $idea): JsonResponse
     {
-        abort_unless($this->ideas->find($idea), 404);
+        $validated = $request->validate($this->rules(required: false) + [
+            'status' => ['sometimes', Rule::in([Idea::OPEN, Idea::DISMISSED])],
+        ]);
 
-        $this->ideas->update($idea, $request->validate($this->rules(required: false) + [
-            'status' => ['sometimes', Rule::in([IdeaRepository::OPEN, IdeaRepository::DISMISSED, IdeaRepository::DRAFTED])],
-        ]));
+        $this->refused(function () use ($idea, $validated) {
+            $words = array_diff_key($validated, ['status' => 1]);
+
+            if ($words !== [] || ! isset($validated['status'])) {
+                $this->plan->edit($idea, $words);
+            }
+
+            // Dismissed, or put back on the plan: a dismissed idea, or a
+            // piece started and given up on (E5). A finished one stays (E8).
+            match ($validated['status'] ?? null) {
+                Idea::DISMISSED => $this->plan->dismiss($idea),
+                Idea::OPEN => $this->plan->putBack($idea, fn (Idea $started) => $this->finished($started)),
+                default => null,
+            };
+        });
 
         return response()->json($this->payload());
     }
@@ -153,16 +167,16 @@ class PlanController
      */
     public function clear(Request $request): JsonResponse
     {
-        $validated = $request->validate(['status' => ['required', Rule::in([IdeaRepository::OPEN, IdeaRepository::DISMISSED])]]);
+        $validated = $request->validate(['status' => ['required', Rule::in([Idea::OPEN, Idea::DISMISSED])]]);
 
-        $this->ideas->clear($validated['status']);
+        $this->refused(fn () => $this->plan->clear($validated['status']));
 
         return response()->json($this->payload());
     }
 
     public function destroy(string $idea): JsonResponse
     {
-        $this->ideas->delete($idea);
+        $this->plan->delete($idea);
 
         return response()->json($this->payload());
     }
@@ -188,39 +202,78 @@ class PlanController
      */
     private function payload(): array
     {
-        $state = $this->state->get();
+        $state = $this->states->plan();
 
         return [
-            'status' => $state['status'],
-            'error' => $state['error'],
+            'status' => $state->status,
+            'error' => $state->error,
             'pending' => array_map(fn (array $idea) => $idea + [
-                'collection_title' => Collections::findByHandle($idea['collection'])?->title() ?? $idea['collection'],
-                'type_title' => $idea['type'] ? $this->types->find($idea['type'])?->title : null,
-            ], $state['pending']),
-            'ideas' => $this->ideas->all()->values()->map(fn (array $idea) => $this->present($idea))->all(),
+                'collection_title' => Collections::findByHandle((string) ($idea['collection'] ?? ''))?->title() ?? ($idea['collection'] ?? null),
+                'type_title' => ($idea['type'] ?? null) ? $this->types->find((string) $idea['type'])?->title : null,
+            ], $state->pending),
+            // A piece whose conversation was removed is back to being just an idea.
+            'ideas' => array_map(fn (Idea $idea) => $this->present($idea), $this->plan->ideas(fn (int|string $session) => $this->sessions->find((string) $session) !== null)),
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $idea
+     * Core's refusals as the answers the plan screen expects.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $work
+     * @return T
+     */
+    private function refused(callable $work): mixed
+    {
+        try {
+            return $work();
+        } catch (NotFound) {
+            abort(404);
+        } catch (Refused $refused) {
+            abort($refused->status(), $refused->getMessage());
+        }
+    }
+
+    /**
+     * Whether the piece started from an idea is finished: its entry saved
+     * (E6). One whose conversation has gone is not.
+     */
+    private function finished(Idea $idea): bool
+    {
+        $session = $idea->session !== null ? $this->sessions->find((string) $idea->session) : null;
+
+        return $session !== null && $this->presenter->summary($session)['finished'];
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function present(array $idea): array
+    private function present(Idea $found): array
     {
+        $idea = [
+            'id' => (string) $found->id,
+            'title' => $found->title,
+            'collection' => $found->group,
+            'type' => $found->kind,
+            'why' => $found->why,
+            'notes' => $found->notes,
+            'status' => $found->status,
+            'source' => $found->source,
+            'session' => $found->session === null ? null : (string) $found->session,
+            'created_at' => $found->createdAt,
+        ];
+
         $collection = Collections::findByHandle($idea['collection']);
         $type = $idea['type'] ? $this->types->find($idea['type']) : null;
 
         $session = $idea['session'] ? $this->sessions->find($idea['session']) : null;
+        $session?->recoverIfStale($this->options, now());
         $progress = $session ? $this->presenter->summary($session) : null;
 
         // Another person's conversation shows where the piece has got to; it
         // is theirs to open too when conversations are shared.
-        $mine = $session && $this->sessions->canSee($session, User::current());
-
-        // A piece whose conversation was removed is back to being just an idea.
-        if ($idea['status'] === IdeaRepository::DRAFTED && ! $session) {
-            $idea['status'] = IdeaRepository::OPEN;
-        }
+        $mine = $session && (new SessionAccess($this->options))->canSee($session, Presenter::viewer());
 
         return $idea + [
             // Where a started piece has got to, and where to pick it up.
@@ -235,7 +288,7 @@ class PlanController
             'update_url' => cp_route('ghostwriter.plan.update', $idea['id']),
             // Opens the create screen with Ghostwriter on it and this idea's brief filling itself in.
             'draft_url' => $collection && $this->types->enabled($idea['collection'])
-                ? $collection->createEntryUrl().'?'.http_build_query(array_filter(['blueprint' => $type?->blueprint, 'ghostwriter' => 'new', 'idea' => $idea['id']]))
+                ? $collection->createEntryUrl().'?'.http_build_query(array_filter(['blueprint' => $type?->variant, 'ghostwriter' => 'new', 'idea' => $idea['id']]))
                 : null,
         ];
     }

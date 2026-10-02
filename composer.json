@@ -32,13 +32,14 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "NineteenNinetyFour\\Ghostwriter\\Tests\\": "tests"
+            "NineteenNinetyFour\\Ghostwriter\\Tests\\": "tests",
+            "NineteenNinetyFour\\Ghostwriter\\Core\\Tests\\Contracts\\": "vendor/1994/ghostwriter-core/tests/Contracts/"
         }
     },
     "require": {
         "php": "^8.3",
         "ext-gd": "*",
-        "1994/ghostwriter-core": "~0.4.0",
+        "1994/ghostwriter-core": "~0.5.1",
         "guzzlehttp/guzzle": "^7.8|^8.0",
         "league/commonmark": "^2.4",
         "statamic/cms": "^6.0",

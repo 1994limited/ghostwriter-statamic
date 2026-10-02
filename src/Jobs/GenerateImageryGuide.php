@@ -7,9 +7,11 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryGuide;
-use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideState;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
+use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Collection;
 use Throwable;
 
@@ -35,7 +37,7 @@ class GenerateImageryGuide implements ShouldQueue
         return 'guide:imagery';
     }
 
-    public function handle(ImageStudio $images, Studio $studio, ImageryGuide $guide, ImageryState $state): void
+    public function handle(ImageStudio $images, Studio $studio, GuideStore $guides, WorkStates $states): void
     {
         $this->allowTimeToFinish();
 
@@ -60,18 +62,22 @@ class GenerateImageryGuide implements ShouldQueue
             }
 
             if ($sections === []) {
-                $state->update(['status' => ImageryState::FAILED, 'error' => 'None of those collections has enough images to describe a style from. It takes at least three.', 'task' => null]);
+                $states->changeGuide(Guide::IMAGERY, fn (GuideState $state) => $state->fail('None of those collections has enough images to describe a style from. It takes at least three.'));
 
                 return;
             }
 
-            $guide->save("# Image style\n\n".implode("\n\n", $sections));
+            $guides->saveGuide(new Guide(Guide::IMAGERY, "# Image style\n\n".implode("\n\n", $sections)));
 
-            $state->update(['status' => ImageryState::IDLE, 'error' => null, 'task' => null, 'messages' => [], 'scanned' => $seen]);
+            $states->changeGuide(Guide::IMAGERY, function (GuideState $state) use ($seen) {
+                $state->succeed();
+                $state->messages = [];
+                $state->scanned = $seen;
+            });
         } catch (Throwable $exception) {
             report($exception);
 
-            $state->update(['status' => ImageryState::FAILED, 'error' => $exception->getMessage(), 'task' => null]);
+            $states->changeGuide(Guide::IMAGERY, fn (GuideState $state) => $state->fail($exception->getMessage()));
         }
     }
 }

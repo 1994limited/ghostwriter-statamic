@@ -2,6 +2,9 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Images;
 
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoContext;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFile;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
@@ -20,7 +23,7 @@ use Statamic\Contracts\Assets\Asset;
  */
 class FieldImages
 {
-    public function __construct(private ImageStudio $images, private PhotoFinder $finder, private ImageryGuide $guide) {}
+    public function __construct(private ImageStudio $images, private PhotoFinder $finder, private GuideStore $guides) {}
 
     /**
      * Photographs for the slot.
@@ -42,16 +45,16 @@ class FieldImages
             blockText: $slot->blockText,
             pageText: $slot->pageText,
             shape: $this->images->shapeOf($slot->references()[0] ?? null),
-            style: $this->guide->for($slot->collection->title()),
+            style: $this->guides->guide(Guide::IMAGERY)->section($slot->collection->title()),
         );
     }
 
     /**
      * @return array{content: string, mime: string}
      */
-    public function make(FieldSlot $slot, string $direction = '', ?string $source = null): array
+    public function make(FieldSlot $slot, string $direction = '', ?Image $source = null): array
     {
-        $image = $this->images->make($slot->references(), $slot->title, '', $slot->label(), $direction, $source, $this->guide->for($slot->collection->title()));
+        $image = $this->images->make($slot->references(), $slot->title, '', $slot->label(), $direction, $source, $this->guides->guide(Guide::IMAGERY)->section($slot->collection->title()));
 
         return ['content' => $image->data, 'mime' => $image->mime];
     }
