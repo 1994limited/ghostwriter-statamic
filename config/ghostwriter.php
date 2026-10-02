@@ -241,6 +241,12 @@ return [
         'default_source' => env('GHOSTWRITER_STOCK_DEFAULT_SOURCE'),
         'include_editorial' => env('GHOSTWRITER_STOCK_INCLUDE_EDITORIAL'),
 
+        // In Live Preview, show signed-in editors the comp in place of the
+        // stand-in (any src or srcset ending in the stand-in's file name).
+        // Shared preview links opened while signed out always get the
+        // stand-in.
+        'live_preview' => (bool) env('GHOSTWRITER_STOCK_LIVE_PREVIEW', true),
+
         // Previews no page uses any more are removed after this many days.
         'unused_preview_days' => (int) env('GHOSTWRITER_STOCK_UNUSED_PREVIEW_DAYS', 30),
     ],

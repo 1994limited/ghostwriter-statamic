@@ -95,7 +95,8 @@ class StockLibraries
         $paid = [];
 
         if (self::demoAllowed()) {
-            $paid[DemoLibrary::ID] = DemoLibrary::make();
+            // A test can bind its own scripted library in its place.
+            $paid[DemoLibrary::ID] = app()->bound(DemoLibrary::BINDING) ? app(DemoLibrary::BINDING) : DemoLibrary::make();
         }
 
         foreach (self::PAID as $id => $library) {

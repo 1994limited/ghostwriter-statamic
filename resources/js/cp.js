@@ -6,6 +6,9 @@ import Setup from './pages/Setup.vue';
 import Widget from './components/Widget.vue';
 import Launcher from './components/Launcher.vue';
 import ImageDialog from './components/ImageDialog.vue';
+import StockPanel from './components/StockPanel.vue';
+import StockFieldtype from './components/StockFieldtype.vue';
+import { previewIn, put } from './stock/store.js';
 import ghost from './icon.js';
 import { request } from './stock/request.js';
 
@@ -18,6 +21,11 @@ Statamic.booting(() => {
     Statamic.$components.register('ghostwriter-widget', Widget);
     Statamic.$components.register('ghostwriter-launcher', Launcher);
     Statamic.$components.register('ghostwriter-image-dialog', ImageDialog);
+    Statamic.$components.register('ghostwriter-stock-panel', StockPanel);
+    Statamic.$components.register('ghostwriter_stock-fieldtype', StockFieldtype);
+
+    // A preview inserted from the image dialog shows on its field at once.
+    Statamic.$events.$on('ghostwriter.stock', put);
 
     // Every publish form announces itself as it mounts. When it is the create
     // or edit form of an entry in a collection Ghostwriter writes for, the
@@ -42,6 +50,9 @@ Statamic.booting(() => {
         container.pushComponent('ghostwriter-image-dialog', {
             props: { collection: match[1], blueprint, entry, form: container, baseUrl: config.url },
         });
+
+        // The panel behind a field's "Preview · not licensed" badge.
+        container.pushComponent('ghostwriter-stock-panel', { props: {} });
     });
 
     // A Ghostwriter button beside each assets field's own controls, on the
@@ -67,6 +78,28 @@ Statamic.booting(() => {
                 update,
                 updateMeta,
             });
+        },
+    });
+
+    // "Preview · not licensed": beside the image button on an assets field
+    // that holds a stock preview not licensed yet. It shows the comp's
+    // thumbnail (signed-in editors only) and opens the License step, or
+    // Request licence for those who may not license. cp.css draws it as a
+    // labelled badge.
+    Statamic.$fieldActions.add('assets-fieldtype', {
+        title: __('Preview · not licensed'),
+        quick: true,
+        visible: ({ value }) => !!Statamic.$config.get('ghostwriter')?.enabled && !!previewIn(value),
+        icon: ({ value }) => {
+            const preview = previewIn(value);
+            const comp = preview?.comp_url ? `<image href="${preview.comp_url}" width="16" height="16" preserveAspectRatio="xMidYMid slice"></image>` : '<rect width="16" height="16" rx="2" fill="currentColor" opacity=".25"></rect>';
+
+            return `<svg data-ghostwriter-stock-badge="" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">${comp}</svg>`;
+        },
+        run: ({ value }) => {
+            const preview = previewIn(value);
+
+            if (preview) Statamic.$events.$emit('ghostwriter.stock.open', { key: preview.asset });
         },
     });
 

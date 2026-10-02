@@ -95,3 +95,39 @@ button[data-ui-group-target]:has(svg[data-ghostwriter-field-action])::after {
     font-size: 0.75rem;
     line-height: 1;
 }
+
+/*
+    "Preview · not licensed": a quick field action beside the image button,
+    drawn as an amber badge with the comp's thumbnail and its name. Amber
+    in both modes, as a warning should be.
+*/
+button[data-ui-group-target]:has(svg[data-ghostwriter-stock-badge]) {
+    width: auto !important;
+    height: 1.625rem !important;
+    padding-inline: 0.25rem 0.5rem !important;
+    gap: 0.375rem !important;
+    background: #fef3c7 !important;
+    border-color: #f59e0b !important;
+    color: #78350f !important;
+}
+
+.dark button[data-ui-group-target]:has(svg[data-ghostwriter-stock-badge]) {
+    background: rgb(120 53 15 / 0.45) !important;
+    border-color: #d97706 !important;
+    color: #fde68a !important;
+}
+
+button[data-ui-group-target] svg[data-ghostwriter-stock-badge] {
+    width: 1.125rem !important;
+    height: 1.125rem !important;
+    border-radius: 0.2rem;
+    overflow: hidden;
+}
+
+button[data-ui-group-target]:has(svg[data-ghostwriter-stock-badge])::after {
+    content: attr(aria-label);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+}

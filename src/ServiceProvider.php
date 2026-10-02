@@ -42,6 +42,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
+use NineteenNinetyFour\Ghostwriter\Http\Middleware\StockPreviewsInLivePreview;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
 use NineteenNinetyFour\Ghostwriter\Storage\FileGuideStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileImageRequestStore;
@@ -260,6 +261,9 @@ class ServiceProvider extends AddonServiceProvider
                 Toast::error($warning)->duration(12000);
             }
         });
+
+        // Live Preview shows a stock preview's comp, to signed-in editors only.
+        $this->app['router']->pushMiddlewareToGroup('statamic.web', StockPreviewsInLivePreview::class);
 
         Statamic::provideToScript(['ghostwriter' => fn () => [
             'enabled' => (bool) User::current()?->can('access ghostwriter'),
