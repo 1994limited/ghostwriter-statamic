@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Sessions;
 
+use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
@@ -76,6 +77,41 @@ class SessionRepository
         return $this->read($this->path($id));
     }
 
+    /**
+     * Do something to a session while holding its lock, so two requests
+     * can't both find it idle and start a run, or save over each other.
+     * Read the session again inside: what was read before may be stale.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $work
+     * @return T
+     */
+    public function exclusively(string $id, Closure $work): mixed
+    {
+        // Not a session ID: nothing to lock, and $work will find nothing.
+        if (! preg_match('/^[0-9A-Za-z]{26}$/', $id)) {
+            return $work();
+        }
+
+        File::ensureDirectoryExists($this->directory());
+
+        $handle = @fopen($this->directory().'/'.$id.'.lock', 'c');
+
+        if ($handle === false) {
+            return $work();
+        }
+
+        try {
+            flock($handle, LOCK_EX);
+
+            return $work();
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
     public function save(Session $session): Session
     {
         $session->updatedAt = Carbon::now()->toIso8601String();
@@ -88,7 +124,7 @@ class SessionRepository
 
     public function delete(Session $session): void
     {
-        File::delete($this->path($session->id));
+        File::delete([$this->path($session->id), $this->directory().'/'.$session->id.'.lock']);
     }
 
     private function read(string $path): ?Session

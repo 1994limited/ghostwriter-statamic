@@ -124,22 +124,24 @@ class SessionController
 
     public function message(Request $request, string $session): JsonResponse
     {
-        $session = $this->session($session);
+        return $this->sessions->exclusively($session, function () use ($request, $session) {
+            $session = $this->session($session);
 
-        $this->ensureConfigured();
+            $this->ensureConfigured();
 
-        $this->ensureIdle($session, 'Ghostwriter is still working on the last message.');
+            $this->ensureIdle($session, 'Ghostwriter is still working on the last message.');
 
-        $validated = $request->validate(['message' => ['required', 'string', 'max:50000']]);
+            $validated = $request->validate(['message' => ['required', 'string', 'max:50000']]);
 
-        $session->addMessage('user', $validated['message'], $this->me());
-        $session->run($this->me());
+            $session->addMessage('user', $validated['message'], $this->me());
+            $session->run($this->me());
 
-        $this->sessions->save($session);
+            $this->sessions->save($session);
 
-        RunSessionTurn::start($session->id);
+            RunSessionTurn::start($session->id);
 
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     /**
@@ -147,37 +149,41 @@ class SessionController
      */
     public function retry(string $session): JsonResponse
     {
-        $session = $this->session($session);
+        return $this->sessions->exclusively($session, function () use ($session) {
+            $session = $this->session($session);
 
-        $this->ensureConfigured();
+            $this->ensureConfigured();
 
-        abort_unless($session->status === Session::FAILED, 409, 'There is nothing to try again.');
-        abort_unless(($last = end($session->messages)) !== false && $last['role'] === 'user', 409, 'There is nothing to try again.');
+            abort_unless($session->status === Session::FAILED, 409, 'There is nothing to try again.');
+            abort_unless(($last = end($session->messages)) !== false && $last['role'] === 'user', 409, 'There is nothing to try again.');
 
-        $session->status = Session::WORKING;
-        $session->error = null;
+            // Whoever asks again is the one waiting on it now.
+            $session->run($this->me());
 
-        $this->sessions->save($session);
+            $this->sessions->save($session);
 
-        RunSessionTurn::start($session->id);
+            RunSessionTurn::start($session->id);
 
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     public function draft(Request $request, string $session): JsonResponse
     {
-        $session = $this->session($session);
+        return $this->sessions->exclusively($session, function () use ($request, $session) {
+            $session = $this->session($session);
 
-        $this->ensureIdle($session, 'Ghostwriter is still working on the draft. Try again when it has finished.');
+            $this->ensureIdle($session, 'Ghostwriter is still working on the draft. Try again when it has finished.');
 
-        $validated = $request->validate(['draft' => ['required', 'string', 'max:120000']]);
+            $validated = $request->validate(['draft' => ['required', 'string', 'max:120000']]);
 
-        $session->draft = $validated['draft'];
+            $session->draft = $validated['draft'];
 
-        $session->touch($this->me());
-        $this->sessions->save($session);
+            $session->touch($this->me());
+            $this->sessions->save($session);
 
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     /**
@@ -288,46 +294,48 @@ class SessionController
      */
     public function editField(Request $request, string $session, HtmlToMarkdown $html): JsonResponse
     {
-        $session = $this->session($session);
+        return $this->sessions->exclusively($session, function () use ($request, $session, $html) {
+            $session = $this->session($session);
 
-        $this->ensureIdle($session, 'Ghostwriter is still working on the draft. Try again when it has finished.');
+            $this->ensureIdle($session, 'Ghostwriter is still working on the draft. Try again when it has finished.');
 
-        $draft = $this->parsedDraft($session);
+            $draft = $this->parsedDraft($session);
 
-        $validated = $request->validate([
-            'path' => ['required', 'array', 'min:1'],
-            'path.*' => ['string', 'max:100'],
-            'value' => ['present', 'string', 'max:60000'],
-            'format' => ['nullable', Rule::in(['text', 'html'])],
-        ]);
+            $validated = $request->validate([
+                'path' => ['required', 'array', 'min:1'],
+                'path.*' => ['string', 'max:100'],
+                'value' => ['present', 'string', 'max:60000'],
+                'format' => ['nullable', Rule::in(['text', 'html'])],
+            ]);
 
-        $value = ($validated['format'] ?? 'text') === 'html' ? $html->convert($validated['value']) : trim(str_replace("\r", '', $validated['value']));
+            $value = ($validated['format'] ?? 'text') === 'html' ? $html->convert($validated['value']) : trim(str_replace("\r", '', $validated['value']));
 
-        $data = $draft->data;
-        $node = &$data;
+            $data = $draft->data;
+            $node = &$data;
 
-        foreach ($validated['path'] as $step) {
-            $step = is_numeric($step) && is_array($node) && array_is_list($node) ? (int) $step : $step;
+            foreach ($validated['path'] as $step) {
+                $step = is_numeric($step) && is_array($node) && array_is_list($node) ? (int) $step : $step;
 
-            if (! is_array($node) || ! array_key_exists($step, $node)) {
-                abort(422, 'That part of the draft could not be found.');
+                if (! is_array($node) || ! array_key_exists($step, $node)) {
+                    abort(422, 'That part of the draft could not be found.');
+                }
+
+                $node = &$node[$step];
             }
 
-            $node = &$node[$step];
-        }
+            // Only writing is edited here; a block or a list is changed in YAML.
+            abort_if(! is_scalar($node) && $node !== null, 422, 'Only text can be edited here.');
 
-        // Only writing is edited here; a block or a list is changed in YAML.
-        abort_if(! is_scalar($node) && $node !== null, 422, 'Only text can be edited here.');
+            $node = $value;
+            unset($node);
 
-        $node = $value;
-        unset($node);
+            $session->draft = trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
 
-        $session->draft = trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
+            $session->touch($this->me());
+            $this->sessions->save($session);
 
-        $session->touch($this->me());
-        $this->sessions->save($session);
-
-        return response()->json($this->presenter->detail($session));
+            return response()->json($this->presenter->detail($session));
+        });
     }
 
     /**

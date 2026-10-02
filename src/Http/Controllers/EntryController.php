@@ -37,41 +37,48 @@ class EntryController
         abort_unless($this->types->enabled($entry->collectionHandle()), 404);
         abort_unless(User::current()?->can('edit', $entry), 403);
 
-        $session = $this->sessionFor($entry);
+        $found = $this->sessionFor($entry);
+        $me = ($id = User::current()?->id()) !== null ? (string) $id : null;
 
-        // A conversation already editing this entry, with changes asked for
-        // but not yet put into it, carries on where it was; otherwise, or
-        // when asked to start again, the entry as its form holds it now is
-        // the draft.
-        $fresh = $request->boolean('fresh');
+        // Held while the session is read and changed, so a message sent at
+        // the same moment isn't lost or run over.
+        return $this->sessions->exclusively($found->id, function () use ($found, $request, $entry, $me) {
+            $session = $this->sessions->find($found->id) ?? $found;
 
-        if ($session->status === Session::WORKING || (! $fresh && $session->source === $entry->id() && $session->appliedAt === null && $this->wasEditing($session))) {
+            // A conversation already editing this entry, with changes asked for
+            // but not yet put into it, carries on where it was; otherwise, or
+            // when asked to start again, the entry as its form holds it now is
+            // the draft.
+            $fresh = $request->boolean('fresh');
+
+            if ($session->status === Session::WORKING || (! $fresh && $session->source === $entry->id() && $session->appliedAt === null && $this->wasEditing($session))) {
+                return response()->json($this->presenter->detail($session));
+            }
+
+            // From the form as it stands, which may have been edited by hand
+            // since Ghostwriter last saw it, saved or not.
+            $data = $this->baseline->data($entry, $request->input('values'));
+
+            $session->source = $entry->id();
+            $session->blueprint = $entry->blueprint()->handle();
+            $session->draft = trim(YAML::dump(['title' => (string) ($data['title'] ?? $entry->get('title'))] + $this->simplifier->simplify($data, $this->reader->read($entry->blueprint()))));
+            $session->status = Session::IDLE;
+            $session->error = null;
+            $session->appliedAt = null;
+            $session->touch($me);
+
+            if ($session->messages === [] || ! $this->wasEditing($session) || $fresh) {
+                $session->addMessage('user', $fresh && $this->wasEditing($session)
+                    ? 'Start again from the entry as it stands now. Its content as it stands is the current draft.'
+                    : 'This entry already exists on the site. Its content as it stands is the current draft. I will ask for changes to it.', $me);
+                $session->addMessage('assistant', 'I have the entry as it stands. Tell me what to change.');
+                $session->messages[array_key_last($session->messages)]['editing'] = true;
+            }
+
+            $this->sessions->save($session);
+
             return response()->json($this->presenter->detail($session));
-        }
-
-        // From the form as it stands, which may have been edited by hand
-        // since Ghostwriter last saw it, saved or not.
-        $data = $this->baseline->data($entry, $request->input('values'));
-
-        $session->source = $entry->id();
-        $session->blueprint = $entry->blueprint()->handle();
-        $session->draft = trim(YAML::dump(['title' => (string) ($data['title'] ?? $entry->get('title'))] + $this->simplifier->simplify($data, $this->reader->read($entry->blueprint()))));
-        $session->status = Session::IDLE;
-        $session->error = null;
-        $session->appliedAt = null;
-        $session->touch((string) User::current()?->id());
-
-        if ($session->messages === [] || ! $this->wasEditing($session) || $fresh) {
-            $session->addMessage('user', $fresh && $this->wasEditing($session)
-                ? 'Start again from the entry as it stands now. Its content as it stands is the current draft.'
-                : 'This entry already exists on the site. Its content as it stands is the current draft. I will ask for changes to it.');
-            $session->addMessage('assistant', 'I have the entry as it stands. Tell me what to change.');
-            $session->messages[array_key_last($session->messages)]['editing'] = true;
-        }
-
-        $this->sessions->save($session);
-
-        return response()->json($this->presenter->detail($session));
+        });
     }
 
     private function wasEditing(Session $session): bool

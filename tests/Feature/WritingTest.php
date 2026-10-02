@@ -842,6 +842,7 @@ class WritingTest extends TestCase
         $this->getJson(cp_route('ghostwriter.sessions.show', $theirs->id))->assertForbidden();
         $this->get(cp_route('ghostwriter.sessions.open', $theirs->id))->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.message', $theirs->id), ['content' => 'Shorter.'])->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.retry', $theirs->id))->assertForbidden();
         $this->patchJson(cp_route('ghostwriter.sessions.field', $theirs->id), ['path' => 'title', 'value' => 'Mine now'])->assertForbidden();
         $this->patchJson(cp_route('ghostwriter.sessions.draft', $theirs->id), ['draft' => 'title: Mine'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.apply', $theirs->id))->assertForbidden();
@@ -927,6 +928,36 @@ class WritingTest extends TestCase
         $carol = tap(User::make()->email('carol@example.com')->assignRole('plain'))->save();
         $this->actingAs($carol);
         $this->getJson(cp_route('ghostwriter.sessions.show', $session['id']))->assertForbidden();
+    }
+
+    public function test_trying_again_on_a_shared_piece_says_who_is_waiting(): void
+    {
+        Bus::fake([SuggestKinds::class, RunSessionTurn::class]);
+        config(['statamic.editions.pro' => true]);
+        $this->setTestRoles(['tester' => ['access cp', 'access ghostwriter', ...self::WRITER_PERMISSIONS]]);
+        $this->makeType();
+
+        $ada = tap(User::make()->email('ada@example.com')->set('name', 'Ada Lovelace')->assignRole('tester'))->save();
+        $bob = tap(User::make()->email('bob@example.com')->set('name', 'Bob Byte')->assignRole('tester'))->save();
+
+        $this->actingAs($ada);
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'A faceted search.']])->assertOk()->json('id');
+        $stored = app(SessionRepository::class)->find($id);
+        $stored->status = Session::FAILED;
+        $stored->error = 'The provider is overloaded.';
+        app(SessionRepository::class)->save($stored);
+
+        // Bob asks again: he is the one waiting now, and a second go is refused.
+        $this->actingAs($bob);
+        $this->postJson(cp_route('ghostwriter.sessions.retry', $id))->assertOk()->assertJsonPath('waiting_on', null);
+        $this->postJson(cp_route('ghostwriter.sessions.retry', $id))->assertStatus(409);
+        $this->assertSame((string) $bob->id(), app(SessionRepository::class)->find($id)->runBy);
+
+        $this->actingAs($ada);
+        $this->getJson(cp_route('ghostwriter.sessions.show', $id))->assertJsonPath('waiting_on', 'Bob Byte');
+        $this->postJson(cp_route('ghostwriter.sessions.message', $id), ['message' => 'Longer!'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Bob Byte is waiting on Ghostwriter. Try again when it has answered.');
     }
 
     public function test_a_draft_is_not_saved_where_the_person_could_not_create_an_entry(): void
