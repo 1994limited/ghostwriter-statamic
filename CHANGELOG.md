@@ -15,6 +15,7 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Each call is logged on `log_channel` with the provider, model, tokens and time, never the words.
 - Get started says when another provider's key is set but not chosen.
 - Prompts ship with Ghostwriter Core. `php artisan vendor:publish --tag=ghostwriter-prompts` still publishes them to `resources/ghostwriter/prompts/`, where an edited copy still takes precedence. The photo picker's prompt is now a file too, `photo-picker.md`.
+- **Wording.** The **Show Get started** setting now says it brings the steps back to the Overview, not the dashboard. The intro to a draft's **Images** says the photos that best suit the page’s words come first, as the image dialog does.
 - **Dark mode.** The "Ghostwriter needs your answer" card was a light amber with near-white text, and a few hover borders didn't change. Statamic's own utilities outranked the addon's dark and hover styles; they now win.
 
 **Documentation** rewritten to the shared outline the three addons now follow: a new Permissions page, screenshots under each heading, the Overview, the core changes (providers, models, gateways, retries, photo ranking and alt text), and no more Logo card.

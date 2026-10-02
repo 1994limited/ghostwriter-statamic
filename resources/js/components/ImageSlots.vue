@@ -97,8 +97,8 @@ export default {
             class="mb-4"
             :text="
                 tools.generate
-                    ? __('Have one made to match the images already used in the same place on your other entries, or find a free photograph. They are added to the form with the draft.')
-                    : __('Find a free photograph for each. They are added to the form with the draft.')
+                    ? __('Have one made in the style of the images already in this place on your other entries, or find a free photograph. The photos that best suit the page’s words, and the images already in this place on other entries when there are any, come first. They are added to the form with the draft.')
+                    : __('Find a free photograph for each. The photos that best suit the page’s words, and the images already in this place on other entries when there are any, come first. They are added to the form with the draft.')
             "
         />
 
