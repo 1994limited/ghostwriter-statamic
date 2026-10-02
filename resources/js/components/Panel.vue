@@ -29,6 +29,8 @@ export default {
         entry: { type: String, default: null },
         // An idea from the content plan to open on.
         idea: { type: String, default: null },
+        // What the publish form holds now, for editing an entry from it.
+        formValues: { type: Function, default: () => ({}) },
     },
 
     emits: ['apply'],
@@ -416,12 +418,12 @@ export default {
         },
 
         // Editing an entry: throw the conversation's changes away and start
-        // from the entry as it is saved now.
+        // from the entry as its form holds it now.
         async startAgain() {
-            if (!this.entry || !confirm(this.__('Start again from the entry as saved? Changes asked for in this conversation but not yet put into the entry are dropped.'))) return;
+            if (!this.entry || !confirm(this.__('Start again from the entry as it stands? Changes asked for in this conversation but not yet put into the entry are dropped.'))) return;
 
             try {
-                const { data } = await this.$axios.post(`${this.baseUrl}/entries/${this.entry}/session`, { fresh: true });
+                const { data } = await this.$axios.post(`${this.baseUrl}/entries/${this.entry}/session`, { fresh: true, values: this.formValues() });
 
                 this.receive(data);
             } catch (error) {
@@ -448,7 +450,11 @@ export default {
             this.busy = true;
 
             try {
-                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/apply`), { blueprint: this.blueprint });
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/apply`), {
+                    blueprint: this.blueprint,
+                    // Changes go over the form as it stands, so nothing typed into it is undone.
+                    values: this.session.editing ? this.formValues() : undefined,
+                });
 
                 this.$emit('apply', data);
             } catch (error) {
@@ -508,7 +514,7 @@ export default {
                 <template v-if="info.ideas.length">
                     <div class="mb-2 flex items-baseline justify-between">
                         <Subheading :text="__('From the content plan')" />
-                        <span class="text-sm text-gray-500">{{ __(':count ideas · scroll for more', { count: info.ideas.length }) }}</span>
+                        <span class="text-sm text-gray-500">{{ __n(':count idea|:count ideas · scroll for more', info.ideas.length) }}</span>
                     </div>
                     <div class="-mx-1 mb-8 flex snap-x gap-3 overflow-x-auto px-1 pb-3">
                         <button
@@ -549,7 +555,7 @@ export default {
                             @click="choose(general, kind.examples)"
                         >
                             <Heading :text="kind.label" />
-                            <Subheading class="mt-1" :text="__(':count entries built the same way', { count: kind.count })" />
+                            <Subheading class="mt-1" :text="__n(':count entry built this way|:count entries built the same way', kind.count)" />
                         </button>
                     </div>
                 </template>
@@ -715,7 +721,7 @@ export default {
                 <div class="flex min-h-0 flex-col rounded-lg border border-gray-200 lg:col-span-3 dark:border-gray-700!">
                     <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2.5 dark:border-gray-700!">
                         <div class="flex items-center gap-3 text-sm text-gray-500">
-                            <span>{{ session.draft ? __(':count words', { count: session.words }) : __('Draft') }}</span>
+                            <span>{{ session.draft ? __n(':count word|:count words', session.words) : __('Draft') }}</span>
                             <div v-if="session.draft && !editing" class="flex rounded-md border border-gray-200 text-xs dark:border-gray-700!" role="group" :aria-label="__('Draft view')">
                                 <button type="button" class="px-2 py-0.5" :class="view === 'blocks' ? 'bg-gray-100 font-medium dark:bg-gray-800!' : ''" @click="setView('blocks')">{{ __('Blocks') }}</button>
                                 <button type="button" class="px-2 py-0.5" :class="view === 'text' ? 'bg-gray-100 font-medium dark:bg-gray-800!' : ''" @click="setView('text')">{{ __('Text') }}</button>

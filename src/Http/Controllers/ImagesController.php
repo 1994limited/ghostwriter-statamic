@@ -268,21 +268,35 @@ class ImagesController
     /**
      * The field's new value, with the asset in it, and the meta the form's
      * assets field needs to show it. A placeholder makes way; so does the
-     * picture in a single-image field.
+     * picture in a single-image field. A field that holds several and has
+     * as many as it allows is left as it is: the asset is kept in its
+     * container, and `full` says why it is not in the field.
      *
      * @param  array<int, string>  $current
      * @return array<string, mixed>
      */
     private function kept(FieldSlot $slot, Asset $asset, array $current): array
     {
-        $single = ($slot->field['max_files'] ?? null) === 1;
+        $max = (int) ($slot->field['max_files'] ?? 0);
+        $single = $max === 1;
         $kept = $single ? [] : array_values(array_filter($current, fn ($id) => is_string($id) && ! str_ends_with($id, '::'.Placeholders::PATH) && $id !== Placeholders::PATH));
-        $value = [...$kept, $asset->id()];
+        $about = ['id' => $asset->id(), 'path' => $asset->path(), 'url' => $asset->url(), 'title' => (string) $asset->get('title')];
 
-        $field = $this->formField($slot)->setValue($value)->preProcess();
+        if ($max > 1 && count($kept) >= $max) {
+            $container = AssetContainer::find($slot->field['container'])?->title() ?? $slot->field['container'];
+
+            return [
+                'asset' => $about,
+                'full' => true,
+                'message' => "This field is full: it takes {$max} images. The image is saved in the {$container} container; remove an image from the field to make room, then choose it from there.",
+            ];
+        }
+
+        $field = $this->formField($slot)->setValue([...$kept, $asset->id()])->preProcess();
 
         return [
-            'asset' => ['id' => $asset->id(), 'path' => $asset->path(), 'url' => $asset->url(), 'title' => (string) $asset->get('title')],
+            'asset' => $about,
+            'full' => false,
             'value' => $field->value(),
             'meta' => $field->meta(),
         ];

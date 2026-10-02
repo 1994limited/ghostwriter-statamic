@@ -17,6 +17,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
 use NineteenNinetyFour\Ghostwriter\Drafts\EntryBuilder;
+use NineteenNinetyFour\Ghostwriter\Drafts\FormBaseline;
 use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
@@ -157,7 +158,7 @@ class SessionController
      * The draft as values for the publish form the panel is open on. Nothing
      * is saved: the person reviews the filled-in form and saves it themselves.
      */
-    public function apply(Request $request, string $session, SchemaReader $reader, PatternFinder $patterns, EntryBuilder $builder, ImageStudio $images, EntryMerger $merger, HouseFinish $finish): JsonResponse
+    public function apply(Request $request, string $session, SchemaReader $reader, PatternFinder $patterns, EntryBuilder $builder, ImageStudio $images, EntryMerger $merger, HouseFinish $finish, FormBaseline $baseline): JsonResponse
     {
         $session = $this->session($session);
         $type = $this->type($session->type)->forSession($session);
@@ -180,10 +181,10 @@ class SessionController
 
         if ($original) {
             // Editing an entry: only the writing changes. Its images, links,
-            // settings and block IDs come from the entry, not from what this
-            // kind of entry usually has.
+            // settings and block IDs come from the form as it stands, unsaved
+            // changes included, not from what this kind of entry usually has.
             $built = $builder->build($draft->data, $schema);
-            $built['data'] = $merger->merge($built['data'], $original->data()->all(), $schema);
+            $built['data'] = $merger->merge($built['data'], $baseline->data($original, $request->input('values')), $schema);
         } else {
             $pattern = $patterns->find($type->collection, $schema, $type->blueprint, $type->where, $type->examples);
             $built = $builder->build($draft->data, $schema, $pattern, $type->defaults);

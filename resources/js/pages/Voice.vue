@@ -54,7 +54,7 @@ export default {
                 generate: 'Generate from your content',
                 regenerate: 'Read the site again',
                 confirm: 'Read the site again and replace the current guide? Any edits you have made to it will be lost.',
-                scanned: 'Last written from :count entries.',
+                scanned: 'Last written from :count entry.|Last written from :count entries.',
                 ...this.labels,
             };
         },
@@ -208,7 +208,7 @@ export default {
                             @click="scan"
                         />
                         <p v-if="current.scanned.length" class="text-sm text-gray-500">
-                            {{ __(text.scanned, { count: current.scanned.length }) }}
+                            {{ __n(text.scanned, current.scanned.length) }}
                         </p>
                     </div>
                 </Panel>

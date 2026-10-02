@@ -53,7 +53,8 @@ class Onboarding
     {
         $collections = $this->types->collections();
         $configured = $this->studio->configured();
-        $settingsUrl = $this->settings->url();
+        // Only those who may change the settings are sent to them.
+        $settingsUrl = $this->settings->urlForCurrentUser();
 
         $learned = $collections->sum(fn ($collection) => $this->types->forCollection($collection->handle())->count());
         $suggested = $collections->sum(fn ($collection) => count($this->kinds->get($collection->handle())['suggestions']));
@@ -170,8 +171,8 @@ class Onboarding
         $forVoice = $this->settings->voiceCollections();
 
         return [
-            'can_change_settings' => (bool) User::current()?->can('edit '.Settings::ADDON.' settings'),
-            'settings_url' => $this->settings->url(),
+            'can_change_settings' => $this->settings->canChange(),
+            'settings_url' => $this->settings->urlForCurrentUser(),
             'provider' => $this->providerName($this->studio->provider()),
             'key_name' => $this->keyName($this->studio->provider()),
             'collections' => Collections::all()->map(fn ($collection) => [

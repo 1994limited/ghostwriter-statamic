@@ -16,6 +16,16 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Get started says when another provider's key is set but not chosen.
 - Prompts ship with Ghostwriter Core. `php artisan vendor:publish --tag=ghostwriter-prompts` still publishes them to `resources/ghostwriter/prompts/`, where an edited copy still takes precedence. The photo picker's prompt is now a file too, `photo-picker.md`.
 - **Dark mode.** The "Ghostwriter needs your answer" card was a light amber with near-white text, and a few hover borders didn't change. Statamic's own utilities outranked the addon's dark and hover styles; they now win.
+**Fixes** (from the UX parity audit of the three addons):
+
+- **Editing keeps what you typed.** "Edit with Ghostwriter" now starts from what the entry's form holds, unsaved typing included, and "Use these changes" puts the new writing over the form as it stands. Before, both worked from the entry as last saved, so an image or setting changed in the form and not yet saved was put back.
+- "Learn this" on a suggested kind now finishes on the dashboard: the "Learning…" line stops, the new kind appears, and a failure is shown with its reason. Before, the line ran until the page was reloaded and a failure never showed.
+- The dashboard's settings button, and Get started's "Open the settings", only show to people who may change the settings.
+- Counts read properly in the singular: "1 idea waiting", "1 entry", "1 suggested kind to review", "1 word", and so on, on the dashboard, Get started, the widget, the content plan and the writing panel.
+- Deleting a kind of content says so ("Kind deleted"), and says why when it can't. The confirmation now says "kind of content" rather than "content type".
+- Choosing none of Ghostwriter's plan suggestions says "Dismissed 3 suggestions." rather than "0 added to the plan."
+- An image chosen with the field button for a multi-image field that already holds as many as it allows no longer goes in over the limit. It is kept in the container, and Ghostwriter says so.
+- The images docs no longer promise a Logo card under a draft; logo cards are made with the field's own button.
 - For developers: `NineteenNinetyFour\Ghostwriter\Drafts\Draft` is now `NineteenNinetyFour\Ghostwriter\Core\Text\Draft`. The old name still works, so a custom `EntryWriter` keeps working; it goes in 2.0. The `Ai\Agents` classes are gone.
 
 ## 1.0.1 — 2026-10-01

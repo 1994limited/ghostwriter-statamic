@@ -202,12 +202,12 @@ export default {
             </Link>
             <Link :href="plan.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content plan') }}</div>
-                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.ideas }}</span> {{ __('ideas waiting') }}</div>
+                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.ideas }}</span> {{ __n('idea waiting|ideas waiting', counts.ideas) }}</div>
                 <div class="text-sm text-gray-500">{{ __('What the site is missing') }}</div>
             </Link>
             <a href="#in-progress" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('In progress') }}</div>
-                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.in_progress }}</span> {{ __('pieces') }}</div>
+                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.in_progress }}</span> {{ __n('piece|pieces', counts.in_progress) }}</div>
                 <div class="text-sm text-gray-500">{{ __('Drafts and edits under way') }}</div>
             </a>
         </div>
@@ -220,7 +220,7 @@ export default {
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-baseline gap-x-3">
                                 <Heading :text="__(collection.title)" />
-                                <span class="text-sm text-gray-500">{{ __(':count entries', { count: collection.entries }) }} · {{ collection.types.length === 1 ? __('1 kind') : __(':count kinds', { count: collection.types.length }) }}</span>
+                                <span class="text-sm text-gray-500">{{ __n(':count entry|:count entries', collection.entries) }} · {{ __n(':count kind|:count kinds', collection.types.length) }}</span>
                             </div>
                             <div v-if="collection.types.length" class="mt-1.5 flex flex-wrap gap-1.5">
                                 <Link v-for="type in collection.types" :key="type.edit_url" :href="type.edit_url" :title="type.description" class="rounded-md border border-gray-200 px-2 py-0.5 text-xs hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">{{ type.title }}</Link>
@@ -247,7 +247,7 @@ export default {
                         class="mt-2 text-sm font-medium hover:underline!"
                         style="color: var(--gw-accent, #2b3a64)"
                         @click="openKinds[collection.handle] = true"
-                    >{{ __(':count suggested kinds to review', { count: suggestionsOf(collection) }) }} →</button>
+                    >{{ __n(':count suggested kind to review|:count suggested kinds to review', suggestionsOf(collection)) }} →</button>
                     <KindSuggestions
                         v-show="openKinds[collection.handle] || !suggestionsOf(collection)"
                         :ref="`kinds-${collection.handle}`"

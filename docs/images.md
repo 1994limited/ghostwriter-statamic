@@ -50,6 +50,7 @@ For partner, client or technology tiles: your logo, centred on a flat colour or 
 - The image is saved as an asset in the field's own **container and folder**, or beside the images already there, with a title.
 - It goes straight into the field, as if you'd chosen it from the browser. Save the entry as usual.
 - If the field held a **striped placeholder**, the placeholder comes out. In a field that holds only one image, the new image replaces the old one.
+- In a field that holds several images and already has as many as it allows, the image isn't added. It is still saved in the container, and Ghostwriter says so: remove an image from the field to make room, then choose it from the container.
 
 ### Credits
 
@@ -68,7 +69,7 @@ Under a draft in the writing panel, the **Images** section lists each image fiel
 - Three photographs are offered for each field as soon as the draft is written, chosen by the writer's own searches and ranked against the images already in that place. **View more** shows the rest.
 - **Find a photo** runs your own search; **Choose from the photos for** another field, or **Use the same image as** another field, where fields share a picture.
 - Asking in the conversation works too: "find images for this" offers options, "add the images" puts the best match straight in.
-- **Make image** and **Logo card** appear here with the same keys as on the field button.
+- **Make image** appears here too, with the same keys as on the field button, and can be given an image of your own to build the picture around. Logo cards aren't offered here: make one with the field's own Ghostwriter button once the draft is in the form.
 
 Chosen images go into the form with **Use this draft**, in the field's container and folder.
 

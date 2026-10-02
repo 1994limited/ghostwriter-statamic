@@ -76,13 +76,15 @@ class CollectionController
     }
 
     /**
-     * What has been suggested for a collection, and whether a check is running.
+     * What has been suggested for a collection, whether a check is running,
+     * and how learning a kind there stands, so the dashboard can tell when
+     * "Learn this" has finished or failed.
      */
     public function kinds(string $collection): JsonResponse
     {
         $this->ensureEnabled($collection);
 
-        return response()->json(['kinds' => $this->kindState($collection)]);
+        return response()->json(['kinds' => $this->kindState($collection), 'state' => $this->state->get($collection)]);
     }
 
     /**

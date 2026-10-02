@@ -154,8 +154,15 @@ export default {
         async decide(discard = false) {
             const chosen = discard ? [] : this.chosen;
 
+            const dismissed = this.current.pending.length - chosen.length;
+
             if (await this.request('post', this.urls.accept, { chosen, discard })) {
-                if (!discard) this.$toast.success(this.__(':count added to the plan.', { count: chosen.length }));
+                if (discard) return;
+
+                // With nothing kept, say what did happen rather than "0 added".
+                this.$toast.success(chosen.length
+                    ? this.__n(':count idea added to the plan.|:count ideas added to the plan.', chosen.length)
+                    : this.__n('Dismissed :count suggestion.|Dismissed :count suggestions.', dismissed));
             }
         },
 
@@ -163,8 +170,8 @@ export default {
         clear(status) {
             const count = this.current.ideas.filter((idea) => idea.status === status).length;
             const question = status === 'open'
-                ? this.__('Remove all :count ideas from the list? Started and dismissed ones stay. This cannot be undone.', { count })
-                : this.__('Delete all :count dismissed ideas? Ghostwriter will no longer know not to suggest them again.', { count });
+                ? this.__n('Remove the :count idea from the list? Started and dismissed ones stay. This cannot be undone.|Remove all :count ideas from the list? Started and dismissed ones stay. This cannot be undone.', count)
+                : this.__n('Delete the :count dismissed idea? Ghostwriter will no longer know not to suggest it again.|Delete all :count dismissed ideas? Ghostwriter will no longer know not to suggest them again.', count);
 
             if (!confirm(question)) return;
 

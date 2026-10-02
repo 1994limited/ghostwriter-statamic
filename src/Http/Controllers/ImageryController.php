@@ -68,7 +68,7 @@ class ImageryController
                 'generate' => 'Generate from your images',
                 'regenerate' => 'Look at the site again',
                 'confirm' => 'Look at the site again and replace the current guide? Any edits you have made to it will be lost.',
-                'scanned' => 'Last written from :count images.',
+                'scanned' => 'Last written from :count image.|Last written from :count images.',
             ],
         ]);
     }

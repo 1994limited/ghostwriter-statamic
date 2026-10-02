@@ -220,7 +220,16 @@ export default {
 
         // Into the field: meta first, so the field can show the asset the
         // moment its value arrives.
-        place({ value, meta, asset }) {
+        // A field already holding as many images as it takes is left alone;
+        // the image is in the container, and the person is told so.
+        place({ value, meta, asset, full, message }) {
+            if (full) {
+                this.open = false;
+                this.$toast.error(message, { duration: 10000 });
+
+                return;
+            }
+
             this.field.updateMeta({ ...(this.field.meta ?? {}), ...meta });
             this.field.update(value);
             this.open = false;

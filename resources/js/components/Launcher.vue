@@ -63,8 +63,14 @@ export default {
     },
 
     methods: {
-        // On an existing entry, the conversation starts from the entry as it
-        // was last saved.
+        // What the form holds now, unsaved typing included: editing starts
+        // from it, and changes are put back over it.
+        formValues() {
+            return JSON.parse(JSON.stringify(this.form.values ?? {}));
+        },
+
+        // On an existing entry, the conversation starts from the entry as
+        // its form holds it now.
         async launch() {
             if (!this.entry) {
                 this.open = true;
@@ -75,7 +81,7 @@ export default {
             this.starting = true;
 
             try {
-                const { data } = await this.$axios.post(`${this.baseUrl}/entries/${this.entry}/session`);
+                const { data } = await this.$axios.post(`${this.baseUrl}/entries/${this.entry}/session`, { values: this.formValues() });
 
                 this.resume = data.id;
                 this.open = true;
@@ -114,7 +120,7 @@ export default {
         </div>
 
         <Stack v-model:open="open" :title="__('Ghostwriter')" :icon="ghost" size="full">
-            <Panel v-if="open" :collection="collection" :blueprint="blueprint" :base-url="baseUrl" :resume="resume" :idea="idea" :entry="entry" @apply="apply" />
+            <Panel v-if="open" :collection="collection" :blueprint="blueprint" :base-url="baseUrl" :resume="resume" :idea="idea" :entry="entry" :form-values="formValues" @apply="apply" />
         </Stack>
     </div>
 </template>

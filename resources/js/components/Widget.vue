@@ -58,7 +58,7 @@ export default {
 
             <div class="flex gap-6 px-4 py-3 text-sm">
                 <a :href="urls.index" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #2b3a64)">{{ inProgress.length + moreInProgress }}</strong> {{ __('in progress') }}</a>
-                <a :href="urls.plan" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #2b3a64)">{{ planOpen }}</strong> {{ __('ideas waiting') }}</a>
+                <a :href="urls.plan" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #2b3a64)">{{ planOpen }}</strong> {{ __n('idea waiting|ideas waiting', planOpen) }}</a>
             </div>
 
             <ul v-if="inProgress.length">

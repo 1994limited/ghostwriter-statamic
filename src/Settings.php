@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter;
 
 use Statamic\Facades\Addon;
+use Statamic\Facades\User;
 
 /**
  * Where Ghostwriter's options come from: the addon's settings screen in the
@@ -108,6 +109,23 @@ class Settings
     public function url(): ?string
     {
         return Addon::get(self::ADDON)?->settingsUrl();
+    }
+
+    /**
+     * Whether the signed-in user may change these settings.
+     */
+    public function canChange(): bool
+    {
+        return (bool) User::current()?->can('edit '.self::ADDON.' settings');
+    }
+
+    /**
+     * The settings screen's address, for those who may change the settings;
+     * null for everyone else, so nobody is sent to a screen they cannot open.
+     */
+    public function urlForCurrentUser(): ?string
+    {
+        return $this->canChange() ? $this->url() : null;
     }
 
     private function saved(string $key): mixed

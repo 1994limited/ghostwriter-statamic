@@ -215,7 +215,7 @@ export default {
                     <!-- Steps 3 and 5: the guides -->
                     <div v-if="step.key === 'voice' || step.key === 'imagery'" class="mt-4">
                         <div v-if="current.details[step.key].exists" class="gw-prose rounded-md border border-gray-200 p-4 text-sm dark:border-gray-700!" v-html="current.details[step.key].excerpt" />
-                        <p v-if="current.details[step.key].scanned" class="mt-2 text-xs text-gray-500">{{ __('Written from :count samples.', { count: current.details[step.key].scanned }) }}</p>
+                        <p v-if="current.details[step.key].scanned" class="mt-2 text-xs text-gray-500">{{ __n('Written from :count sample.|Written from :count samples.', current.details[step.key].scanned) }}</p>
                     </div>
 
                     <!-- Step 4: kinds, with the suggestions inline -->
@@ -249,7 +249,7 @@ export default {
                     <!-- Step 6: the plan -->
                     <div v-if="step.key === 'plan'" class="mt-4 space-y-2">
                         <Alert v-if="current.details.plan.error" variant="error" :text="current.details.plan.error" />
-                        <p class="text-sm text-gray-500">{{ __(':ideas ideas on the plan, :pending suggestions waiting to be looked over.', { ideas: current.details.plan.ideas, pending: current.details.plan.pending }) }}</p>
+                        <p class="text-sm text-gray-500">{{ __n(':count idea on the plan|:count ideas on the plan', current.details.plan.ideas) }}, {{ __n(':count suggestion waiting to be looked over.|:count suggestions waiting to be looked over.', current.details.plan.pending) }}</p>
                         <Textarea v-if="!step.done" v-model="steer" :rows="2" :placeholder="__('Optional: anything to steer it. “More for agencies.”')" />
                     </div>
 

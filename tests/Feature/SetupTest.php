@@ -83,6 +83,25 @@ class SetupTest extends TestCase
         $this->assertArrayNotHasKey('show_get_started', array_filter($settings->raw(), fn ($value) => $value !== null));
     }
 
+    public function test_settings_are_only_linked_for_those_who_may_change_them(): void
+    {
+        $this->signIn();
+
+        $this->get(cp_route('ghostwriter.index'))->assertOk()->assertInertia(fn ($page) => $page->where('settings_url', null));
+
+        $steps = collect($this->getJson(cp_route('ghostwriter.setup.status'))->json('steps'))->keyBy('key');
+        $this->assertNull($steps['key']['action']);
+        $this->assertNull($steps['collections']['action']);
+        $this->assertNull($this->getJson(cp_route('ghostwriter.setup.status'))->json('details.settings_url'));
+
+        // A second user needs Statamic Pro.
+        config(['statamic.editions.pro' => true]);
+        $this->signInWith(['access ghostwriter', 'edit 1994/ghostwriter-statamic settings']);
+
+        $this->get(cp_route('ghostwriter.index'))->assertInertia(fn ($page) => $page->whereType('settings_url', 'string'));
+        $this->assertSame('link', $this->getJson(cp_route('ghostwriter.setup.status'))->json('steps.0.action.type'));
+    }
+
     public function test_the_dashboard_widget_shows_progress_and_pieces_for_those_allowed(): void
     {
         $this->signIn();
