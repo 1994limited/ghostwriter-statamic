@@ -83,6 +83,10 @@ abstract class TestCase extends AddonTestCase
         // (docs: core's layout.md).
         LayoutLog::start(getenv('GHOSTWRITER_RECORD_LAYOUTS') ?: null, static::class.'::'.$this->name());
 
+        // The clock stands still for the whole test, so nothing turns on
+        // whether a second ticks over between two steps (F9).
+        Carbon::setTestNow(Carbon::now()->startOfSecond());
+
         // When recording requests or layouts, the clock, entry IDs and the
         // entries' file times (and so the order entries are listed in) are
         // the same on every run.

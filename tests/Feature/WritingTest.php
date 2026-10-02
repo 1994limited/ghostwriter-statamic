@@ -922,7 +922,9 @@ class WritingTest extends TestCase
         $ids = array_column($values['page_builder'], '_id');
         $this->assertCount(3, array_filter($ids));
         $this->assertSame('More articles', $values['page_builder'][2]['heading']);
-        $this->assertEqualsCanonicalizing($ids, array_keys($response->json('meta.page_builder.existing')));
+        // A row ID can be all digits, which PHP turns into an integer key,
+        // so compare the keys as strings.
+        $this->assertEqualsCanonicalizing($ids, array_map('strval', array_keys($response->json('meta.page_builder.existing'))));
 
         // Fields the draft did not touch are not sent, so the form keeps them.
         $this->assertArrayNotHasKey('featured_image', $values);
