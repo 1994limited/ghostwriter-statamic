@@ -508,7 +508,7 @@ export default {
             <div v-else-if="step === 'type'" class="mx-auto max-w-3xl">
                 <div class="mb-4 flex items-center justify-between">
                     <Heading size="lg" :text="__('What are you writing?')" />
-                    <Button size="sm" variant="ghost" :text="__('Teach it a kind')" @click="adding = true" />
+                    <Button size="sm" variant="ghost" :text="__('Teach a kind')" @click="adding = true" />
                 </div>
 
                 <template v-if="info.ideas.length">
@@ -676,7 +676,7 @@ export default {
                                     ? 'border-amber-400 bg-amber-50 dark:border-amber-500! dark:bg-amber-950/40!'
                                     : entry.role !== 'user' ? 'border-gray-200 dark:border-gray-700!' : '',
                             ]"
-                        ><span v-if="entry.role !== 'user' && asking && index === conversation.length - 1" class="mb-1 block text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400!">{{ __('Ghostwriter needs your answer') }}</span>{{ entry.content }}<span
+                        ><span v-if="entry.role !== 'user' && asking && index === conversation.length - 1" class="mb-1 block text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400!">{{ __('Ghostwriter needs your answer') }}</span><div v-if="entry.html" class="gw-prose gw-reply whitespace-normal" v-html="entry.html"></div><template v-else>{{ entry.content }}</template><span
                                 v-if="entry.draft"
                                 class="mt-2 flex items-center gap-1.5 border-t border-gray-200 pt-2 text-xs font-medium text-green-700 dark:border-gray-700! dark:text-green-400!"
                             ><svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ draftNote(entry.draft) }}</span></div>
@@ -699,7 +699,7 @@ export default {
                                 <span class="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-60"></span>
                                 <span class="relative inline-flex size-2.5 rounded-full bg-amber-500"></span>
                             </span>
-                            {{ session.draft ? __('Waiting on you. Answer above to carry on.') : __('Waiting on you. Answer the questions above and the draft follows.') }}
+                            {{ session.draft ? __('Your turn: answer above to carry on.') : __('Your turn: answer the questions above and the draft follows.') }}
                         </div>
                         <Textarea
                             ref="composer"

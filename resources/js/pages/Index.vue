@@ -76,25 +76,19 @@ export default {
 
         async refresh() {
             const { data } = await this.$axios.get(this.learning.api_url);
-            const wasWorking = this.working;
 
             this.info = data;
-
-            if (data.state.status === 'working') {
-                this.timer = setTimeout(() => this.refresh(), 2500);
-            } else if (wasWorking && data.state.status === 'idle') {
-                this.close();
-                this.$toast.success(this.__('Learned. Check the questions and guidance, then start writing.'));
-                router.reload();
-            }
         },
 
+        // Learning takes a minute: back to the dashboard, where the
+        // collection's row shows it under way and says when it is done.
         async learn(options) {
             try {
-                const { data } = await this.$axios.post(this.learning.analyse_url, options);
+                await this.$axios.post(this.learning.analyse_url, options);
 
-                this.info = data;
-                this.timer = setTimeout(() => this.refresh(), 2500);
+                this.close();
+                this.$toast.success(this.__('Learning. The new kind appears here in a minute or so.'));
+                router.reload();
             } catch (error) {
                 this.$toast.error(error.response?.data?.message ?? this.__('Something went wrong.'));
             }
@@ -129,7 +123,7 @@ export default {
         },
 
         statusColor(session) {
-            return { failed: 'red', working: 'blue', published: 'green', saved: 'green', changed: 'green', in_form: 'yellow' }[session.stage] ?? 'gray';
+            return { failed: 'red', working: 'blue', published: 'green', saved: 'green', changed: 'yellow', in_form: 'yellow' }[session.stage] ?? 'gray';
         },
 
         statusText(session) {
@@ -142,7 +136,7 @@ export default {
                 saved: this.__('Saved as a draft entry'),
                 published: this.__('Published'),
                 editing: this.__('Editing'),
-                changed: this.__('Changes added'),
+                changed: this.__('Changes in the form, not saved'),
             }[session.stage];
         },
 
@@ -171,19 +165,31 @@ export default {
 
         <SetupAlert v-if="!configured" :provider="provider" />
 
-        <!-- Get started, until it is complete or hidden -->
+        <!-- Get started, until it is complete; then a line saying so, until it is hidden -->
         <Panel v-if="!hiddenSetup && !setup.complete" class="mb-6">
             <div class="flex items-center justify-between gap-6 p-4">
                 <div class="min-w-0">
-                    <Heading :text="__('Get started') + ' · ' + __(':done of :total', { done: setup.done, total: setup.total })" />
+                    <Heading :text="__('Get started') + ' · ' + __(':done of :total done', { done: setup.done, total: setup.total })" />
                     <Subheading v-if="setup.next" :text="__('Next: :title', { title: setup.next.title }) + (setup.next.optional ? ' (' + __('optional') + ')' : '')" />
                     <div class="mt-2 h-1 w-64 max-w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700!">
                         <div class="h-full rounded-full" style="background: var(--gw-accent, #2b3a64)" :style="{ width: `${Math.round((setup.done / setup.total) * 100)}%` }"></div>
                     </div>
                 </div>
                 <div class="flex shrink-0 gap-2">
-                    <Button size="sm" variant="ghost" :text="__('Hide')" @click="toggleSetup(true)" />
+                    <Button v-if="setup.can_toggle" size="sm" variant="ghost" :text="__('Hide')" @click="toggleSetup(true)" />
                     <Button size="sm" variant="primary" :href="setup.url + (setup.next ? '#step-' + setup.next.number : '')" :text="__('Continue')" />
+                </div>
+            </div>
+        </Panel>
+        <Panel v-else-if="!hiddenSetup" class="mb-6">
+            <div class="flex items-center justify-between gap-6 px-4 py-3">
+                <p class="min-w-0 text-sm">
+                    <span class="font-medium">{{ __('You’re set up.') }}</span>
+                    <span class="text-gray-500"> {{ setup.can_toggle ? __('Hide Get started whenever you like.') : __('Get started stays here until someone who looks after the settings hides it.') }}</span>
+                </p>
+                <div class="flex shrink-0 gap-2">
+                    <Button size="sm" variant="ghost" :href="setup.url + (setup.next ? '#step-' + setup.next.number : '')" :text="setup.next ? __('Optional steps') : __('Get started')" />
+                    <Button v-if="setup.can_toggle" size="sm" :text="__('Hide Get started')" @click="toggleSetup(true)" />
                 </div>
             </div>
         </Panel>
@@ -232,7 +238,7 @@ export default {
                                     <Button size="sm" :text="__('Kinds')" />
                                 </template>
                                 <DropdownMenu>
-                                    <DropdownItem :text="__('Teach it a kind')" @click="add(collection)" />
+                                    <DropdownItem :text="__('Teach a kind')" @click="add(collection)" />
                                     <DropdownItem :text="__('Suggest kinds')" :disabled="!configured || collection.suggested.status === 'working'" @click="suggest(collection)" />
                                 </DropdownMenu>
                             </Dropdown>
@@ -249,7 +255,7 @@ export default {
                         @click="openKinds[collection.handle] = true"
                     >{{ __n(':count suggested kind to review|:count suggested kinds to review', suggestionsOf(collection)) }} →</button>
                     <KindSuggestions
-                        v-show="openKinds[collection.handle] || !suggestionsOf(collection)"
+                        v-show="openKinds[collection.handle] || !suggestionsOf(collection) || ['working', 'failed'].includes(collection.state?.status)"
                         :ref="`kinds-${collection.handle}`"
                         :collection="collection"
                         :configured="configured"
@@ -296,7 +302,7 @@ export default {
             </Panel>
         </div>
 
-        <p v-if="hiddenSetup" class="mt-8 text-center text-sm text-gray-500">
+        <p v-if="hiddenSetup && setup.can_toggle" class="mt-8 text-center text-sm text-gray-500">
             <button type="button" class="hover:underline!" @click="toggleSetup(false)">{{ __('Show Get started') }}</button>
         </p>
 

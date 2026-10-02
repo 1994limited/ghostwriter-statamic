@@ -8,7 +8,7 @@ On every assets field in a collection Ghostwriter writes for, a small **Ghostwri
 
 It isn't shown on fields whose validation only allows other kinds of file (for example `mimes:pdf`), or on fields with no container.
 
-Click it to choose an image for that one field.
+Click it to choose an image for that one field: **Find a photo** or **Make one**. Where only one of them is available, the dialog shows just that one; with neither, it says which keys to add.
 
 ### How it decides what fits
 
@@ -21,8 +21,8 @@ Click it to choose an image for that one field.
 Searches free photo libraries: Openverse (no key needed) and Unsplash, Pixabay and Pexels when you've added their keys. See [API keys](api-keys.md#free-photo-libraries).
 
 1. Type what the picture should show, or leave it empty and Ghostwriter chooses three searches from the block and page. Separate your own searches with semicolons.
-2. **Find photos.** The model looks at the results beside the images already used there, and marks the best ones **Best match**. The rest follow under **View more**.
-3. Click the one you want.
+2. **Find photos.** The model looks at the results beside the images already used there, and marks the best ones **Best match**. The rest follow under **View more**. Where no other entry has an image in that place yet, there is nothing to compare with: the top result of each search comes first, with no badge, and a line under the search says they weren't compared.
+3. Click the photo you want, or its **Use this** button.
 
 ### Make one
 
@@ -33,17 +33,7 @@ Needs an OpenAI or Gemini key (see [API keys](api-keys.md)).
 3. **Make image.** It takes a minute or two, matching the style of the images already in that place.
 4. **Use this**, or **Make another**.
 
-Ghostwriter never draws a real company's logo from memory. For logos, use a logo card.
-
-### Logo card
-
-For partner, client or technology tiles: your logo, centred on a flat colour or a gradient, drawn in code so it comes out exactly as it went in. Needs the Imagick PHP extension.
-
-1. Choose the **Logo**: a PNG, SVG or WebP with a transparent background. SVGs that refer to other files or contain scripts are refused.
-2. **Background colour**: leave blank to use the logo's own main colour, or give a hex value such as `#2B3A64`.
-3. **Second colour, for a gradient** (optional).
-4. **Turn the logo white** is on by default, as on a coloured ground it usually should be. A logo drawn in more than one colour is better left in its own colours on a pale ground.
-5. **Make the card.** It is sized to match the images already in that place.
+Ghostwriter never draws a real company's logo from memory. For a logo, add the logo file to the field yourself, or give it as your own image in step 2.
 
 ### What happens when you choose one
 
@@ -66,10 +56,10 @@ A search or a picture being made belongs to the person who started it. Made pict
 
 Under a draft in the writing panel, the **Images** section lists each image field the entry normally has: the top-level ones, and those in the draft's blocks that other entries fill in.
 
-- Three photographs are offered for each field as soon as the draft is written, chosen by the writer's own searches and ranked against the images already in that place. **View more** shows the rest.
+- Three photographs are offered for each field as soon as the draft is written, chosen by the writer's own searches and ranked against the images already in that place. **View more** shows the rest. Click a photo, or its **Use this** button, to choose it.
 - **Find a photo** runs your own search; **Choose from the photos for** another field, or **Use the same image as** another field, where fields share a picture.
 - Asking in the conversation works too: "find images for this" offers options, "add the images" puts the best match straight in.
-- **Make image** appears here too, with the same keys as on the field button, and can be given an image of your own to build the picture around. Logo cards aren't offered here: make one with the field's own Ghostwriter button once the draft is in the form.
+- **Make image** appears here too, with the same keys as on the field button, and can be given an image of your own to build the picture around.
 
 Chosen images go into the form with **Use this draft**, in the field's container and folder.
 
@@ -81,4 +71,4 @@ When a draft is put into a **new** entry, image fields it leaves empty get a str
 - The notes above the form list every field that has one.
 - Replace them with the image button before publishing.
 
-Turn this off with **Striped placeholders** in the settings.
+Turn this off with **Mark images still to choose** in the settings.

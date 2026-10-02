@@ -101,9 +101,38 @@ export default {
 
             this.open = false;
 
-            this.$toast.success(this.entry ? this.__('Changes added to the form. Check them over, then save.') : this.__('Draft added to the form. Check it over, then save.'));
+            const done = this.entry ? this.__('Changes added to the form. Check them over, then save.') : this.__('Draft added to the form. Check it over, then save.');
 
-            notes.forEach((note) => this.$toast.info(note));
+            if (!notes.length) {
+                this.$toast.success(done);
+
+                return;
+            }
+
+            // The notes are a to-do list, so they come as one notice that
+            // stays until it is closed, not a toast each that slips away.
+            this.$toast.info(this.notice(done, notes), { duration: 2147483647 });
+        },
+
+        // Built as elements, not HTML, so nothing in a note is read as markup.
+        notice(heading, notes) {
+            const box = document.createElement('div');
+            const title = document.createElement('strong');
+            const list = document.createElement('ul');
+
+            title.textContent = heading;
+            title.style.display = 'block';
+            list.style.cssText = 'margin: 0.4rem 0 0; padding-inline-start: 1.1rem; list-style: disc;';
+
+            notes.forEach((note) => {
+                const item = document.createElement('li');
+                item.textContent = note;
+                list.appendChild(item);
+            });
+
+            box.append(title, list);
+
+            return box;
         },
     },
 };

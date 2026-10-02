@@ -50,7 +50,7 @@
         "phpunit/phpunit": "^12.0"
     },
     "suggest": {
-        "ext-imagick": "Needed for logo cards and SVG logos."
+        "ext-imagick": "Sends smaller copies of images to the model."
     },
     "extra": {
         "statamic": {

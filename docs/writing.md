@@ -29,7 +29,7 @@ Then **Start writing**.
 
 ## The conversation
 
-Ghostwriter writes on the first turn whenever it can. If it genuinely needs something only you know, it asks (at most three questions), and the panel makes that plain: its question turns amber, the reply box says **Waiting on you**, and the draft pane offers **Just draft it with what you have** to have it write now and mark the gaps.
+Ghostwriter writes on the first turn whenever it can. If it genuinely needs something only you know, it asks (at most three questions), and the panel makes that plain: its question turns amber, the reply box says **Your turn: …**, and the draft pane offers **Just draft it with what you have** to have it write now and mark the gaps.
 
 Once there is a draft, ask for changes in plain words:
 
@@ -37,7 +37,7 @@ Once there is a draft, ask for changes in plain words:
 - "Add a section on cost, after the process."
 - "Less formal."
 
-Press **⌘↵** (or **Ctrl+↵**) to send. A spinner with a timer shows while it works; a draft usually takes a minute or two. Each reply that changed the draft ends with a line such as **Draft updated · 957 → 1,012 words (+55)**.
+Press **⌘↵** (or **Ctrl+↵**) to send. A spinner with a timer shows while it works; a draft usually takes a minute or two. Ghostwriter's replies are shown formatted, with its lists and bold as it wrote them. Each reply that changed the draft ends with a line such as **Draft updated · 957 → 1,012 words (+55)**.
 
 ## The draft
 
@@ -56,7 +56,7 @@ The word count is shown at the top. Below the draft, the **Images** section offe
 - **Nothing is saved or published.** Check the form over, then save as you normally would.
 - Using it again replaces the fields it covers.
 
-Notices list anything still for you to do. For example:
+One notice, which stays until you close it, lists anything still for you to do. For example:
 
 - **Choices it couldn't make**: entries to relate, links, dates.
 - **Links it couldn't settle**, which point to `https://example.com` for now. See [house style](fields.md#house-style).
@@ -69,4 +69,4 @@ The conversation is saved. Reopen the entry's create screen with the piece under
 
 **Start over** goes back to **What are you writing?** to begin a new piece. The earlier conversation isn't deleted; it stays on the dashboard until you remove it.
 
-A piece leaves **In progress** once an entry with its title has been saved in that collection.
+A piece leaves **In progress** once its entry has been saved: an entry with its title, saved in that collection after the piece was started. Putting the draft into the form isn't enough; until the form is saved, the piece stays in progress and can be picked up again.

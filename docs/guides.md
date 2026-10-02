@@ -13,7 +13,9 @@ Both guides are plain markdown files in your project. Ghostwriter writes the fir
 
 ### Writing it
 
-Tick the collections to read under **Read the site again**, then **Rescan and rewrite** (or **Generate the guide** the first time). Ghostwriter reads the newest published entries in those collections, spread evenly across them, and writes the guide in a minute or so. Rescanning replaces the guide, including any edits you've made.
+Tick the collections to read, then **Write the voice guide** the first time, or **Rescan and rewrite** under **Read the site again** after that. Ghostwriter reads the newest published entries in those collections, spread evenly across them, and writes the guide in a minute or so. Rescanning replaces the guide, so save or undo any edits first: while there are unsaved edits, rescanning and asking for a change wait.
+
+If a run fails, the reason stays at the top of the screen until the next run, even if you were away when it failed.
 
 To control how much it reads, see `voice.max_entries` and the other `voice.*` keys in [Configuration](configuration.md).
 
@@ -30,13 +32,13 @@ The guide is `resources/ghostwriter/voice.md`. Commit it with your project so ev
 
 ### Writing it
 
-Tick the collections to look at, then **Generate from your images**. Ghostwriter looks at the images used by the newest published entries in each collection, in every image field, including those inside page-builder blocks, a few from each field. It writes a `##` section for each collection. A collection needs at least three images to describe.
+Tick the collections to look at, then **Describe the images** (or **Look again and rewrite** under **Look at the images again** once there is a guide). Ghostwriter looks at the images used by the newest published entries in each collection, in every image field, including those inside page-builder blocks, a few from each field. It writes a `##` section for each collection. A collection needs at least three images to describe.
 
 The number of images looked at per collection is `images.guide_samples` (10 by default).
 
 ### Changing it
 
-Edit it in the same editor as the voice guide. Keep a `## Collection title` heading for each collection: that is how Ghostwriter finds the part that applies to an image.
+Edit it in the same editor as the voice guide. Keep a `## Collection title` heading for each collection: that is how Ghostwriter finds the part that applies to an image. As with the voice guide, looking again waits while there are unsaved edits, and a failed run stays explained until the next one.
 
 The guide is `resources/ghostwriter/imagery.md`.
 

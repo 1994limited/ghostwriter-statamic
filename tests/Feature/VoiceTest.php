@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Bus;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Content\ContentScanner;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
+use NineteenNinetyFour\Ghostwriter\Images\ImageryState;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateVoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Jobs\RefineVoiceGuide;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
@@ -130,5 +131,18 @@ class VoiceTest extends TestCase
 
         $this->get(cp_route('ghostwriter.index'))->assertForbidden();
         $this->postJson(cp_route('ghostwriter.voice.scan'))->assertForbidden();
+    }
+
+    public function test_a_failed_image_style_run_stays_explained_until_the_next(): void
+    {
+        $this->signIn();
+
+        app(ImageryState::class)->update(['status' => ImageryState::FAILED, 'error' => 'Not enough images.', 'task' => 'scan']);
+
+        // Seen once: still there, for whoever comes back to it.
+        $this->get(cp_route('ghostwriter.imagery.show'))->assertOk();
+        $this->getJson(cp_route('ghostwriter.imagery.status'))
+            ->assertJsonPath('status', 'failed')
+            ->assertJsonPath('error', 'Not enough images.');
     }
 }

@@ -45,3 +45,12 @@
 .gw-prose table { @apply my-4 w-full text-start text-sm; }
 .gw-prose th { @apply border-b border-gray-300 py-2 pe-3 text-start font-semibold dark:border-gray-600; }
 .gw-prose td { @apply border-b border-gray-200 py-2 pe-3 align-top dark:border-gray-700; }
+
+/* Ghostwriter's replies in the conversation: the same prose, closer set. */
+.gw-reply p,
+.gw-reply ul,
+.gw-reply ol { @apply my-2; }
+.gw-reply h2,
+.gw-reply h3 { @apply mt-3 mb-1 text-sm font-semibold; }
+.gw-reply > :first-child { @apply mt-0; }
+.gw-reply > :last-child { @apply mb-0; }

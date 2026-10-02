@@ -28,7 +28,10 @@ export default {
             adding: { title: '', collection: this.collections[0]?.handle ?? '', notes: '' },
             showDone: false,
             // Which of the suggestions waiting to be looked over are ticked.
-            chosen: [],
+            chosen: this.plan.pending.map((idea, i) => i),
+            // Whether the suggestions are open to look over. Closing them
+            // leaves them waiting; only "Drop them all" throws them away.
+            reviewing: false,
             timer: null,
         };
     },
@@ -40,10 +43,11 @@ export default {
             return this.current.status === 'working';
         },
 
-        // Open ideas, under the collection each would be written in.
+        // Open ideas, under the collection each would be written in, the
+        // newest first so ones just added are in view.
         groups() {
             return this.collections
-                .map((collection) => ({ ...collection, ideas: this.current.ideas.filter((idea) => idea.collection === collection.handle && idea.status === 'open') }))
+                .map((collection) => ({ ...collection, ideas: this.current.ideas.filter((idea) => idea.collection === collection.handle && idea.status === 'open').reverse() }))
                 .filter((group) => group.ideas.length);
         },
 
@@ -58,15 +62,6 @@ export default {
 
         done() {
             return this.current.ideas.filter((idea) => idea.status === 'dismissed' || (idea.status === 'drafted' && idea.finished));
-        },
-
-        reviewing: {
-            get() {
-                return this.current.pending.length > 0;
-            },
-            set(open) {
-                if (!open) this.decide(true);
-            },
         },
 
         options() {
@@ -94,6 +89,9 @@ export default {
 
             if (data.status === 'working') this.poll();
             if (finished && !data.pending.length) this.$toast.info(this.__('Nothing new to suggest this time.'));
+            // Fresh suggestions open to be looked over; ones left waiting from before wait on the card.
+            if (finished && data.pending.length) this.reviewing = true;
+            if (!data.pending.length) this.reviewing = false;
         },
 
         poll() {
@@ -131,7 +129,7 @@ export default {
                 in_form: this.__('Put in the form, not saved'),
                 saved: this.__('Saved as a draft entry'),
                 published: this.__('Published'),
-            }[stage] ?? this.__('Started');
+            }[stage] ?? this.__('In progress');
         },
 
         suggest() {
@@ -149,8 +147,8 @@ export default {
         },
 
         // Ticked suggestions join the plan; unticked ones are kept as
-        // dismissed so they are not suggested again. Closing the box without
-        // deciding drops them all.
+        // dismissed so they are not suggested again. "Drop them all" throws
+        // the lot away; closing the box without deciding leaves them waiting.
         async decide(discard = false) {
             const chosen = discard ? [] : this.chosen;
 
@@ -201,6 +199,17 @@ export default {
         <SetupAlert v-if="!configured" :provider="provider" />
 
         <Alert v-if="current.status === 'failed'" variant="error" :heading="__('That did not work')" :text="current.error" class="mb-6" />
+
+        <!-- Suggestions waiting to be looked over: closing the box keeps them -->
+        <Panel v-if="current.pending.length" class="mb-6">
+            <div class="flex items-center justify-between gap-4 px-4 py-3">
+                <p class="text-sm">
+                    <span class="font-medium">{{ __n(':count suggestion waiting|:count suggestions waiting', current.pending.length) }}</span>
+                    <span class="text-gray-500"> · {{ __('Ghostwriter’s ideas for what the site is missing, to keep or dismiss.') }}</span>
+                </p>
+                <Button size="sm" variant="primary" :text="__('Review')" @click="reviewing = true" />
+            </div>
+        </Panel>
 
         <Modal v-model:open="reviewing" :title="__('Ghostwriter suggests')" :icon="ghost">
             <div class="space-y-3 p-1">
@@ -271,7 +280,7 @@ export default {
                                 </div>
                                 <Badge :color="idea.status === 'drafted' ? 'green' : 'gray'" :text="idea.status === 'drafted' ? stageText(idea.stage) : __('Dismissed')" />
                                 <Button v-if="idea.entry_url" size="sm" variant="ghost" :href="idea.entry_url" :text="__('Open entry')" />
-                                <Button size="sm" variant="ghost" :text="__('Put back')" @click="mark(idea, 'open')" />
+                                <Button v-if="idea.status === 'dismissed'" size="sm" variant="ghost" :text="__('Put back')" @click="mark(idea, 'open')" />
                                 <Button size="sm" variant="ghost" :text="__('Delete')" @click="remove(idea)" />
                             </div>
                         </div>

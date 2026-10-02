@@ -25,7 +25,29 @@ Ghostwriter now shares its core with the Filament and Craft addons, as the packa
 - Deleting a kind of content says so ("Kind deleted"), and says why when it can't. The confirmation now says "kind of content" rather than "content type".
 - Choosing none of Ghostwriter's plan suggestions says "Dismissed 3 suggestions." rather than "0 added to the plan."
 - An image chosen with the field button for a multi-image field that already holds as many as it allows no longer goes in over the limit. It is kept in the container, and Ghostwriter says so.
-- The images docs no longer promise a Logo card under a draft; logo cards are made with the field's own button.
+**Changes** (agreed after the UX parity audit, so the three addons work alike):
+
+- **Settings in config win.** A value set in `config/ghostwriter.php` or `.env` (provider, model, collections, voice collections, suggesting kinds, image provider and model, placeholders) now wins over the settings screen, which shows that field locked with a note saying what it is set to. Before, a value saved on the screen silently beat the config, so saving the form once fixed the provider whatever `GHOSTWRITER_PROVIDER` said. **If you published the config before**, its `provider` line reads `env('GHOSTWRITER_PROVIDER', 'anthropic')`, which now fixes the provider to Claude: change it to `env('GHOSTWRITER_PROVIDER')`, and likewise drop the defaults from `suggest_kinds` and `images.placeholders`, to choose them on the screen again.
+- The time limit for each model call is 300 seconds by default (was 180), and is set in the config only.
+- Saving a model name that looks like another provider's ("gpt-…" with Claude chosen) shows a warning. It is still saved.
+- **Get started** counts only the five required steps, so the bar reaches the end, and opens on the first required step still to do. Once they're done, the dashboard keeps a one-line "You're set up" until Get started is hidden. Hiding and showing it is for people who may change the settings, as it applies to everyone.
+- Get started's second step lets people who may change the settings choose the collections to write for and learn the voice from right there.
+- The dashboard widget says when there is no API key yet, with a link to add one; "Write something" stays visible but disabled.
+- Guide buttons say what they do: "Write the voice guide" and "Describe the images" the first time, then "Rescan and rewrite" and "Look again and rewrite". Rescanning waits while there are unsaved edits, as asking for a change already did. A failed image style run stays explained until the next run, as the voice guide's does.
+- "Teach a kind" (was "Teach it a kind"). After **Learn this** in the teach box, it closes and the collection's row shows the kind being learned, then the new kind or why it failed.
+- Suggested kinds on Get started show example entries, as on the dashboard, and "Learn all" there asks first.
+- The kind editor no longer shows each question's handle (it is made from the wording and kept when you reword it), and a kind needs at least one question.
+- After a draft is used, the notes about what is left to do come as one notice listing them all, which stays until it is closed, rather than a toast each.
+- Ghostwriter's replies in the conversation are shown formatted (lists, bold), with any HTML escaped.
+- When Ghostwriter has asked something, the reply box says "Your turn: …" (was "Waiting on you").
+- The image dialog is a little wider (about 48rem) with photos in three columns at the same shape, each with a **Use this** button as well as being clickable. "Best match" is only shown on photos the model compared with the site's own; when there was nothing to compare with, a line says so. The draft panel's photos get **Use this** too.
+- The placeholder setting is called "Mark images still to choose" (was "Striped placeholders").
+- **Content plan:** closing the "Ghostwriter suggests" box no longer throws the suggestions away. They wait, with an "N suggestions waiting" card at the top of the plan whose **Review** opens them again; only **Drop them all** discards them. Every waiting suggestion starts ticked when the plan is opened. Open ideas are listed newest first within each collection. **Put back** is offered only on dismissed ideas, not finished ones.
+- A piece counts as finished only once its entry is saved. Changes put into an existing entry's form stay in progress ("Changes in the form, not saved") until the entry is saved, and an older entry that happens to share a new piece's title no longer marks it finished.
+**Removed:**
+
+- **Logo cards.** The image dialog's "Logo card" tab is gone, along with its routes (the field button's and the writing panel's) and the Imagick drawing code. The image button now offers **Find a photo** and **Make one**. For a logo, add the file to the field yourself, or give it to **Make one** as your own image. Logo cards already saved stay in their containers. Imagick is no longer needed for anything but sending smaller copies of images to the model.
+
 - For developers: `NineteenNinetyFour\Ghostwriter\Drafts\Draft` is now `NineteenNinetyFour\Ghostwriter\Core\Text\Draft`. The old name still works, so a custom `EntryWriter` keeps working; it goes in 2.0. The `Ai\Agents` classes are gone.
 
 ## 1.0.1 — 2026-10-01
