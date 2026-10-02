@@ -7,6 +7,7 @@
 - Where each ledger image is used is kept up to date as entries are saved (inside Replicator and Bard sets too), as assets are moved or renamed, and when an asset is deleted. `php please ghostwriter:stock-usages` rescans every entry.
 
 ### Changed
+- **Drafts start unpublished.** **Use this draft** on a new entry, or one that isn't published, switches the form's Published toggle off, so the entry can be saved straight away and goes live only when someone switches it on. An entry already published is left as it is. Config `drafts_unpublished` (default `true`).
 - Requires `1994/ghostwriter-core` 1.1.
 - Images from a paid library (and any file named or credited as Getty Images or iStock) are never sent to a model: not as references when finding or making a picture, nor as samples for the image style guide.
 

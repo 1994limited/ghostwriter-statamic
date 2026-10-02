@@ -215,6 +215,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Drafts start unpublished
+    |--------------------------------------------------------------------------
+    |
+    | When a draft is put into the form of a new entry, or of one that isn't
+    | published, the form's Published toggle is switched off, so the entry
+    | can be saved straight away and goes live only when someone switches it
+    | on. An entry that is already published is left as it is. False leaves
+    | the toggle alone everywhere.
+    |
+    */
+
+    'drafts_unpublished' => (bool) env('GHOSTWRITER_DRAFTS_UNPUBLISHED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Entry writer
     |--------------------------------------------------------------------------
     |

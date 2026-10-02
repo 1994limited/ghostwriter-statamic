@@ -79,6 +79,7 @@ The panel follows the Control Panel's dark mode.
 **Use this draft** puts the draft into the entry form underneath, field by field. Anything the draft doesn't cover keeps what was in the form.
 
 - **Nothing is saved or published.** Check the form over, then save as you normally would.
+- **Drafts start unpublished.** On a new entry, or one that isn't published yet, the form's **Published** toggle is switched off, so you can save straight away and the entry goes live only when you switch it on. The message says "Ghostwriter drafts start unpublished. Switch on Published when you're ready." An entry that is already published keeps its toggle as it is. To leave the toggle alone everywhere, set `drafts_unpublished` to `false` in `config/ghostwriter.php` (or `GHOSTWRITER_DRAFTS_UNPUBLISHED=false`).
 - Using it again replaces the fields it covers.
 
 When the draft leaves you something to do, one notice above the form lists all of it, under "Draft added to the form. Check it over, then save.", and stays until you close it. Without notes, a short message says the same and goes. The notes include:
