@@ -197,7 +197,7 @@ export default {
                             <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" @error="broken[photo.source + photo.id] = true" />
                             <span v-if="photo.term" class="block truncate px-1.5 pt-1 text-xs font-medium">“{{ photo.term }}”</span>
                         </button>
-                        <a v-if="photo.credit_url" :href="photo.credit_url" target="_blank" rel="noopener noreferrer" class="block truncate px-1.5 text-xs text-gray-500 hover:underline!">{{ photo.credit }}</a>
+                        <a v-if="/^https?:\/\//i.test(photo.credit_url ?? '')" :href="photo.credit_url" target="_blank" rel="noopener noreferrer" class="block truncate px-1.5 text-xs text-gray-500 hover:underline!">{{ photo.credit }}</a>
                         <span v-else class="block truncate px-1.5 text-xs text-gray-500">{{ photo.credit }}</span>
                         <div class="px-1.5 py-1.5">
                             <Button size="xs" :text="__('Use this')" :disabled="choosing !== null" @click="use(image, photo)" />

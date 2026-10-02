@@ -115,7 +115,7 @@ class Settings
 
     /**
      * The settings screen's blueprint with a read-only list of the API keys
-     * and whether each is set, at the top of the AI provider section.
+     * and whether each is set, in the API keys section above the AI provider.
      *
      * @param  array<string, mixed>  $contents
      * @return array<string, mixed>

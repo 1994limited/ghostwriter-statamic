@@ -245,7 +245,7 @@ export default {
                     size="sm"
                     :text="__('Suggest kinds everywhere')"
                     :loading="suggestingAll"
-                    :disabled="!configured || suggestingAll || collections.every((collection) => collection.suggested.status === 'working')"
+                    :disabled="!configured || suggestingAll || collections.every((collection) => collection.suggested?.status === 'working')"
                     @click="suggestEverywhere"
                 />
             </div>

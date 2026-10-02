@@ -164,6 +164,8 @@ class Presenter
             'title' => $session->title(),
             'status' => $session->status,
             'error' => $session->error,
+            // A failed turn can be run again when the message it was answering is the last one.
+            'can_retry' => $session->status === Session::FAILED && ($last = end($session->messages)) !== false && $last['role'] === 'user',
             // Put into a publish form already; using it again replaces that.
             'applied' => $session->appliedAt !== null,
             // No worker has picked the turn up after a while: say so.

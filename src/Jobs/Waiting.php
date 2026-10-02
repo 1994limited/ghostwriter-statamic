@@ -63,7 +63,7 @@ class Waiting
             return null;
         }
 
-        return "Still waiting for a queue worker to pick this up. Is `{$this->command()}` running?";
+        return "Still waiting for a queue worker to pick this up. Is “{$this->command()}” running?";
     }
 
     /**

@@ -106,7 +106,7 @@ class VoiceTest extends TestCase
         $this->getJson(cp_route('ghostwriter.voice.status'))->assertJsonPath('waiting', null);
         config(['queue.default' => 'redis', 'queue.connections.redis.queue' => 'ghostwriter']);
         $this->travel(31)->seconds();
-        $this->getJson(cp_route('ghostwriter.voice.status'))->assertJsonPath('waiting', 'Still waiting for a queue worker to pick this up. Is `php artisan queue:work --queue=ghostwriter` running?');
+        $this->getJson(cp_route('ghostwriter.voice.status'))->assertJsonPath('waiting', 'Still waiting for a queue worker to pick this up. Is “php artisan queue:work --queue=ghostwriter” running?');
     }
 
     public function test_nothing_is_sent_without_an_api_key(): void

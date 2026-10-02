@@ -717,7 +717,7 @@ export default {
 
                         <div v-if="session.status === 'failed'" class="space-y-2">
                             <Alert variant="error" :heading="__('That didn’t work')" :text="session.error" />
-                            <Button size="sm" :text="__('Try again')" :loading="retrying" :disabled="retrying" @click="retry" />
+                            <Button v-if="session.can_retry" size="sm" :text="__('Try again')" :loading="retrying" :disabled="retrying" @click="retry" />
                         </div>
                     </div>
 

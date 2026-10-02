@@ -12,6 +12,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\MockHttpClient;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\ServiceProvider;
+use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\ContentType;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Psr\Http\Message\RequestInterface;
@@ -116,7 +117,7 @@ abstract class TestCase extends AddonTestCase
 
         $this->app->forgetInstance(StockSearch::class);
         $this->app->forgetInstance(PhotoFinder::class);
-        $this->app->instance(StockSearch::class, new StockSearch($client, new ConfigCredentials, openverse: fn (): bool => app(\NineteenNinetyFour\Ghostwriter\Settings::class)->openverse()));
+        $this->app->instance(StockSearch::class, new StockSearch($client, new ConfigCredentials, openverse: fn (): bool => app(Settings::class)->openverse()));
 
         return $client;
     }

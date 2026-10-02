@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use NineteenNinetyFour\Ghostwriter\Ai\ModelCheck;
+use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\Addon;
@@ -70,12 +71,12 @@ class SettingsTest extends TestCase
 
         Addon::get(Settings::ADDON)->settings()->set(['openverse' => false])->save();
         $this->assertFalse($settings->openverse());
-        $this->assertNotContains('openverse', app(\NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch::class)->sources());
+        $this->assertNotContains('openverse', app(StockSearch::class)->sources());
 
         config(['ghostwriter.images.openverse' => true]);
         $this->assertTrue($settings->openverse());
         $this->assertTrue($settings->isOverridden('openverse'));
-        $this->assertContains('openverse', app(\NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch::class)->sources());
+        $this->assertContains('openverse', app(StockSearch::class)->sources());
 
         config(['ghostwriter.keys.openai' => 'sk-secret-value', 'ghostwriter.images.pexels_key' => 'pexels-secret']);
 

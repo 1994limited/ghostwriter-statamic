@@ -631,7 +631,8 @@ class WritingTest extends TestCase
 
         $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))
             ->assertJsonPath('status', Session::FAILED)
-            ->assertJsonPath('error', 'The provider is overloaded.');
+            ->assertJsonPath('error', 'The provider is overloaded.')
+            ->assertJsonPath('can_retry', true);
 
         $this->postJson(cp_route('ghostwriter.sessions.retry', $session->id))
             ->assertOk()
@@ -665,7 +666,7 @@ class WritingTest extends TestCase
         $this->travel(31)->seconds();
 
         $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))
-            ->assertJsonPath('queue_waiting', 'Still waiting for a queue worker to pick this up. Is `php artisan queue:work` running?');
+            ->assertJsonPath('queue_waiting', 'Still waiting for a queue worker to pick this up. Is “php artisan queue:work” running?');
 
         // A worker starts it: nothing more to say.
         $this->ai->respond('writer', '<reply>Shorter.</reply>');
