@@ -8,6 +8,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
+use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\User;
 use Statamic\Widgets\VueComponent;
@@ -41,6 +42,7 @@ class Ghostwriter extends Widget
             'planOpen' => count(array_filter(app(PlanStore::class)->ideas(), fn (Idea $idea) => $idea->isOpen())),
             'setup' => app(Onboarding::class)->progress(),
             'configured' => app(Studio::class)->configured(),
+            'stock' => app(Ledger::class)->overview(),
             'collections' => app(TypeRepository::class)->collections()->map(fn ($collection) => [
                 'handle' => $collection->handle(),
                 'title' => $collection->title(),

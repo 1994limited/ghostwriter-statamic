@@ -179,7 +179,10 @@ class StockLibraries
      * ready, and everything. Managers also see a paid library that is set
      * up but can't be searched, marked to connect in Settings.
      *
-     * @return array<int, array{value: string, label: string, paid: bool, disabled?: bool}>
+     * `label` is for the select ("Demo stock (no charge)"); `short` for running
+     * text ("Demo").
+     *
+     * @return array<int, array{value: string, label: string, short?: string, paid: bool, disabled?: bool}>
      */
     public function choices(bool $manager = false): array
     {
@@ -195,9 +198,9 @@ class StockLibraries
             }
 
             if ($library->available()) {
-                $choices[] = ['value' => $id, 'label' => $library->label(), 'paid' => true];
+                $choices[] = ['value' => $id, 'label' => $library->label(), 'short' => $this->shortLabel($id), 'paid' => true];
             } elseif ($manager) {
-                $choices[] = ['value' => $id, 'label' => __(':library (connect in Settings)', ['library' => $library->label()]), 'paid' => true, 'disabled' => true];
+                $choices[] = ['value' => $id, 'label' => __(':library (connect in Settings)', ['library' => $library->label()]), 'short' => $this->shortLabel($id), 'paid' => true, 'disabled' => true];
             }
         }
 

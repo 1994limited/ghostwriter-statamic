@@ -14,6 +14,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Settings;
+use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Entry;
@@ -74,6 +75,7 @@ class DashboardController
             ])->values(),
             'sessions' => $summaries->take(30)->values(),
             'suggest_all_url' => cp_route('ghostwriter.kinds.suggest_all'),
+            'stock' => app(Ledger::class)->overview(),
         ]);
     }
 

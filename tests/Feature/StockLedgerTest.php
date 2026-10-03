@@ -100,6 +100,8 @@ class StockLedgerTest extends TestCase
 
     public function test_saving_an_entry_keeps_where_each_ledger_image_is_used_in_step(): void
     {
+        // These entries are published: let the preview through, with a warning.
+        config(['ghostwriter.stock.on_publish' => 'warn']);
         $paid = $this->record('covers/one.png', 'getty');
         $free = $this->record('covers/two.png', 'unsplash', free: true);
 

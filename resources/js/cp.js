@@ -3,6 +3,7 @@ import Voice from './pages/Voice.vue';
 import Type from './pages/Type.vue';
 import Plan from './pages/Plan.vue';
 import Setup from './pages/Setup.vue';
+import Stock from './pages/Stock.vue';
 import Widget from './components/Widget.vue';
 import Launcher from './components/Launcher.vue';
 import ImageDialog from './components/ImageDialog.vue';
@@ -18,6 +19,7 @@ Statamic.booting(() => {
     Statamic.$inertia.register('ghostwriter::Type', Type);
     Statamic.$inertia.register('ghostwriter::Plan', Plan);
     Statamic.$inertia.register('ghostwriter::Setup', Setup);
+    Statamic.$inertia.register('ghostwriter::Stock', Stock);
     Statamic.$components.register('ghostwriter-widget', Widget);
     Statamic.$components.register('ghostwriter-launcher', Launcher);
     Statamic.$components.register('ghostwriter-image-dialog', ImageDialog);

@@ -70,6 +70,7 @@ php artisan vendor:publish --tag=ghostwriter-config
 | `plan.suggestions` | `8` | Ideas asked for each time |
 | `sessions_path` | `storage/ghostwriter/sessions` | Conversations. The rest of Ghostwriter's working files sit beside this folder |
 | `shared_conversations` | `true` | See [Shared conversations](permissions.md#shared-conversations) |
+| `stock_path`, `stock.*` | see [Stock photos](stock-photos.md#configuration) | The stock image ledger, paid libraries' keys, the demo library, the publish rule |
 | `drafts_unpublished` | `true` | **Use this draft** switches the form's Published toggle off on a new or unpublished entry. See [Use this draft](writing.md#use-this-draft) |
 | `writer` | `SchemaEntryWriter::class` | The class that turns a draft into entry data; bind your own to take over |
 
@@ -89,6 +90,8 @@ Ghostwriter adds no database tables. Everything is a file.
 | Settings | `resources/addons/ghostwriter-statamic.yaml` | Yes |
 | Conversations and drafts | `storage/ghostwriter/sessions/` | No |
 | Photo searches and made images waiting to be used | `storage/ghostwriter/images/` | No |
+| The stock image ledger (one file per stock photo, with its licence) | `content/ghostwriter/stock/*.yaml` | Yes |
+| Stock previews (watermarked, private, deleted when their period ends) | `storage/ghostwriter/stock/` | No |
 | Your own images uploaded for a picture under a draft | `storage/ghostwriter/uploads/` | No |
 | When work was queued (for the "still waiting" notice) | `storage/ghostwriter/queued/` | No |
 | Whether Get started is hidden | `storage/ghostwriter/onboarding.json` | No |

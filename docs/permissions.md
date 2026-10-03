@@ -15,6 +15,10 @@ Ghostwriter never lets anyone do what they couldn't do by hand:
 - Putting a draft into a new entry needs Statamic's own permission to create entries in that collection, and editing an entry needs the permission to edit it.
 - Saving an image into an assets field needs the permission to upload to that field's container.
 
+## Licensing stock photos
+
+**License stock images from paid libraries** (`license stock images`) lets someone license a paid stock photo, which spends from your account with the library. Nobody has it by default; super users do. Without it, an editor can still insert a preview and press **Request licence**. See [Stock photos](stock-photos.md#permissions).
+
 ## Managing Ghostwriter
 
 Managers are super users, and people with Statamic's permission to edit the addon's settings (**Ghostwriter settings** under the addon permissions, `edit 1994/ghostwriter-statamic settings`). Only they can:

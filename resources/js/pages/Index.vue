@@ -26,6 +26,7 @@ export default {
         suggest_all_url: { type: String, default: null },
         setup: { type: Object, required: true },
         counts: { type: Object, required: true },
+        stock: { type: Object, default: () => ({ previews: 0 }) },
     },
 
     data() {
@@ -243,6 +244,22 @@ export default {
                 <div class="text-sm text-gray-500">{{ __('Drafts and edits under way') }}</div>
             </a>
         </div>
+
+        <!-- Stock previews still to license: only when there are some -->
+        <Link
+            v-if="stock.previews > 0"
+            :href="stock.url"
+            class="mb-6 flex items-center justify-between gap-4 rounded-lg border p-4"
+            :class="stock.warning ? 'border-amber-400 bg-amber-50 hover:border-amber-500! dark:border-amber-700! dark:bg-amber-950/40!' : 'border-gray-200 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!'"
+            data-ghostwriter-stock-tile
+        >
+            <div>
+                <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Stock images') }}</div>
+                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ stock.previews }}</span> {{ __n('stock preview to license|stock previews to license', stock.previews) }}</div>
+                <div class="text-sm" :class="stock.warning ? 'text-amber-800 dark:text-amber-300!' : 'text-gray-500'">{{ stock.warning ? __('Some are on live pages or their preview has expired. License them, or choose other images.') : __('Pages holding a preview can’t be published until it is licensed.') }}</div>
+            </div>
+            <span class="shrink-0 text-sm underline">{{ __('Open Stock images') }}</span>
+        </Link>
 
         <!-- Collections, as one list -->
         <Panel :heading="__('Collections')" class="mb-6">

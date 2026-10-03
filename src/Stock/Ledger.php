@@ -62,6 +62,26 @@ class Ledger
     }
 
     /**
+     * For the Overview tile and the widget: how many stock images aren't
+     * licensed yet, and whether any needs attention now (its comp has
+     * expired, or a live page uses it).
+     *
+     * @return array{previews: int, warning: bool, url: string}
+     */
+    public function overview(): array
+    {
+        $unlicensed = $this->images->all(new StockImageQuery([StockImage::PREVIEW, StockImage::LICENSING, StockImage::FAILED]));
+        $warning = false;
+
+        foreach ($unlicensed as $image) {
+            $live = array_filter($image->usages(), fn (Usage $usage) => $usage->live) !== [];
+            $warning = $warning || $live || ($image->is(StockImage::PREVIEW) && $image->comp() === null);
+        }
+
+        return ['previews' => count($unlicensed), 'warning' => $warning, 'url' => cp_route('ghostwriter.stock.index')];
+    }
+
+    /**
      * The live record for an asset, if the ledger has one.
      */
     public function forAsset(Asset $asset): ?StockImage
@@ -85,11 +105,13 @@ class Ledger
     }
 
     /**
-     * Where an image is used on an entry: its field, on the entry's site.
+     * Where an image was put on an entry: its field, on the entry's site.
+     * Not live yet: the form holding it hasn't been saved. Saving the entry
+     * says whether it is (TrackStockImages).
      */
     public static function usage(Entry $entry, string $field, ?string $label = null): Usage
     {
-        return new Usage('entry', (string) $entry->id(), $field, $entry->locale(), $label, live: (bool) $entry->published());
+        return new Usage('entry', (string) $entry->id(), $field, $entry->locale(), $label, live: false);
     }
 
     /**

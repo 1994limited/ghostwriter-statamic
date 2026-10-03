@@ -10,6 +10,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\PlanController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SessionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SetupController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\StockController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\StockLedgerController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\TypeController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\VoiceController;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\AuthorizeGhostwriter;
@@ -35,6 +36,11 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('images/{id}/use', [ImagesController::class, 'use'])->name('images.use');
 
     Route::post('stock/libraries/{library}/check', [StockController::class, 'check'])->name('stock.check');
+    Route::get('stock', [StockLedgerController::class, 'show'])->name('stock.index');
+    Route::get('stock/export.csv', [StockLedgerController::class, 'csv'])->name('stock.csv');
+    Route::get('stock/{id}/record', [StockLedgerController::class, 'record'])->name('stock.record');
+    Route::post('stock/{id}/reconcile', [StockLedgerController::class, 'reconcile'])->name('stock.reconcile');
+    Route::post('stock/{id}/remove', [StockLedgerController::class, 'remove'])->name('stock.remove');
     Route::post('stock/assets', [StockController::class, 'assets'])->name('stock.assets');
     Route::get('stock/{id}', [StockController::class, 'show'])->name('stock.show');
     Route::get('stock/{id}/comp', [StockController::class, 'comp'])->name('stock.comp');
