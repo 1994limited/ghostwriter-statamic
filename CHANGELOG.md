@@ -3,6 +3,18 @@
 ## Unreleased
 
 ### Added
+- **Finish this page, server side** (core 1.3). Ghostwriter finds what only a person can finish in an entry, whoever wrote it: a fact to add (`[[ask: adult ticket price]]`), a link to choose (`#gw-link:contact-page`, inline or in a `link` field), a link to an entry that's gone, the striped image placeholder, a stock preview not licensed, template text left in, and required or usually-filled fields left empty. Found for nothing: no model call, no save.
+  - `POST cp/ghostwriter/finish/check` checks the publish form's values as they stand, for the count by Save and the guide; each gap comes with its message, speech label and fixes in the editor's words (`__()`), and the tab its field is on. "Link to …" is suggested from entries whose title or slug match the link's hint.
+  - Using a draft returns its gaps too, and the conversation keeps what the draft left for a person, so the guide can say why ("I didn't want to guess").
+  - `POST cp/ghostwriter/finish/fill`: **Write around it** (the sentence without the missing fact) and **Write it for me** (a summary from the page's own words), one small model call per click. Ghostwriter never fills in a fact.
+  - `POST cp/ghostwriter/finish/guide` remembers, per person, whether the guide was left open or minimised (it starts minimised).
+  - Core's ports, with its contract tests: `StatamicPlaceholderAssets`, `StatamicAssetRefs` (assets fields, Bard images and Bard sets) and `StatamicLinkTargets`; and `MarkerRoundTripContract` and `PublishGuardContract` through the addon's real apply path and saves.
+
+### Changed
+- **One publish guard** for Finish this page and stock photos (core's `PublishReadiness`): a page can't be published, scheduled or have its working copy published while it holds a fact to add, a link to choose or to a deleted page, an image placeholder, template text, or an unlicensed stock preview. One message per field, by the form's path ("Add adult ticket price before publishing."); saving unpublished always works. `publish.on_unfinished` (`GHOSTWRITER_ON_UNFINISHED_PUBLISH`, or **When a page with something unfinished is published** on the settings screen) can make it a warning instead; it replaces the stock photos setting, and `stock.on_publish` is still read when it isn't set.
+- A link a new page usually has but the draft can't settle now points at `#gw-link:<hint>` (a link to choose), not `https://example.com`.
+
+### Added (stock photos)
 - **Stock image ledger.** Every photo Ghostwriter puts into the site from a photo library is recorded: the library and photo, the asset, its licence and credit, who added it and when, and where it is used. One YAML file per record in `content/ghostwriter/stock/` (`ghostwriter.stock_path`), so it is committed with the site. Records are never deleted.
 - **Stock photos settings.** A Stock photos section on the settings screen: a row for each paid library with whether its keys are set in `.env` (never the keys), **Check connection** (the account and what it can still buy), a switch for each library set up, the default source for "Search in", "Include editorial images by default", and what happens when a page with an unlicensed preview is published (Block or Warn; `stock.on_publish` in config wins). Getty Images and iStock are listed as coming: their keys can be set now.
 - **Demo stock (no charge)**: a pretend paid library for trying the whole preview and licence flow. Only on a local site (or where `stock.demo` turns it on), never in production.

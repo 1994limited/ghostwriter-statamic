@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\CollectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\DashboardController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\EntryController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\FinishController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImageryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImagesController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\LibraryConnectionController;
@@ -29,6 +30,10 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('voice/scan', [VoiceController::class, 'scan'])->name('voice.scan');
     Route::patch('voice', [VoiceController::class, 'update'])->name('voice.update');
     Route::post('voice/refine', [VoiceController::class, 'refine'])->name('voice.refine');
+
+    Route::post('finish/check', [FinishController::class, 'check'])->name('finish.check');
+    Route::post('finish/fill', [FinishController::class, 'fill'])->name('finish.fill');
+    Route::post('finish/guide', [FinishController::class, 'guide'])->name('finish.guide');
 
     Route::get('images/tools', [ImagesController::class, 'tools'])->name('images.tools');
     Route::post('images', [ImagesController::class, 'start'])->name('images.start');

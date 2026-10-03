@@ -30,6 +30,8 @@ class SchemaReader
 {
     private const MAX_DEPTH = 5;
 
+    private bool $listFolders = true;
+
     /** More files than this is a library, not a choice. */
     private const MAX_FILES = 80;
 
@@ -78,6 +80,22 @@ class SchemaReader
     }
 
     /**
+     * The schema without listing any folder's files: for checks that run
+     * while entries are saved (Finish this page, the publish guard), which
+     * need no options and mustn't fill the container's file list early.
+     */
+    public function schemaWithoutFolders(Blueprint $blueprint): Schema
+    {
+        $this->listFolders = false;
+
+        try {
+            return $this->schema($blueprint);
+        } finally {
+            $this->listFolders = true;
+        }
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function fields(Fields $fields, int $depth): array
@@ -113,7 +131,7 @@ class SchemaReader
 
         // An assets field tied to one small folder, such as a set of logos,
         // is a choice among the files there, which the writer can make.
-        $files = $type === 'assets' ? $this->folderFiles($field) : [];
+        $files = $type === 'assets' && $this->listFolders ? $this->folderFiles($field) : [];
 
         if ($files !== []) {
             $kind = (int) $field->get('max_files') === 1 ? 'choice' : 'choices';

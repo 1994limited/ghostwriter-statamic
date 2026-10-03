@@ -21,11 +21,15 @@ class HouseFinish
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{data: array<string, mixed>, notes: array<int, string>}
+     *                                      `places` are the links the house style left for a person, and
+     *                                      `placeholders` the image fields given the striped placeholder, by
+     *                                      label: what Finish this page's session list keeps.
+     * @return array{data: array<string, mixed>, notes: array<int, string>, places: array<int, string>, placeholders: array<int, string>}
      */
     public function finish(array $data, Schema $schema, Pattern $pattern, ?string $id, string $title): array
     {
         $notes = [];
+        $filled = [];
 
         $house = $this->layouts->apply($data, $schema, $pattern->house, $id, $title);
         $data = $house->data;
@@ -41,9 +45,11 @@ class HouseFinish
             if ($note = $placeholders->note()) {
                 $notes[] = $note;
             }
+
+            $filled = $placeholders->filled();
         }
 
-        return ['data' => $data, 'notes' => $notes];
+        return ['data' => $data, 'notes' => $notes, 'places' => $house->toFill, 'placeholders' => $filled];
     }
 
     /**

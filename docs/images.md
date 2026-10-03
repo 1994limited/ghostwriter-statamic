@@ -74,7 +74,7 @@ When a draft is put into a **new** entry, image fields it leaves empty get a str
 
 - The placeholder is one shared asset, `ghostwriter/image-placeholder.png`, in the field's container.
 - The notes above the form list every field that has one.
-- Replace them with the image button before publishing.
+- Replace them with the image button before publishing: [Finish this page](finish-this-page.md) points each one out, and a page holding one can't be published.
 
 Turn this off with **Mark images still to choose** in the settings, or `images.placeholders` in the config.
 
