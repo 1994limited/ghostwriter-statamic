@@ -67,6 +67,16 @@ php artisan queue:restart
 
 A running worker keeps the old code until it restarts, hence the last line. See the [changelog](../CHANGELOG.md) for what changed.
 
+### From 1.0 to 1.1
+
+Nothing to migrate.
+
+- **Config.** If you published `config/ghostwriter.php`, the new settings (`stock`, `stock_path`, `publish`, `finish`, `drafts_unpublished`) take their defaults from the package until you add them. To see them all, publish the config again with `--tag=ghostwriter-config --force` and copy your changes back.
+- **Stock photo ledger.** `content/ghostwriter/stock/` is made when the first stock photo goes in. Commit it with your content: it is the record of what you licensed.
+- **Scheduler.** `ghostwriter:stock-cleanup` runs hourly through Laravel's scheduler (`php artisan schedule:run` every minute from cron, as usual).
+- **Publishing.** Pages holding a fact to add (`[[ask: …]]`), a link to choose, a link to a deleted entry, an image placeholder or an unlicensed stock preview can no longer be published until they're finished. See [Finish this page](finish-this-page.md); set it to **Warn** to publish with a warning instead.
+- **Drafts start unpublished.** Set `GHOSTWRITER_DRAFTS_UNPUBLISHED=false` to keep the 1.0 behaviour.
+
 ## Uninstalling
 
 ```bash

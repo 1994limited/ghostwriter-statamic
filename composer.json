@@ -1,6 +1,6 @@
 {
     "name": "1994/ghostwriter-statamic",
-    "description": "Learns a site's tone of voice and image style from what it has published, then drafts new entries in that voice from a short brief and a conversation, finds or makes images to match, and plans what the site is missing.",
+    "description": "Learns a site's tone of voice and image style from what it has published, then drafts new entries in that voice from a short brief and a conversation, finds or makes images to match (or licenses stock photos from your own account), walks you through finishing each page, and plans what the site is missing.",
     "type": "statamic-addon",
     "license": "proprietary",
     "keywords": [
@@ -39,7 +39,7 @@
     "require": {
         "php": "^8.3",
         "ext-gd": "*",
-        "1994/ghostwriter-core": "^1.3",
+        "1994/ghostwriter-core": "^1.4",
         "guzzlehttp/guzzle": "^7.8|^8.0",
         "guzzlehttp/psr7": "^2.6|^3.0",
         "league/commonmark": "^2.4",
@@ -57,7 +57,7 @@
     "extra": {
         "statamic": {
             "name": "Ghostwriter",
-            "description": "Learns your tone of voice and image style, drafts entries in your voice from a brief and a conversation, finds or makes images, and plans what the site is missing.",
+            "description": "Learns your tone of voice and image style, drafts entries in your voice, finds, makes or licenses images, walks you through finishing each page, and plans what the site is missing.",
             "developer": "1994",
             "developer-url": "https://1994.co.uk"
         },

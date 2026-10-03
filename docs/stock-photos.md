@@ -2,7 +2,7 @@
 
 Ghostwriter can put photos from paid stock libraries into your pages, licensed from **your own account** with the library, with your own key. It never licenses on your behalf, never holds a key of its own, and never sends your calls through anyone else's servers.
 
-**Which libraries.** **Shutterstock**, for customers with a Shutterstock API plan. Getty Images and iStock are **coming**: their keys can be set now, and they switch on once a Ghostwriter update adds them. To try the whole flow without an account, use the **demo library** on a local site.
+**Which libraries.** **Shutterstock (API plan required)**: licences are charged by Shutterstock to your own API plan. Getty Images and iStock are **coming**: their keys can be set now, and they switch on once a Ghostwriter update adds them. To try the whole flow without an account, use the **demo library** on a local site.
 
 Free photos (Openverse, Unsplash, Pexels, Pixabay) work as before: see [Images](images.md). Every photo Ghostwriter puts into the site, free or paid, is recorded in the [stock image ledger](#the-stock-images-screen).
 
