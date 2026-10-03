@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Ai;
 
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\ModelTiers;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\ProviderSettings;
 use NineteenNinetyFour\Ghostwriter\Settings;
 
@@ -10,7 +11,7 @@ use NineteenNinetyFour\Ghostwriter\Settings;
  * then config/ghostwriter.php. Read on every call, so a change on the
  * settings screen applies at once.
  */
-class ConfigProviderSettings implements ProviderSettings
+class ConfigProviderSettings implements ModelTiers, ProviderSettings
 {
     public function __construct(private Settings $settings) {}
 
@@ -44,6 +45,16 @@ class ConfigProviderSettings implements ProviderSettings
         $url = config("ghostwriter.base_urls.{$provider}");
 
         return is_string($url) && trim($url) !== '' ? trim($url) : null;
+    }
+
+    /**
+     * With OpenRouter, the model chosen for a tier ("writing" or "quick"):
+     * config first, then the settings screen. Null leaves it to the
+     * provider's model setting, then OpenRouter's default for the tier.
+     */
+    public function tierModel(string $provider, string $tier): ?string
+    {
+        return $provider === 'openrouter' ? $this->settings->openRouterModel($tier) : null;
     }
 
     public function anthropicFallbacks(): bool

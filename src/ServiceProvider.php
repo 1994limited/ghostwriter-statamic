@@ -8,10 +8,15 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigProviderSettings;
+use NineteenNinetyFour\Ghostwriter\Ai\EncryptedProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Ai\ModelCheck;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectedCredentials;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectsProvider;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\OpenRouterConnection;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Http\GuzzleHttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\ProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Format;
@@ -103,8 +108,19 @@ class ServiceProvider extends AddonServiceProvider
         // Ghostwriter Core. Keys and settings are read on every call. A
         // project can bind its own HttpClients, to go through a proxy, say.
         $this->app->bindIf(HttpClients::class, GuzzleHttpClients::class);
-        $this->app->singleton(Providers::class, fn ($app) => new Providers(
+        // A key from "Connect with OpenRouter" is kept encrypted; a key in
+        // .env always wins over it.
+        $this->app->bindIf(ProviderKeys::class, EncryptedProviderKeys::class);
+        $this->app->bindIf(ConnectsProvider::class, fn ($app) => new OpenRouterConnection(
             new ConfigCredentials,
+            $app->make(ProviderKeys::class),
+            $app->make(HttpClients::class),
+            keyLabel: 'Ghostwriter ('.(parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'Statamic').')',
+            baseUrl: (new ConfigProviderSettings($app->make(Settings::class)))->baseUrl('openrouter'),
+            logger: Log::channel(config('ghostwriter.log_channel')),
+        ));
+        $this->app->singleton(Providers::class, fn ($app) => new Providers(
+            new ConnectedCredentials(new ConfigCredentials, $app->make(ProviderKeys::class)),
             $app->make(HttpClients::class),
             new ConfigProviderSettings($app->make(Settings::class)),
             Log::channel(config('ghostwriter.log_channel')),
@@ -206,7 +222,7 @@ class ServiceProvider extends AddonServiceProvider
         $path = __DIR__.'/../resources/blueprints/settings.yaml';
 
         if ($this->getAddon()->hasSettingsBlueprint()) {
-            $this->registerSettingsBlueprint(fn () => app(Settings::class)->lockOverridden(app(Settings::class)->withStock(app(Settings::class)->withKeyStatus(YAML::file($path)->parse()), app(StockLibraries::class))));
+            $this->registerSettingsBlueprint(fn () => app(Settings::class)->lockOverridden(app(Settings::class)->withOpenRouter(app(Settings::class)->withStock(app(Settings::class)->withKeyStatus(YAML::file($path)->parse()), app(StockLibraries::class)), app(ConnectsProvider::class))));
         }
 
         return $this;
@@ -254,6 +270,7 @@ class ServiceProvider extends AddonServiceProvider
             $event->settings->set('show_get_started', null);
             $event->settings->set('key_status', null);
             $event->settings->set('stock_libraries', null);
+            $event->settings->set('openrouter_connection', null);
 
             // A locked field shows, and so sends back, the config's value.
             // What was saved for it stays, for when the config lets go.

@@ -20,6 +20,7 @@ class ModelCheck
         'anthropic' => 'Claude (Anthropic)',
         'openai' => 'ChatGPT (OpenAI)',
         'gemini' => 'Gemini (Google)',
+        'openrouter' => 'OpenRouter',
     ];
 
     /**
@@ -29,6 +30,11 @@ class ModelCheck
     public function mismatch(?string $provider, ?string $model, string $label = 'Model'): ?string
     {
         $model = strtolower(trim((string) $model));
+
+        // OpenRouter names its models "company/model".
+        if ($provider === 'openrouter' && $model !== '' && ! str_contains($model, '/')) {
+            return "{$label} \"{$model}\" isn't an OpenRouter model id. OpenRouter's look like \"anthropic/claude-opus-5.5\" (see openrouter.ai/models). Check it, or the calls will fail.";
+        }
 
         if ($model === '' || ! isset(self::FAMILIES[$provider])) {
             return null;

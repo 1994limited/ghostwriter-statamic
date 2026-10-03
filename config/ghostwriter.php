@@ -9,8 +9,9 @@ return [
     | AI provider and model
     |--------------------------------------------------------------------------
     |
-    | "anthropic" (Claude), "openai" (ChatGPT) or "gemini". Leave the model
-    | null to use the provider's default.
+    | "anthropic" (Claude), "openai" (ChatGPT), "gemini" or "openrouter"
+    | (Claude, GPT, Gemini and others through one OpenRouter account). Leave
+    | the model null to use the provider's default.
     |
     | These, and the other settings marked below, can also be chosen on the
     | addon's settings screen in the Control Panel. A value set here wins:
@@ -28,12 +29,26 @@ return [
     // jobs are given three times this, plus a minute. Set here only.
     'timeout' => (int) env('GHOSTWRITER_TIMEOUT', 300),
 
+    // With OpenRouter: the model for each tier, by OpenRouter id, such as
+    // "anthropic/claude-opus-5.5". "writing" is the writer, briefs, guides
+    // and planning; "quick" is choosing photos and filling a gap. Null uses
+    // the settings screen's choice, then OpenRouter's default for the tier.
+    'openrouter' => [
+        'models' => [
+            'writing' => env('GHOSTWRITER_OPENROUTER_WRITING_MODEL'),
+            'quick' => env('GHOSTWRITER_OPENROUTER_QUICK_MODEL'),
+        ],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | API keys
     |--------------------------------------------------------------------------
     |
-    | Read from .env each time one is needed, and never stored or shown. A key
+    | Read from .env each time one is needed, and never stored or shown.
+    | OpenRouter can also be connected from the settings screen ("Connect with
+    | OpenRouter"); that key is kept encrypted, and OPENROUTER_API_KEY wins
+    | over it whenever it is set. A key
     | still set in config/ai.php, from when Ghostwriter used the Laravel AI
     | SDK, is used when the one here is empty.
     |
@@ -43,6 +58,7 @@ return [
         'anthropic' => env('ANTHROPIC_API_KEY'),
         'openai' => env('OPENAI_API_KEY'),
         'gemini' => env('GEMINI_API_KEY'),
+        'openrouter' => env('OPENROUTER_API_KEY'),
     ],
 
     /*
@@ -61,6 +77,7 @@ return [
         'anthropic' => env('GHOSTWRITER_ANTHROPIC_BASE_URL'),
         'openai' => env('GHOSTWRITER_OPENAI_BASE_URL'),
         'gemini' => env('GHOSTWRITER_GEMINI_BASE_URL'),
+        'openrouter' => env('GHOSTWRITER_OPENROUTER_BASE_URL'),
     ],
 
     // Whether a request Claude declines is passed to the model Anthropic
@@ -86,9 +103,11 @@ return [
     | Images
     |--------------------------------------------------------------------------
     |
-    | Images need a provider that makes them: "openai" or "gemini". Claude
-    | does not. Leave the provider null to use whichever of those has an API
-    | key (OPENAI_API_KEY / GEMINI_API_KEY in .env).
+    | Images need a provider that makes them: "openai", "gemini" or
+    | "openrouter". Claude does not. Leave the provider null to use whichever
+    | of those has a key, in that order (OPENAI_API_KEY / GEMINI_API_KEY in
+    | .env, or OpenRouter). With OpenRouter, an image model uses its spelling,
+    | such as "openai/gpt-image-2.5-sunburst".
     | With no such key, images cannot be made, but photographs can still be
     | found: on Unsplash, Pexels and Pixabay with a free API key for each, and on
     | Openverse (public-domain and CC0 work only) with no key at all.

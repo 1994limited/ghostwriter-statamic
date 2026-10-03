@@ -16,6 +16,10 @@ export default {
 
     computed: {
         text() {
+            if (this.provider === 'openrouter') {
+                return this.__('Connect with OpenRouter in Ghostwriter’s settings, or add OPENROUTER_API_KEY to your .env file. Ghostwriter cannot write anything until then.');
+            }
+
             const key = KEYS[this.provider] ?? `the API key for "${this.provider}"`;
 
             return this.__('Add :key to your .env file, then reload this page. Ghostwriter cannot write anything until it is set.', { key });
