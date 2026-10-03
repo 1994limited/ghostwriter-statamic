@@ -83,7 +83,7 @@ class SettingsTest extends TestCase
         config(['ghostwriter.keys.openai' => 'sk-secret-value', 'ghostwriter.images.pexels_key' => 'pexels-secret']);
 
         $this->assertSame(
-            ['ANTHROPIC_API_KEY' => true, 'OPENAI_API_KEY' => true, 'GEMINI_API_KEY' => false, 'UNSPLASH_ACCESS_KEY' => false, 'PIXABAY_API_KEY' => false, 'PEXELS_API_KEY' => true],
+            ['ANTHROPIC_API_KEY' => true, 'OPENAI_API_KEY' => true, 'GEMINI_API_KEY' => false, 'UNSPLASH_ACCESS_KEY' => false, 'PIXABAY_API_KEY' => false, 'PEXELS_API_KEY' => true, 'OPENROUTER_API_KEY' => false],
             $settings->keyStatus(),
         );
 

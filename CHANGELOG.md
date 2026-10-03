@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Requires `1994/ghostwriter-core` 1.6.
+
+### Changed
+- **The brief is in the conversation.** The brief screen is gone. Once you've chosen what you're writing, Ghostwriter asks for the quick details in one message ("What’s it called, and what should it say? A line or two is plenty."), fills in the kind's whole brief from your reply with one model call, and shows it as a brief card: the working title, every question with its answer and **Model it on**, all editable. **Looks right, start writing** stores the brief on the piece and starts writing; **Try again** fills it in again, keeping the answers you changed. Anything only you know stays in `[square brackets]` (they become gaps in the draft for Finish this page); figures and quotes you didn't give are never filled in. The writing then goes on as before, and the agreed card collapses to **Show the brief**, still editable (**Save the brief** runs no turn). **Draft this** on the content plan skips the question: the card arrives filled in from the idea. Pieces carried on and shared conversations show the card in the thread; pieces started before keep their brief behind **Show the brief**. The card is a labelled region, its arrival is announced to screen readers and takes the keyboard to it, and spinners stand still under reduced motion. A kind looked at and left keeps nothing: the piece is saved once you send the details. See [Writing a new entry](docs/writing.md#the-brief).
+- Core's reworded gap messages ("Only you know this") come from core; the addon's own copy of them is gone.
+
+### Removed
+- The brief screen's **Fill in the brief** and its route (`types/{type}/brief`). `POST types/{type}/sessions` now opens a piece (with `details` or `idea`) instead of taking the answers.
+
 ## 1.1.1 - 2026-10-03
 
 ### Fixed
