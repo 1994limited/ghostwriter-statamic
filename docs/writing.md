@@ -82,13 +82,9 @@ The panel follows the Control Panel's dark mode.
 - **Drafts start unpublished.** On a new entry, or one that isn't published yet, the form's **Published** toggle is switched off, so you can save straight away and the entry goes live only when you switch it on. The message says "Ghostwriter drafts start unpublished. Switch on Published when you're ready." An entry that is already published keeps its toggle as it is. To leave the toggle alone everywhere, set `drafts_unpublished` to `false` in `config/ghostwriter.php` (or `GHOSTWRITER_DRAFTS_UNPUBLISHED=false`).
 - Using it again replaces the fields it covers.
 
-When the draft leaves you something to do, one notice above the form lists all of it, under "Draft added to the form. Check it over, then save.", and stays until you close it. Without notes, a short message says the same and goes. The notes include:
+When the draft leaves something only you can finish (a fact it didn't have, a link to choose, an image placeholder), [Finish this page](finish-this-page.md) takes over: the count appears beside Save, the fields are highlighted, and the guide opens on the first gap. Anything else worth knowing is listed in one notice above the form, under "Draft added to the form. Check it over, then save.", until you close it, such as fields and blocks the draft used that this blueprint doesn't have, and options that don't exist, which were left out. Without either, a short message says the draft went in.
 
-- image fields marked with a striped placeholder, to replace before publishing;
-- links still to set, which point to `https://example.com` for now (see [house style](fields.md#house-style));
-- fields and blocks the draft used that this blueprint doesn't have, and options that don't exist, which were left out.
-
-![The entry form after Use this draft, with the notes notice above it](images/writing-used.png)
+![The entry form after Use this draft: the count beside Save, the highlighted fields and the guide on the first gap](images/writing-used.png)
 
 ## Carrying on later
 

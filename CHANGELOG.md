@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- Finish this page's current field has a 2px line and a lighter tint; open and fixed fields a 1px line. Drawn as an outline, so the set around a field never clips it.
+- The flying mark says "Your turn" (or "Over here", "This one") rather than repeating the tag beside it, and fades while its field is scrolled out of sight.
+- A required date filled in on the form was counted as empty.
 - Finish this page keeps one live list of gaps, straight from the latest check, for the count by Save, the guide's "n of total" and its progress bar, which could disagree (fixed gaps stayed in the guide's total and the bar). Suggestions are numbered on their own.
 - A field shows "Fixed ✓" only when every gap in it has gone, and a fix that leaves a new gap (a placeholder swapped for a stock preview) shows the new one as open; field states come from the next check, never from the step clicked.
 - The flying mark's label and place follow the step when its gap changes kind, and are measured again when the page shifts (a banner appearing, a set opening).

@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Message;
@@ -124,6 +125,51 @@ class FinishThisPageTest extends TestCase
         $this->assertSame('Hero: Image', EntryGaps::place('Hero: Hero: Image'));
         $this->assertSame('Image: Caption', EntryGaps::place('Image: Caption'));
         $this->assertSame('I left a gap in Text: how long a visit lasts. I didn\'t want to guess. What should it say?', app(EntryGaps::class)->text(new Message('gaps.ask', ['label' => 'Text: Text', 'hint' => 'how long a visit lasts'])));
+    }
+
+    public function test_a_fact_asked_for_in_a_set_and_field_of_the_same_name_names_the_place_once(): void
+    {
+        $this->signInWith(['access ghostwriter', 'view visits entries', 'edit visits entries', 'create visits entries']);
+        Collection::make('visits')->title('Visits')->save();
+        Blueprint::make('visit')->setNamespace('collections.visits')->setContents(['fields' => [
+            ['handle' => 'title', 'field' => ['type' => 'text']],
+            ['handle' => 'page_builder', 'field' => ['type' => 'replicator', 'sets' => ['main' => ['sets' => [
+                'text' => ['display' => 'Text', 'fields' => [['handle' => 'text', 'field' => ['type' => 'bard', 'display' => 'Text']]]],
+            ]]]]],
+        ]])->save();
+        Entry::make()->id('visit')->collection('visits')->slug('visit')->published(false)->data(['title' => 'Visits', 'page_builder' => [
+            ['id' => 'v1', 'type' => 'text', 'enabled' => true, 'text' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'We stay [[ask: how long a typical visit lasts]].']]]]],
+        ]])->save();
+
+        $entry = Entry::find('visit');
+        $values = $entry->blueprint()->fields()->addValues($entry->data()->all())->preProcess()->values()->all();
+        $ask = collect($this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'visits', 'entry' => 'visit', 'values' => $values])->assertOk()->json('gaps'))->firstWhere('kind', 'ask');
+
+        $this->assertSame('Text', $ask['label']);
+        $this->assertSame('I left a gap in Text: how long a typical visit lasts. I didn\'t want to guess. What should it say?', $ask['message']);
+
+        // And in the publish guard's message on the field and for the page.
+        try {
+            $entry->published(true)->save();
+            $this->fail('Publishing should have been refused.');
+        } catch (ValidationException $refused) {
+            $this->assertSame(['page_builder.0.text' => ['Add how long a typical visit lasts before publishing.']], $refused->errors());
+        }
+    }
+
+    public function test_a_required_date_filled_in_on_the_form_is_not_empty(): void
+    {
+        $this->signInWith(['access ghostwriter', 'view events entries', 'edit events entries', 'create events entries']);
+        Collection::make('events')->title('Events')->dated(true)->save();
+        Blueprint::make('event')->setNamespace('collections.events')->setContents(['fields' => [
+            ['handle' => 'title', 'field' => ['type' => 'text']],
+            ['handle' => 'date', 'field' => ['type' => 'date', 'validate' => ['required']]],
+        ]])->save();
+
+        $check = fn (array $values) => array_column($this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'events', 'values' => $values])->assertOk()->json('gaps'), 'field');
+
+        $this->assertContains('date', $check(['title' => 'Open day']));
+        $this->assertNotContains('date', $check(['title' => 'Open day', 'date' => ['date' => '2026-10-03', 'time' => null]]));
     }
 
     public function test_the_check_needs_the_entry_to_be_theirs_to_edit_and_ghostwriter_on_the_collection(): void

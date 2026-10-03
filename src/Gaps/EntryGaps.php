@@ -107,7 +107,23 @@ class EntryGaps
      */
     public function data(Blueprint $blueprint, array $values, ?Entry $entry = null): array
     {
-        return $entry ? $this->baseline->data($entry, $values) : $this->baseline->values($blueprint, $values);
+        $data = $entry ? $this->baseline->data($entry, $values) : $this->baseline->values($blueprint, $values);
+
+        // The date and slug live on the entry, not in its data, so the
+        // baseline leaves them out; a required date filled in on the form
+        // isn't empty.
+        foreach (['date', 'slug'] as $handle) {
+            $field = $blueprint->field($handle);
+
+            if ($field && ! empty($values[$handle])) {
+                // Only whether it's filled matters here: the form's own shape will do.
+                $data[$handle] = $values[$handle];
+            } elseif ($field && $entry && $handle === 'date' && $entry->hasDate()) {
+                $data[$handle] = (string) $entry->date();
+            }
+        }
+
+        return $data;
     }
 
     /**
