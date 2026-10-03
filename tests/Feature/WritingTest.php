@@ -18,10 +18,12 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\Analysis;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\KindSuggestions;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
+use NineteenNinetyFour\Ghostwriter\Jobs\FillBrief;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestKinds;
 use NineteenNinetyFour\Ghostwriter\Settings;
@@ -314,7 +316,7 @@ class WritingTest extends TestCase
 
     public function test_a_shared_piece_is_deleted_only_by_its_starter_or_a_manager(): void
     {
-        Bus::fake([SuggestKinds::class, RunSessionTurn::class]);
+        Bus::fake([SuggestKinds::class, RunSessionTurn::class, FillBrief::class]);
         config(['statamic.editions.pro' => true]);
         $this->setTestRoles([
             'tester' => ['access cp', 'access ghostwriter', ...self::WRITER_PERMISSIONS],
@@ -397,24 +399,30 @@ class WritingTest extends TestCase
         $one = Entry::query()->where('slug', 'one')->first()->id();
         $elsewhere = Entry::query()->where('slug', 'elsewhere')->first()->id();
 
-        $answers = ['subject' => 'Our new office.', 'reader' => 'Clients.', 'points' => 'We moved in May.'];
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
 
-        $this->postJson(cp_route('ghostwriter.sessions.store', 'any:articles'), ['answers' => ['subject' => 'Our new office.']])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['answers.reader', 'answers.points']);
-
-        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'any:articles'), ['answers' => $answers, 'examples' => [$one, $elsewhere]])
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'any:articles'), ['examples' => [$one, $elsewhere], 'details' => 'Our new office. We moved in May.'])
             ->assertOk()
             ->json('id');
 
         // Entries from another collection cannot be the model.
         $session = $this->sessions()->find($id);
         $this->assertSame([$one], $session->examples);
-        $this->assertStringContainsString('We moved in May.', $session->messages[0]['content']);
+
+        $this->ai->respond('brief-filler', "<title>Our new office</title>\n<brief>\nsubject: Our new office.\nreader: Clients.\n</brief>");
+        $this->runJob(new FillBrief($id));
+
+        // Required answers are checked before the brief is agreed.
+        $this->postJson(cp_route('ghostwriter.sessions.brief.agree', $id), ['answers' => ['points' => '']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['answers.points']);
+
+        $this->postJson(cp_route('ghostwriter.sessions.brief.agree', $id), ['answers' => ['points' => 'We moved in May.']])->assertOk();
+        $this->assertStringContainsString('We moved in May.', end($this->sessions()->find($id)->messages)['content']);
 
         // The general brief has nothing to edit.
         $this->get(cp_route('ghostwriter.types.edit', 'any:articles'))->assertNotFound();
-        $this->postJson(cp_route('ghostwriter.sessions.store', 'any:nowhere'), ['answers' => $answers])->assertNotFound();
+        $this->postJson(cp_route('ghostwriter.sessions.store', 'any:nowhere'), ['details' => 'x'])->assertNotFound();
     }
 
     public function test_a_piece_is_modelled_on_the_entries_picked_for_it(): void
@@ -577,64 +585,250 @@ class WritingTest extends TestCase
         $this->assertStringEndsWith('?ghostwriter=new', $action->redirect(collect([Collection::findByHandle('posts')]), []));
     }
 
-    public function test_a_title_and_notes_are_expanded_into_a_brief_to_check(): void
+    public function test_choosing_a_kind_opens_the_conversation_on_the_quick_details(): void
     {
-        $this->signIn();
-        $this->makeType();
-
-        $this->ai->respond('brief-writer', "<brief>\nwhat: |\n  A search that narrows 400 products by what the customer needs.\n  [Add: the client and what changed after launch]\navoid: Client names.\nmade_up: ignored\n</brief>");
-
-        $this->postJson(cp_route('ghostwriter.types.brief', 'articles'), ['notes' => 'No title.'])->assertStatus(422);
-
-        $this->postJson(cp_route('ghostwriter.types.brief', 'articles'), ['title' => 'Faceted search', 'notes' => 'For a kitchen appliance maker.'])
-            ->assertOk()
-            ->assertExactJson(['answers' => [
-                'what' => "A search that narrows 400 products by what the customer needs.\n[Add: the client and what changed after launch]",
-                'avoid' => 'Client names.',
-            ]]);
-
-        // It was given the title, the notes, the questions and what is already there.
-        $this->ai->assertSent('brief-writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Working title: Faceted search') && str_contains($prompt->prompt, 'For a kitchen appliance maker.'));
-
-        // Nothing has been started.
-        $this->assertCount(0, $this->sessions()->all());
-
-        $this->ai->reset('brief-writer')->respond('brief-writer', 'I would rather chat about it.');
-
-        $this->postJson(cp_route('ghostwriter.types.brief', 'articles'), ['title' => 'Faceted search'])->assertStatus(422);
-    }
-
-    public function test_the_questionnaire_requires_its_required_answers(): void
-    {
-        Bus::fake([RunSessionTurn::class]);
-        $this->signIn();
-        $this->makeType();
-
-        $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['avoid' => 'Client names.']])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['answers.what']);
-
-        Bus::assertNotDispatchedAfterResponse(RunSessionTurn::class);
-    }
-
-    public function test_submitting_the_questionnaire_starts_a_session_with_the_brief(): void
-    {
-        Bus::fake([RunSessionTurn::class]);
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
         $user = $this->signIn();
         $this->makeType();
 
-        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'A faceted search.']])
+        // Opened without details: Ghostwriter asks for them, and nothing runs.
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'))
             ->assertOk()
-            ->assertJsonPath('status', Session::WORKING)
+            ->assertJsonPath('stage', 'details')
+            ->assertJsonPath('status', Session::IDLE)
+            ->assertJsonPath('waiting_on_you', false)
+            ->assertJsonPath('messages.0.step', 'ask')
+            ->assertJsonPath('messages.0.content', 'What’s it called, and what should it say? A line or two is plenty.')
             ->json('id');
 
+        Bus::assertNotDispatchedAfterResponse(FillBrief::class);
+
+        // The reply: the brief is filled in from it.
+        $this->postJson(cp_route('ghostwriter.sessions.message', $id), ['message' => 'Faceted search. For a kitchen appliance maker.'])
+            ->assertOk()
+            ->assertJsonPath('stage', 'filling')
+            ->assertJsonPath('status', Session::WORKING)
+            ->assertJsonPath('messages.1.step', 'details');
+
+        Bus::assertDispatchedAfterResponse(FillBrief::class, fn (FillBrief $job) => $job->sessionId === $id);
+        Bus::assertNotDispatchedAfterResponse(RunSessionTurn::class);
+        $this->assertSame($user->id(), $this->sessions()->find($id)->startedBy);
+
+        // The ask and the reply in one request, as the panel sends them.
+        $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['details' => 'Something else.'])
+            ->assertOk()
+            ->assertJsonPath('stage', 'filling');
+    }
+
+    public function test_the_brief_is_filled_in_as_a_card_to_check(): void
+    {
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
+        $this->signIn();
+        $this->makeType();
+        $one = Entry::query()->where('slug', 'one')->first()->id();
+
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['examples' => [$one], 'details' => 'Faceted search across 400 products. For a kitchen appliance maker.'])->json('id');
+
+        $this->ai->respond('brief-filler', "<title>Faceted search</title>\n<brief>\nwhat: |\n  A search that narrows 400 products by what the customer needs.\n  [Add: the client and what changed after launch]\navoid: Client names.\nmade_up: ignored\n</brief>");
+        $this->runJob(new FillBrief($id));
+
+        // One call, with the reply, the questions and what is already there.
+        $this->ai->assertSent('brief-filler', fn (TextRequest $request) => str_contains($request->prompt, 'Faceted search across 400 products.') && str_contains($request->instructions, 'What was built?') && str_contains($request->instructions, '- One'));
+
+        $detail = $this->getJson(cp_route('ghostwriter.sessions.show', $id))
+            ->assertJsonPath('stage', 'proposed')
+            ->assertJsonPath('status', Session::IDLE)
+            ->assertJsonPath('title', 'Faceted search')
+            ->assertJsonPath('waiting_on_you', false)
+            ->assertJsonPath('brief.title', 'Faceted search')
+            ->assertJsonPath('brief.answers', [
+                'what' => "A search that narrows 400 products by what the customer needs.\n[Add: the client and what changed after launch]",
+                'avoid' => 'Client names.',
+            ])
+            ->assertJsonPath('brief.examples', [$one])
+            ->assertJsonPath('brief.open', ['what'])
+            ->assertJsonPath('brief.agreed', false)
+            ->assertJsonPath('brief_text', null)
+            ->json();
+
+        // The ask, the reply and the card, which says what is in brackets.
+        $this->assertSame(['ask', 'details', 'card'], array_column($detail['messages'], 'step'));
+        $this->assertSame('Here’s the brief. Change anything that isn’t right, then start writing. Anything in [square brackets] is for you to fill in.', $detail['messages'][2]['content']);
+
+        // Nothing is written until the person agrees; a message waits for that.
+        Bus::assertNotDispatchedAfterResponse(RunSessionTurn::class);
+        $this->postJson(cp_route('ghostwriter.sessions.message', $id), ['message' => 'Go on.'])->assertStatus(409);
+    }
+
+    public function test_try_again_keeps_the_answers_the_person_changed(): void
+    {
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
+        $this->signIn();
+        $this->makeType();
+
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['details' => 'Faceted search.'])->json('id');
+        $this->ai->respond('brief-filler',
+            "<title>Faceted search</title>\n<brief>\nwhat: A search.\navoid: Client names.\n</brief>",
+            "<title>Search that listens</title>\n<brief>\nwhat: A different search.\navoid: Prices.\n</brief>",
+        );
+        $this->runJob(new FillBrief($id));
+
+        $this->postJson(cp_route('ghostwriter.sessions.brief.try_again', $id), ['title' => 'Faceted search', 'answers' => ['what' => 'A search, as I put it.', 'avoid' => 'Client names.']])
+            ->assertOk()
+            ->assertJsonPath('stage', 'filling')
+            ->assertJsonPath('status', Session::WORKING);
+
+        Bus::assertDispatchedAfterResponse(FillBrief::class, fn (FillBrief $job) => $job->sessionId === $id);
+
+        $this->runJob(new FillBrief($id));
+
+        // The second call was told what the person changed, and it is kept exactly.
+        $this->assertCount(2, $this->ai->requests());
+        $this->ai->assertSent('brief-filler', fn (TextRequest $request) => str_contains($request->prompt, 'A search, as I put it.'));
+
+        $detail = $this->getJson(cp_route('ghostwriter.sessions.show', $id))
+            ->assertJsonPath('stage', 'proposed')
+            ->assertJsonPath('brief.attempt', 2)
+            ->assertJsonPath('brief.answers.what', 'A search, as I put it.')
+            ->json();
+
+        // Only the latest card is shown, and "Try again" is not a message.
+        $this->assertSame(['ask', 'details', 'card'], array_column($detail['messages'], 'step'));
+
+        // Nothing to try again once it is agreed.
+        $this->postJson(cp_route('ghostwriter.sessions.brief.agree', $id), [])->assertOk();
+        $this->postJson(cp_route('ghostwriter.sessions.brief.try_again', $id), [])->assertStatus(409);
+    }
+
+    public function test_agreeing_stores_the_brief_and_starts_writing(): void
+    {
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
+        $user = $this->signIn();
+        $this->makeType();
+        [$one, $two] = [Entry::query()->where('slug', 'one')->first()->id(), Entry::query()->where('slug', 'two')->first()->id()];
+
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['details' => 'Faceted search.'])->json('id');
+        $this->ai->respond('brief-filler', "<title>Faceted search</title>\n<brief>\nwhat: \"A search. [Add: the client]\"\n</brief>");
+        $this->runJob(new FillBrief($id));
+
+        // Square brackets are allowed: they become gaps in the draft.
+        $this->postJson(cp_route('ghostwriter.sessions.brief.agree', $id), ['title' => 'Search that listens', 'answers' => ['avoid' => 'Prices.'], 'examples' => [$one, $two]])
+            ->assertOk()
+            ->assertJsonPath('stage', 'writing')
+            ->assertJsonPath('status', Session::WORKING)
+            ->assertJsonPath('brief.agreed', true)
+            ->assertJsonPath('brief.title', 'Search that listens');
+
+        Bus::assertDispatchedAfterResponse(RunSessionTurn::class, fn (RunSessionTurn $job) => $job->sessionId === $id);
+
         $session = $this->sessions()->find($id);
+        $this->assertSame(['what' => 'A search. [Add: the client]', 'avoid' => 'Prices.'], $session->answers);
+        $this->assertSame([$one, $two], $session->examples);
+        $this->assertSame((string) $user->id(), (string) $session->runBy);
 
-        $this->assertSame($user->id(), $session->startedBy);
-        $this->assertStringContainsString('A faceted search.', $session->messages[0]['content']);
-        $this->assertStringContainsString('(not answered)', $session->messages[0]['content']);
+        // The writer starts from the agreed brief, and sees none of the card's steps.
+        $this->ai->respond('writer', '<reply>1. Which client?</reply>');
+        $this->runTurn($session);
 
-        Bus::assertDispatchedAfterResponse(RunSessionTurn::class, fn ($job) => $job->sessionId === $id);
+        $this->ai->assertSent('writer', fn (TextRequest $request) => str_contains($request->prompt, 'Search that listens') && str_contains($request->prompt, 'Prices.') && ! str_contains($request->prompt, 'What’s it called'));
+
+        // The writer's questions are waiting; the card is collapsed in the thread.
+        $detail = $this->getJson(cp_route('ghostwriter.sessions.show', $id))
+            ->assertJsonPath('stage', 'questions')
+            ->assertJsonPath('waiting_on_you', true)
+            ->json();
+        $this->assertSame(['ask', 'details', 'card', null], array_column($detail['messages'], 'step'));
+    }
+
+    public function test_the_agreed_brief_can_be_changed_without_running_a_turn(): void
+    {
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
+        $this->signIn();
+        $this->makeType();
+
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['details' => 'Faceted search.'])->json('id');
+        $this->ai->respond('brief-filler', "<title>Faceted search</title>\n<brief>\nwhat: A search.\n</brief>");
+        $this->runJob(new FillBrief($id));
+
+        // Not agreed yet: there is nothing to change.
+        $this->patchJson(cp_route('ghostwriter.sessions.brief.update', $id), ['answers' => ['avoid' => 'Prices.']])->assertStatus(409);
+
+        $this->postJson(cp_route('ghostwriter.sessions.brief.agree', $id))->assertOk();
+
+        // Refused while the turn runs.
+        $this->patchJson(cp_route('ghostwriter.sessions.brief.update', $id), ['answers' => ['avoid' => 'Prices.']])->assertStatus(409);
+
+        $session = $this->sessions()->find($id);
+        $session->answer('Here is the draft.', self::DRAFT, 1, 1);
+        $this->sessions()->save($session);
+
+        $this->patchJson(cp_route('ghostwriter.sessions.brief.update', $id), ['answers' => ['what' => ''], 'title' => 'Search'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['answers.what']);
+
+        $this->patchJson(cp_route('ghostwriter.sessions.brief.update', $id), ['answers' => ['avoid' => 'Prices.'], 'title' => 'Search'])
+            ->assertOk()
+            ->assertJsonPath('status', Session::IDLE)
+            ->assertJsonPath('brief.answers.avoid', 'Prices.')
+            ->assertJsonPath('brief.agreed', true);
+
+        Bus::assertDispatchedAfterResponseTimes(RunSessionTurn::class, 1);
+
+        $session = $this->sessions()->find($id);
+        $this->assertSame('Prices.', $session->answers['avoid']);
+        $agreed = array_values(array_filter($session->messages, fn (array $message) => BriefThread::step($message) === BriefThread::AGREED));
+        $this->assertStringContainsString('Prices.', $agreed[0]['content']);
+        $this->assertStringContainsString('**Working title**'."\n".'Search', $agreed[0]['content']);
+    }
+
+    public function test_a_brief_that_could_not_be_filled_in_can_be_tried_again_or_told_more(): void
+    {
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
+        $this->signIn();
+        $this->makeType();
+
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['details' => 'Faceted search.'])->json('id');
+        $this->ai->respond('brief-filler', 'I would rather chat about it.', 'Still no.', "<brief>\nwhat: A search.\n</brief>");
+
+        $this->runJob(new FillBrief($id));
+
+        $this->getJson(cp_route('ghostwriter.sessions.show', $id))
+            ->assertJsonPath('stage', 'filling')
+            ->assertJsonPath('status', Session::FAILED)
+            ->assertJsonPath('error', 'Ghostwriter could not fill in the brief from that. Try again, or say a little more about it.')
+            ->assertJsonPath('can_retry', true);
+
+        // Try again fills the brief in again, not a writer's turn.
+        $this->postJson(cp_route('ghostwriter.sessions.retry', $id))->assertOk()->assertJsonPath('status', Session::WORKING);
+        Bus::assertDispatchedAfterResponse(FillBrief::class, fn (FillBrief $job) => $job->sessionId === $id);
+        Bus::assertNotDispatchedAfterResponse(RunSessionTurn::class);
+        $this->runJob(new FillBrief($id));
+
+        // Or say a little more: it is filled in from everything said.
+        $this->postJson(cp_route('ghostwriter.sessions.message', $id), ['message' => 'For a kitchen appliance maker.'])->assertOk()->assertJsonPath('status', Session::WORKING);
+        $this->runJob(new FillBrief($id));
+
+        $this->ai->assertSent('brief-filler', fn (TextRequest $request) => str_contains($request->prompt, "Faceted search.\n\nFor a kitchen appliance maker."));
+        $this->getJson(cp_route('ghostwriter.sessions.show', $id))->assertJsonPath('stage', 'proposed');
+    }
+
+    public function test_a_piece_from_the_brief_screen_carries_on_as_it_was(): void
+    {
+        $this->signIn();
+        $this->makeType();
+        $session = $this->startedSession();
+        $session->addMessage('assistant', 'Here is the draft.');
+        $session->status = Session::IDLE;
+        $this->sessions()->save($session);
+
+        $detail = $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))
+            ->assertJsonPath('stage', 'writing')
+            ->assertJsonPath('brief', null)
+            ->json();
+
+        // Its brief behind "Show the brief", as before; the thread starts after it.
+        $this->assertStringContainsString('A faceted search.', $detail['brief_text']);
+        $this->assertSame([1], array_column($detail['messages'], 'index'));
     }
 
     public function test_the_writer_can_interview_first_and_draft_second(): void
@@ -1009,7 +1203,7 @@ class WritingTest extends TestCase
 
     public function test_conversations_are_shared_with_everyone_who_may_use_ghostwriter(): void
     {
-        Bus::fake([SuggestKinds::class, RunSessionTurn::class]);
+        Bus::fake([SuggestKinds::class, RunSessionTurn::class, FillBrief::class]);
         config(['statamic.editions.pro' => true]);
         $this->setTestRoles(['tester' => ['access cp', 'access ghostwriter', ...self::WRITER_PERMISSIONS]]);
         $this->makeType();
@@ -1017,9 +1211,9 @@ class WritingTest extends TestCase
         $ada = tap(User::make()->email('ada@example.com')->set('name', 'Ada Lovelace')->assignRole('tester'))->save();
         $bob = tap(User::make()->email('bob@example.com')->set('name', 'Bob Byte')->assignRole('tester'))->save();
 
-        // Ada starts a piece.
+        // Ada starts a piece and agrees its brief.
         $this->actingAs($ada);
-        $session = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'A faceted search.']])->assertOk()->json();
+        $session = $this->agreedSession();
         $stored = $this->sessions()->find($session['id']);
         $stored->addMessage('assistant', 'Here is a draft.');
         $stored->status = Session::IDLE;
@@ -1033,17 +1227,21 @@ class WritingTest extends TestCase
             ->assertJsonPath('sessions.0.started_by', 'Ada Lovelace');
         $this->get(cp_route('ghostwriter.index'))->assertOk()->assertInertia(fn ($page) => $page->where('counts.in_progress', 1));
 
+        // The brief card is in the thread for him too, agreed.
         $this->getJson(cp_route('ghostwriter.sessions.show', $session['id']))
             ->assertOk()
-            ->assertJsonPath('messages.0.from', 'Ada Lovelace')
-            ->assertJsonPath('messages.0.mine', false)
+            ->assertJsonPath('messages.1.from', 'Ada Lovelace')
+            ->assertJsonPath('messages.1.mine', false)
+            ->assertJsonPath('messages.2.step', 'card')
+            ->assertJsonPath('brief.agreed', true)
+            ->assertJsonPath('brief.answers.what', 'A faceted search.')
             ->assertJsonPath('started_by', 'Ada Lovelace')
             ->assertJsonPath('touched_by', null);
 
         $this->postJson(cp_route('ghostwriter.sessions.message', $session['id']), ['message' => 'Shorter, please.'])
             ->assertOk()
-            ->assertJsonPath('messages.2.from', 'Bob Byte')
-            ->assertJsonPath('messages.2.mine', true)
+            ->assertJsonPath('messages.4.from', 'Bob Byte')
+            ->assertJsonPath('messages.4.mine', true)
             ->assertJsonPath('touched_by', 'you')
             ->assertJsonPath('waiting_on', null);
 
@@ -1069,7 +1267,7 @@ class WritingTest extends TestCase
 
     public function test_trying_again_on_a_shared_piece_says_who_is_waiting(): void
     {
-        Bus::fake([SuggestKinds::class, RunSessionTurn::class]);
+        Bus::fake([SuggestKinds::class, RunSessionTurn::class, FillBrief::class]);
         config(['statamic.editions.pro' => true]);
         $this->setTestRoles(['tester' => ['access cp', 'access ghostwriter', ...self::WRITER_PERMISSIONS]]);
         $this->makeType();
@@ -1078,7 +1276,7 @@ class WritingTest extends TestCase
         $bob = tap(User::make()->email('bob@example.com')->set('name', 'Bob Byte')->assignRole('tester'))->save();
 
         $this->actingAs($ada);
-        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'A faceted search.']])->assertOk()->json('id');
+        $id = $this->agreedSession()['id'];
         $stored = $this->sessions()->find($id);
         $stored->status = Session::FAILED;
         $stored->error = 'The provider is overloaded.';
@@ -1150,6 +1348,7 @@ class WritingTest extends TestCase
         $this->makeType();
 
         $session = $this->sessionWithDraft(self::DRAFT);
+        $session->addMessage('user', 'Make it **shorter**.');
         $session->addMessage('assistant', "Two things:\n\n- **Shorter** opening\n- <script>alert(1)</script> gone");
         $this->sessions()->save($session);
 
@@ -1376,6 +1575,23 @@ class WritingTest extends TestCase
         // Without the form's values (an older script), the entry as saved is the base, as before.
         $saved = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']))->assertOk()->json('values');
         $this->assertSame('heroes/saved.mp4', $saved['page_builder'][0]['image']);
+    }
+
+    /**
+     * A piece started in the panel, its brief filled in and agreed: the
+     * writer's first turn is waiting to run. Fake RunSessionTurn and
+     * FillBrief first.
+     *
+     * @return array<string, mixed>
+     */
+    private function agreedSession(): array
+    {
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['details' => 'A faceted search.'])->assertOk()->json('id');
+
+        $this->ai->respond('brief-filler', "<title>Faceted search</title>\n<brief>\nwhat: A faceted search.\n</brief>");
+        $this->runJob(new FillBrief($id));
+
+        return $this->postJson(cp_route('ghostwriter.sessions.brief.agree', $id))->assertOk()->json();
     }
 
     private function startedSession(): Session

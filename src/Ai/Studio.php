@@ -8,7 +8,10 @@ use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\Truncated;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Image;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Brief;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Result;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\SuggestedIdea;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\SuggestedKind;
@@ -139,16 +142,17 @@ class Studio
     }
 
     /**
-     * A first attempt at a type's brief from a title and some notes, for a
-     * person to correct. Answers are keyed by question handle.
+     * The piece's whole brief, filled in from the person's quick details or
+     * a plan idea (and after "Try again", the card as they left it), for
+     * them to check. Anything only they know stays in square brackets.
      *
-     * @return array<string, string>
+     * @return Result<Brief>
      *
      * @throws UnreadableReply|ProviderException
      */
-    public function draftBrief(ContentType $type, string $title, string $notes = ''): array
+    public function fillBrief(Session $session, ContentType $type): Result
     {
-        return $this->studio->draftBrief($this->inputs->kind($type), $title, $notes, $this->inputs->briefTitles($type))->value;
+        return $this->studio->fillBrief(BriefThread::request($session, $this->inputs->kind($type), $this->inputs->briefTitles($type)));
     }
 
     /**
@@ -164,11 +168,14 @@ class Studio
     }
 
     /**
-     * The questionnaire answers as the opening message of a session.
+     * The brief as the message the writer starts from: the session's
+     * answers, or a brief card's answers and working title.
      */
-    public function brief(ContentType $type, Session $session): string
+    public function brief(ContentType $type, Session|Brief $brief): string
     {
-        return $this->studio->brief($this->inputs->kind($type), $session->answers);
+        return $brief instanceof Brief
+            ? $this->studio->brief($this->inputs->kind($type), $brief->answers, $brief->title)
+            : $this->studio->brief($this->inputs->kind($type), $brief->answers);
     }
 
     public function writerInstructions(ContentType $type, string $voice): string

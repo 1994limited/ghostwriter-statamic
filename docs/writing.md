@@ -19,7 +19,7 @@ Each opens a new entry with Ghostwriter already open. Ghostwriter opens in a ful
 
 Choose what this entry is:
 
-- **From the content plan:** ideas waiting to be written. Choosing one fills in the brief from the idea.
+- **From the content plan:** ideas waiting to be written. Choosing one fills in the brief card from the idea.
 - **A kind you taught it**, such as "Project story". It asks that kind's questions and models the entry on its examples. See [Kinds of content](kinds.md).
 - **Something like what is already here:** kinds Ghostwriter found by grouping the collection's entries by how they are built. Choosing one models the new entry on those.
 - **Something else:** a general brief for anything.
@@ -30,15 +30,27 @@ Choose what this entry is:
 
 ## The brief
 
-Answer the questions. Short answers are fine; Ghostwriter asks for anything it still needs before it writes.
+There is no form to fill in. Once you've chosen what you're writing, the conversation opens and Ghostwriter asks for the quick details in one message: **"What’s it called, and what should it say? A line or two is plenty."** Reply with a working title and a few notes (the angle, who it's for, a point or two to make), and press **Send** or **⌘↵**.
 
-**Quick brief.** Rather than answer every question, give a **Working title** and a few notes, then **Fill in the brief**. Ghostwriter fills in the questions from them, for you to check and change; **Try again** tries once more. Anything in `[square brackets]` needs you: it never guesses facts about your organisation, its projects or its figures.
+From your reply Ghostwriter fills in the whole brief for that kind, with one model call, and shows it in the conversation as a **brief card**:
 
-**Model it on.** Tick up to six entries and the draft follows how they are built. With none ticked, Ghostwriter goes by the brief and how this collection is usually written. A learned kind starts with its own examples ticked.
+- **Working title**, then each of the kind's questions with its answer, all of them editable;
+- **Model it on**, with the entries to follow ticked: a learned kind's own examples, or those of the kind you chose. Tick up to six; with none ticked, Ghostwriter goes by the brief and how this collection is usually written.
 
-Then **Start writing**. An idea from the content plan fills the brief in by itself, with one model call.
+Anything only you know stays in `[square brackets]`, such as `[Add: the client and what changed after launch]`. Ghostwriter never makes up facts about your organisation, its projects or its figures: a figure or a quote you didn't give is left in brackets for you.
 
-![The quick brief for Something else, with a working title, notes, Model it on and Start writing](images/writing-brief.png)
+Change any answer in the card, then:
+
+- **Looks right, start writing** stores the brief on the piece and starts writing. Anything still in brackets is fine: it becomes a gap in the draft, which [Finish this page](finish-this-page.md) picks up.
+- **Try again** fills the brief in once more. The answers you changed are kept as you wrote them.
+
+The card is a labelled region: a screen reader hears "The brief is filled in. Check it, then start writing." when it arrives, and the keyboard lands on it.
+
+![The brief card in the conversation, with a working title, the kind's questions and Looks right, start writing](images/writing-brief.png)
+
+**Draft this** on an idea in the [content plan](content-plan.md) skips the question: the card arrives already filled in from the idea, ready to check.
+
+If the brief can't be filled in, Ghostwriter says so with **Try again**; or reply with a little more about the piece and it fills the brief in from everything you've said.
 
 > Ghostwriter uses only facts from the brief and the conversation for anything about your organisation. It doesn't invent figures, quotes or client names. Widely known facts about the subject itself it may state, and says so in its reply.
 
@@ -46,7 +58,9 @@ Then **Start writing**. An idea from the content plan fills the brief in by itse
 
 Ghostwriter writes on the first turn whenever it can. If it needs something only you know, it asks first, at most three questions. The panel makes that plain: the question is headed **Ghostwriter needs your answer**, the reply box says **Your turn: answer the questions above and the draft follows.** (or **Your turn: answer above to carry on.** once there is a draft), and **Just draft it with what you have** has it write now and mark the gaps.
 
-![Ghostwriter asking two questions, with Ghostwriter needs your answer and Just draft it with what you have](images/writing-questions.png)
+![Ghostwriter asking three questions, with Ghostwriter needs your answer and Just draft it with what you have](images/writing-questions.png)
+
+Once the writing has started, the brief card collapses to **Show the brief**. Open it to read or change the brief, then **Save the brief**: nothing is rewritten straight away, and Ghostwriter works from the new brief from your next message. A piece carried on later, or a colleague's shared conversation, shows the card in the same place.
 
 Once there is a draft, ask for changes in plain words:
 
@@ -54,7 +68,7 @@ Once there is a draft, ask for changes in plain words:
 - "Add a section on cost, after the process."
 - "Less formal."
 
-Press **⌘↵** (or **Ctrl+↵**) to send. While it works, a line and a timer say what it is doing ("Reading the brief…", "Thinking it through…", "Writing. Long drafts take a while…"); a draft usually takes a minute or two. Replies are shown formatted, with their lists and bold. A reply that changed the draft ends with a line such as **Draft written · 286 words** or **Draft updated · 222 → 236 words (+14)**.
+Press **⌘↵** (or **Ctrl+↵**) to send. While it works, a line and a timer say what it is doing ("Filling in the brief…", "Reading the brief…", "Thinking it through…", "Writing. Long drafts take a while…"); a draft usually takes a minute or two. Replies are shown formatted, with their lists and bold. A reply that changed the draft ends with a line such as **Draft written · 286 words** or **Draft updated · 222 → 236 words (+14)**. With reduced motion on, the spinners and the pulsing dot stand still.
 
 If a turn fails, see ["That didn't work"](troubleshooting.md#that-didnt-work).
 
@@ -100,6 +114,6 @@ A piece leaves **In progress** once its entry has been saved. Putting the draft 
 
 ## Sharing conversations
 
-With Statamic Pro and more than one user, conversations are shared with everyone who may use Ghostwriter, so a colleague can pick a piece up where you left it. Each message shows who sent it. See [Shared conversations](permissions.md#shared-conversations).
+With Statamic Pro and more than one user, conversations are shared with everyone who may use Ghostwriter, so a colleague can pick a piece up where you left it. Each message shows who sent it, and the brief card is in the thread. See [Shared conversations](permissions.md#shared-conversations).
 
 Next: [Editing an existing entry](editing.md).

@@ -9,6 +9,7 @@ use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Progress;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Record;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
@@ -127,11 +128,22 @@ class Presenter
             }
         }
 
+        $stage = BriefThread::stage($session);
+        $card = BriefThread::card($session);
+
         return [
             'id' => $session->id,
             'editing' => $session->isEditing(),
+            // Where the piece has got to: details, filling, proposed (the
+            // brief card waits to be checked), writing, questions, drafting.
+            'stage' => $stage->value,
+            // The brief card, from the latest one, with the person's changes.
+            'brief' => $card ? $card->toArray() + ['open' => $card->open(), 'agreed' => BriefThread::agreed($session)] : null,
+            // A piece from before the brief card: its brief, as text.
+            'brief_text' => $card ? null : BriefThread::text($session),
             // Whether the writer has asked something and is waiting for an answer.
-            'waiting_on_you' => $session->status === Session::IDLE
+            'waiting_on_you' => $stage->agreed()
+                && $session->status === Session::IDLE
                 && ($last = $session->lastMessage()) !== null
                 && ($last['role'] ?? null) === 'assistant'
                 && ($last['asks'] ?? ($session->draft === null && ! $session->isEditing())),
@@ -149,12 +161,17 @@ class Presenter
             // written in, with any HTML in them escaped.
             // Each person's message says who sent it, when the conversation
             // is shared; one with no sender is the starter's.
-            'messages' => array_map(fn (array $message) => $message['role'] === 'assistant'
+            // Only the messages to show (BriefThread::visible()), each with
+            // its place in the whole conversation and its brief step: the
+            // brief card is drawn from `brief`.
+            'messages' => array_map(fn (int $index, array $message) => ['index' => $index, 'step' => BriefThread::step($message)] + ($message['role'] === 'assistant'
                 ? $message + ['html' => $this->markdown()->convert((string) $message['content'])->getContent()]
                 : $message + [
                     'mine' => ($by = self::id($message['by'] ?? $session->startedBy)) === null || $by === $this->me(),
                     'from' => $shared ? self::name(self::id($message['by'] ?? $session->startedBy)) : null,
-                ], $session->messages),
+                ]), array_keys($visible = BriefThread::visible($session)), $visible),
+            // When the latest message was sent, for the timer while it is answered.
+            'since' => $session->lastMessage()['at'] ?? null,
             ...$this->people($session),
             'draft' => $session->draft,
             'draft_problem' => $problem,

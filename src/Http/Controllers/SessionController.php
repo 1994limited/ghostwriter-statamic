@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
@@ -20,7 +21,10 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\NotAllowed;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\NotFound;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Plan;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Refused;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefStage;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionImages;
@@ -28,6 +32,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Brief;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
@@ -36,6 +41,7 @@ use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
 use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
+use NineteenNinetyFour\Ghostwriter\Jobs\FillBrief;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
@@ -58,37 +64,90 @@ class SessionController
         private Presenter $presenter,
     ) {}
 
-    public function store(Request $request, string $type): JsonResponse
+    /**
+     * A new piece. The panel asks for the quick details as soon as the kind
+     * is chosen and keeps the piece only once they are given (`details`),
+     * so a kind looked at and left behind leaves nothing to carry on with;
+     * the brief is then filled in from them. From a plan idea ("Draft
+     * this") there is no question: the brief is filled in from the idea.
+     */
+    public function store(Request $request, string $type, Plan $plan, PlanStore $ideas): JsonResponse
     {
         $type = $this->type($type);
 
         $this->ensureConfigured();
 
-        $validated = $request->validate(TypeRepository::rules($type) + [
-            'examples' => ['nullable', 'array', 'max:6'],
+        $validated = $request->validate([
+            'examples' => ['nullable', 'array', 'max:'.Brief::MAX_EXAMPLES],
             'examples.*' => ['string'],
             'idea' => ['nullable', 'string', 'max:40'],
+            'details' => ['nullable', 'string', 'max:50000'],
         ]);
 
-        $answers = array_map('strval', array_filter((array) ($validated['answers'] ?? []), fn ($answer) => $answer !== null));
+        $session = Session::start(Format::Statamic, $type->handle, [], $this->me(), $this->examples($type, $validated['examples'] ?? []), now()->toImmutable());
+        $idea = ! empty($validated['idea']) ? $ideas->find($validated['idea']) : null;
 
-        // Entries to model this one piece on; only ones from its own collection.
-        $examples = collect($validated['examples'] ?? [])
-            ->filter(fn (string $id) => Entry::find($id)?->collectionHandle() === $type->group)
-            ->values()
-            ->all();
+        if ($idea === null) {
+            $session = $this->sessions->open($session, $this->viewer(), __(BriefThread::ASK_TEXT));
 
-        $session = Session::start(Format::Statamic, $type->handle, $answers, $this->me(), $examples, now()->toImmutable());
-        $session = $this->sessions->start($session, $this->studio->brief($type, $session), $this->viewer());
+            if (trim((string) ($validated['details'] ?? '')) !== '') {
+                $session = $this->guarded(fn () => $this->sessions->details($session->id, $validated['details'], $this->viewer()));
+
+                FillBrief::start($session->id);
+            }
+
+            return response()->json($this->presenter->detail($session));
+        }
+
+        $session = $this->sessions->openFromIdea($session, $this->viewer(), $idea->title, trim($idea->why."\n\n".$idea->notes));
 
         // Started from the content plan: that idea is now in hand.
-        if (! empty($validated['idea'])) {
-            try {
-                app(Plan::class)->start($validated['idea'], $session->id);
-            } catch (NotFound) {
-                // Gone from the plan meanwhile: the piece is started all the same.
-            }
+        try {
+            $plan->start($idea->id, $session->id);
+        } catch (NotFound) {
+            // Gone from the plan meanwhile: the piece is started all the same.
         }
+
+        FillBrief::start($session->id);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * "Try again": another brief from the same details, with the card as
+     * the person left it (the answers they changed are kept).
+     */
+    public function tryAgain(Request $request, string $session): JsonResponse
+    {
+        $session = $this->session($session);
+        $type = $this->type($session->kind);
+
+        $this->ensureConfigured();
+
+        $card = $this->card($request, $type);
+
+        $session = $this->guarded(fn () => $this->sessions->tryAgain($session->id, $this->viewer(), $card['answers'], $card['examples'], $card['title'], __(BriefThread::TRY_AGAIN_TEXT)));
+
+        FillBrief::start($session->id);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * "Looks right, start writing": the card, with the person's changes, is
+     * the brief. Something left in square brackets counts as an answer: it
+     * becomes a gap in the draft for Finish this page.
+     */
+    public function agree(Request $request, string $session): JsonResponse
+    {
+        $session = $this->session($session);
+        $type = $this->type($session->kind);
+
+        $this->ensureConfigured();
+
+        $card = $this->card($request, $type, $session);
+
+        $session = $this->guarded(fn () => $this->sessions->agree($session->id, $this->viewer(), fn (Brief $brief) => $this->studio->brief($type, $brief), $card['answers'], $card['examples'], $card['title']));
 
         RunSessionTurn::start($session->id);
 
@@ -96,25 +155,19 @@ class SessionController
     }
 
     /**
-     * A first attempt at the questionnaire from a title and a few notes. It
-     * only fills in the form; nothing is started until the person says so.
+     * A change to the agreed brief ("Show the brief"). No turn runs: the
+     * next message works from it.
      */
-    public function brief(Request $request, string $type): JsonResponse
+    public function editBrief(Request $request, string $session): JsonResponse
     {
-        $type = $this->type($type);
+        $session = $this->session($session);
+        $type = $this->type($session->kind);
 
-        $this->ensureConfigured();
+        $card = $this->card($request, $type, $session);
 
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:200'],
-            'notes' => ['nullable', 'string', 'max:20000'],
-        ]);
+        $session = $this->guarded(fn () => $this->sessions->editBrief($session->id, $this->viewer(), fn (Brief $brief) => $this->studio->brief($type, $brief), $card['answers'], $card['examples'], $card['title']));
 
-        try {
-            return response()->json(['answers' => $this->studio->draftBrief($type, $validated['title'], (string) ($validated['notes'] ?? ''))]);
-        } catch (InvalidArgumentException $exception) {
-            abort(422, $exception->getMessage());
-        }
+        return response()->json($this->presenter->detail($session));
     }
 
     /**
@@ -143,6 +196,28 @@ class SessionController
 
         $validated = $request->validate(['message' => ['required', 'string', 'max:50000']]);
 
+        // The reply to "What's it called…": the brief is filled in from it.
+        if (BriefThread::stage($session) === BriefStage::Details) {
+            $session = $this->guarded(fn () => $this->sessions->details($session->id, $validated['message'], $this->viewer()));
+
+            FillBrief::start($session->id);
+
+            return response()->json($this->presenter->detail($session));
+        }
+
+        // The brief couldn't be filled in: a little more about it, and it is
+        // filled in again from everything said so far.
+        if (BriefThread::stage($session) === BriefStage::Filling && $session->hasFailed()) {
+            $session = $this->guarded(fn () => $this->sessions->send($session->id, $validated['message'], $this->viewer(), extra: [BriefThread::KEY => ['step' => BriefThread::DETAILS]]));
+
+            FillBrief::start($session->id);
+
+            return response()->json($this->presenter->detail($session));
+        }
+
+        // The brief card is waiting: it is agreed (or tried again) first.
+        abort_unless(BriefThread::stage($session)->agreed(), 409, 'Check the brief first, then start writing.');
+
         $session = $this->guarded(fn () => $this->sessions->send($session->id, $validated['message'], $this->viewer()));
 
         RunSessionTurn::start($session->id);
@@ -169,7 +244,8 @@ class SessionController
             }
         });
 
-        RunSessionTurn::start($session->id);
+        // A brief that failed to fill is filled again; otherwise the turn runs again.
+        FillBrief::next($session);
 
         return response()->json($this->presenter->detail($session));
     }
@@ -495,6 +571,56 @@ class SessionController
         $this->guarded(fn () => $this->sessions->delete($session->id, $this->viewer(), 'Only the person who started this piece, or someone who manages Ghostwriter, can delete it.'));
 
         return response()->json(['deleted' => true]);
+    }
+
+    /**
+     * Entries to model a piece on: only ones from its own collection.
+     *
+     * @param  array<int, string>  $ids
+     * @return array<int, string>
+     */
+    private function examples(ContentType $type, array $ids): array
+    {
+        return collect($ids)
+            ->filter(fn (string $id) => Entry::find($id)?->collectionHandle() === $type->group)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The brief card as the person left it. Before it is agreed (or saved
+     * once agreed), the required answers are checked on the card as it
+     * will be, as the brief screen checked them; something in square
+     * brackets counts as an answer.
+     *
+     * @return array{title: ?string, answers: array<string, string>, examples: ?array<int, string>}
+     */
+    private function card(Request $request, ContentType $type, ?Session $required = null): array
+    {
+        $rules = array_map(fn (array $rule) => array_map(fn (string $part) => $part === 'required' ? 'nullable' : $part, $rule), TypeRepository::rules($type));
+
+        $validated = $request->validate($rules + [
+            'title' => ['nullable', 'string', 'max:200'],
+            'answers' => ['nullable', 'array'],
+            'examples' => ['nullable', 'array', 'max:'.Brief::MAX_EXAMPLES],
+            'examples.*' => ['string'],
+        ]);
+
+        $card = [
+            'title' => isset($validated['title']) ? (string) $validated['title'] : null,
+            'answers' => array_map(fn ($answer) => (string) $answer, array_map(fn ($answer) => $answer ?? '', (array) ($validated['answers'] ?? []))),
+            'examples' => array_key_exists('examples', $validated) ? $this->examples($type, (array) ($validated['examples'] ?? [])) : null,
+        ];
+
+        if ($required !== null && ($brief = BriefThread::card($required)) !== null) {
+            $missing = $type->missing($brief->with($card['answers'])->answers);
+
+            if ($missing !== []) {
+                throw ValidationException::withMessages(collect($missing)->mapWithKeys(fn (string $message, string $handle) => ["answers.{$handle}" => __($message)])->all());
+            }
+        }
+
+        return $card;
     }
 
     private function parsedDraft(Session $session): Draft

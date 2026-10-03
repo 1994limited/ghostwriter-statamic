@@ -214,7 +214,7 @@ class EntryGaps
      */
     public function text(Message $message): string
     {
-        $strings = self::WORDING + Message::strings();
+        $strings = Message::strings();
         $name = str_starts_with($message->key, 'gaps.') ? substr($message->key, 5) : $message->key;
         $params = $message->params;
 
@@ -232,18 +232,6 @@ class EntryGaps
 
         return (new Message($message->key, $params))->english();
     }
-
-    /**
-     * Core strings the addon words differently, until core's own wording
-     * catches up. Each is still the `__()` key, like core's.
-     *
-     * @var array<string, string>
-     */
-    private const WORDING = [
-        'ask' => 'I left a gap in :label: :hint. Only you know this. What should it say?',
-        'ask-value' => ':label is empty: :hint. This one needs you.',
-        'guide.reason.draft' => 'Only you know this.',
-    ];
 
     /**
      * A place named once: "Text: Text" (a set and its field both called

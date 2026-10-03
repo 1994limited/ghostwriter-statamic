@@ -89,12 +89,14 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::delete('types/{type}', [TypeController::class, 'destroy'])->name('types.destroy');
 
     Route::post('entries/{entry}/session', [EntryController::class, 'session'])->name('entries.session');
-    Route::post('types/{type}/brief', [SessionController::class, 'brief'])->name('types.brief');
     Route::post('types/{type}/sessions', [SessionController::class, 'store'])->name('sessions.store');
     Route::get('sessions/{session}', [SessionController::class, 'show'])->name('sessions.show');
     Route::get('sessions/{session}/open', [SessionController::class, 'open'])->name('sessions.open');
     Route::post('sessions/{session}/messages', [SessionController::class, 'message'])->name('sessions.message');
     Route::post('sessions/{session}/retry', [SessionController::class, 'retry'])->name('sessions.retry');
+    Route::post('sessions/{session}/brief/try-again', [SessionController::class, 'tryAgain'])->name('sessions.brief.try_again');
+    Route::post('sessions/{session}/brief/agree', [SessionController::class, 'agree'])->name('sessions.brief.agree');
+    Route::patch('sessions/{session}/brief', [SessionController::class, 'editBrief'])->name('sessions.brief.update');
     Route::patch('sessions/{session}/field', [SessionController::class, 'editField'])->name('sessions.field');
     Route::patch('sessions/{session}/draft', [SessionController::class, 'draft'])->name('sessions.draft');
     Route::post('sessions/{session}/apply', [SessionController::class, 'apply'])->name('sessions.apply');

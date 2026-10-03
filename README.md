@@ -47,7 +47,7 @@ Then add your key to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-...`, and kee
 2. Check **Connect a model** names your provider, and choose the collections to write for.
 3. **Write the voice guide**, and read it over.
 4. Open a collection's **Create Entry** screen and click **Write with Ghostwriter**.
-5. Give it a working title and a few notes, **Start writing**, then **Use this draft** and save.
+5. Reply with a working title and a line or two, check the brief card, **Looks right, start writing**, then **Use this draft** and save.
 
 ## Documentation
 

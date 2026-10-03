@@ -114,7 +114,7 @@ They land in `resources/ghostwriter/prompts/`. Keep any `{{ placeholders }}` tha
 | Prompt | Used for |
 | --- | --- |
 | `writer.md` | Writing and revising drafts |
-| `brief-writer.md` | Filling in a brief from a title and notes |
+| `brief-filler.md` | Filling in the brief card from the quick details or a plan idea |
 | `voice-analyst.md`, `voice-editor.md` | Writing and changing the voice guide |
 | `type-analyst.md` | Learning a kind of content |
 | `kind-finder.md` | Suggesting kinds of content |

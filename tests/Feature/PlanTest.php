@@ -11,6 +11,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Plan;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanState;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Jobs\FillBrief;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Jobs\SuggestIdeas;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
@@ -141,16 +142,34 @@ class PlanTest extends TestCase
 
     public function test_an_idea_is_offered_on_the_create_screen_and_marked_drafted_when_started(): void
     {
-        Bus::fake([RunSessionTurn::class]);
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
         $this->signIn();
 
-        $idea = app(Plan::class)->add(['title' => 'Rebuild or repair?', 'collection' => 'articles', 'why' => 'Nothing on it yet.']);
+        $idea = app(Plan::class)->add(['title' => 'Rebuild or repair?', 'collection' => 'articles', 'why' => 'Nothing on it yet.', 'notes' => 'Start with the roof.']);
 
         $this->getJson(cp_route('ghostwriter.collections.show', 'articles'))
             ->assertJsonPath('ideas.0.id', $idea->id)
             ->assertJsonPath('ideas.0.why', 'Nothing on it yet.');
 
-        $session = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'Whether to rebuild.'], 'idea' => $idea->id])->assertOk()->json('id');
+        // "Draft this": no question first; the brief is filled in from the idea.
+        $session = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['idea' => $idea->id])
+            ->assertOk()
+            ->assertJsonPath('stage', 'filling')
+            ->assertJsonPath('status', Session::WORKING)
+            ->assertJsonPath('messages', [])
+            ->json('id');
+
+        Bus::assertDispatchedAfterResponse(FillBrief::class, fn (FillBrief $job) => $job->sessionId === $session);
+        Bus::assertNotDispatchedAfterResponse(RunSessionTurn::class);
+
+        $this->ai->respond('brief-filler', "<title>Rebuild or repair?</title>\n<brief>\nwhat: Whether to rebuild the old mill or repair it.\n</brief>");
+        $this->runJob(new FillBrief($session));
+
+        $this->ai->assertSent('brief-filler', fn (TextRequest $request) => str_contains($request->prompt, 'Working title: Rebuild or repair?') && str_contains($request->prompt, "Nothing on it yet.\n\nStart with the roof."));
+        $this->getJson(cp_route('ghostwriter.sessions.show', $session))
+            ->assertJsonPath('stage', 'proposed')
+            ->assertJsonPath('brief.title', 'Rebuild or repair?')
+            ->assertJsonPath('brief.answers.what', 'Whether to rebuild the old mill or repair it.');
 
         $idea = app(PlanStore::class)->find($idea->id);
 
@@ -163,7 +182,8 @@ class PlanTest extends TestCase
         // The plan shows where it has got to and how to pick it back up.
         $planned = $this->getJson(cp_route('ghostwriter.plan.status'))->json('ideas.0');
 
-        $this->assertSame('working', $planned['stage']);
+        // The brief card waits to be checked.
+        $this->assertSame('interview', $planned['stage']);
         $this->assertFalse($planned['finished']);
         $this->assertStringContainsString('ghostwriter='.$session, $planned['resume_url']);
 
@@ -174,12 +194,12 @@ class PlanTest extends TestCase
 
     public function test_a_started_piece_goes_back_to_ideas_until_it_is_finished(): void
     {
-        Bus::fake([RunSessionTurn::class]);
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
         $this->signIn();
 
         $plan = app(Plan::class);
         $idea = $plan->add(['title' => 'Rebuild or repair?', 'collection' => 'articles']);
-        $session = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['answers' => ['what' => 'Whether to rebuild.'], 'idea' => $idea->id])->assertOk()->json('id');
+        $session = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['idea' => $idea->id])->assertOk()->json('id');
         $update = cp_route('ghostwriter.plan.update', $idea->id);
 
         // Started and given up on: back on the plan, the conversation kept.

@@ -3,22 +3,23 @@
 
       setup    the collection has not been learned yet
       type     choose what to write (skipped when there is only one kind)
-      brief    the questionnaire
-      write    the conversation, with the draft beside it
+      write    the conversation, with the draft beside it: Ghostwriter asks
+               for the quick details, fills in the brief as a card to
+               check, then writes
 
     Model calls run in the background, so while one is in flight the panel
     polls until the answer lands.
 -->
 <script>
-import { Alert, Button, Field, Heading, Input, Select, Subheading, Textarea } from '@statamic/cms/ui';
+import { Alert, Button, Heading, Subheading, Textarea } from '@statamic/cms/ui';
+import BriefCard from './BriefCard.vue';
 import DraftPreview from './DraftPreview.vue';
-import ExamplePicker from './ExamplePicker.vue';
 import ImageSlots from './ImageSlots.vue';
 import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
 
 export default {
-    components: { Alert, Button, DraftPreview, ExamplePicker, Field, ImageSlots, Heading, Input, LearnForm, Select, SetupAlert, Subheading, Textarea },
+    components: { Alert, BriefCard, Button, DraftPreview, ImageSlots, Heading, LearnForm, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -41,18 +42,19 @@ export default {
         return {
             info: null,
             type: null,
-            examples: [],
-            answers: {},
-            quick: { title: '', notes: '' },
-            // The content plan idea this piece is being written from, if any.
-            planned: null,
-            guessing: false,
             // Seconds the current turn has been running, for the spinner.
             waited: 0,
             ticker: null,
-            guessed: false,
+            // Validation errors on the brief card's answers.
             errors: {},
+            // The piece open in the conversation. Before the quick details
+            // are sent it is only on screen (no id): nothing is kept for a
+            // kind chosen and left.
             session: null,
+            // Which brief card button is waiting on the server.
+            pending: null,
+            // Said to screen readers when the brief card arrives.
+            announcement: '',
             message: '',
             editing: false,
             raw: '',
@@ -104,8 +106,28 @@ export default {
             return this.session?.status === 'working';
         },
 
+        // Only the messages to show (core's BriefThread::visible()); the
+        // brief card is drawn where its message is.
         conversation() {
-            return this.session.messages.slice(1);
+            return this.session.messages;
+        },
+
+        stage() {
+            return this.session?.stage ?? null;
+        },
+
+        // What the reply box is for, as its placeholder and its label.
+        composerLabel() {
+            if (this.stage === 'details' || this.stage === 'filling') return this.__('A working title and a line or two about it…');
+            if (this.stage === 'proposed') return this.__('Check the brief above, then start writing.');
+            if (this.asking) return this.__('Type your answers here. Short is fine; number them if it helps.');
+
+            return this.session.draft ? this.__('Ask for a change…') : this.__('Answer the questions…');
+        },
+
+        // Before the brief is agreed: the draft can wait.
+        briefing() {
+            return ['details', 'filling', 'proposed'].includes(this.stage);
         },
 
         asking() {
@@ -114,6 +136,7 @@ export default {
 
         // What is probably going on, going by how long it has been.
         progress() {
+            if (this.stage === 'filling') return this.__('Filling in the brief…');
             if (this.waited < 8) return this.session.draft ? this.__('Reading your message…') : this.__('Reading the brief…');
             if (this.waited < 30) return this.session.draft ? this.__('Revising the draft…') : this.__('Thinking it through…');
 
@@ -147,7 +170,7 @@ export default {
 
                 if (!working) return;
 
-                const since = Date.parse(this.session.messages.at(-1)?.at ?? '') || Date.now();
+                const since = Date.parse(this.session.since ?? '') || Date.now();
                 const tick = () => (this.waited = Math.max(0, Math.round((Date.now() - since) / 1000)));
 
                 tick();
@@ -189,7 +212,7 @@ export default {
                     this.later(() => this.load());
                 } else {
                     if (wasLearning && data.state.status === 'idle') this.adding = false;
-                    if (data.types.length === 1 && data.kinds.length === 0 && data.ideas.length === 0 && !this.adding) this.choose(data.types[0]);
+                    if (data.types.length === 1 && data.kinds.length === 0 && data.ideas.length === 0 && !this.adding && !this.session) this.choose(data.types[0]);
                 }
             } catch (error) {
                 this.fail(error);
@@ -208,72 +231,49 @@ export default {
         },
 
         // `examples` preselects the entries to model this piece on: a kind's
-        // members, or whatever the type itself was taught from.
+        // members, or whatever the type itself was taught from. The
+        // conversation opens on Ghostwriter asking for the quick details;
+        // the piece is kept once they are sent.
         choose(type, examples = null) {
             this.type = type;
-            this.examples = examples ?? type.examples ?? [];
-            this.answers = Object.fromEntries(type.questions.map((question) => [question.handle, '']));
-            this.guessed = false;
-            this.planned = null;
-            this.quick = { title: '', notes: '' };
             this.errors = {};
+            this.announcement = '';
+            this.session = {
+                id: null,
+                stage: 'details',
+                status: 'idle',
+                type,
+                examples: examples ?? type.examples ?? [],
+                messages: [{ index: 0, role: 'assistant', step: 'ask', html: null, content: this.__('What’s it called, and what should it say? A line or two is plenty.') }],
+                draft: null,
+                brief: null,
+                brief_text: null,
+                images: [],
+                editing: false,
+            };
+
+            this.$nextTick(() => this.focusComposer());
         },
 
-        options(question) {
-            return Object.entries(question.options ?? {}).map(([value, label]) => ({ value, label }));
+        focusComposer() {
+            this.$refs.composer?.$el?.querySelector?.('textarea')?.focus() ?? this.$refs.composer?.$el?.focus?.();
         },
 
-        // Tall enough to show the whole answer, however it got there: typed,
-        // or filled in by the quick brief. A short-answer question starts as
-        // one line; past a screenful the box scrolls.
-        rowsFor(question) {
-            const lines = String(this.answers[question.handle] ?? '')
-                .split('\n')
-                .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / 85)), 0);
+        // "Draft this": an idea from the content plan. No question first:
+        // the brief card is filled in from the idea, ready to check.
+        async fromIdea(idea) {
+            const type = this.info.types.find((candidate) => candidate.handle === idea.type) ?? this.general;
 
-            return Math.min(Math.max(lines + 1, question.type === 'text' ? 1 : 3), 16);
-        },
+            if (!this.info.configured) return this.choose(type);
 
-        // An idea from the content plan: pick its kind of content, put its
-        // title and notes in the quick brief, and fill the brief in.
-        fromIdea(idea) {
-            this.choose(this.info.types.find((type) => type.handle === idea.type) ?? this.general);
-            this.planned = idea.id;
-            this.quick = { title: idea.title, notes: [idea.why, idea.notes].filter(Boolean).join('\n\n') };
-
-            if (this.info.configured) this.guess();
-        },
-
-        // Title and notes in, a filled-in questionnaire out, for checking.
-        async guess() {
-            this.guessing = true;
+            this.type = type;
 
             try {
-                const { data } = await this.$axios.post(this.url(`types/${this.type.handle}/brief`), this.quick);
-
-                this.answers = { ...this.answers, ...data.answers };
-                this.guessed = true;
-                this.errors = {};
-            } catch (error) {
-                this.fail(error);
-            } finally {
-                this.guessing = false;
-            }
-        },
-
-        async start() {
-            this.busy = true;
-            this.errors = {};
-
-            try {
-                const { data } = await this.$axios.post(this.url(`types/${this.type.handle}/sessions`), { answers: this.answers, examples: this.examples, idea: this.planned });
+                const { data } = await this.$axios.post(this.url(`types/${type.handle}/sessions`), { examples: type.examples ?? [], idea: idea.id });
 
                 this.receive(data);
             } catch (error) {
-                this.errors = error.response?.data?.errors ?? {};
                 this.fail(error);
-            } finally {
-                this.busy = false;
             }
         },
 
@@ -293,6 +293,10 @@ export default {
         receive(data) {
             const changed = data.draft !== this.session?.draft;
 
+            // The brief card has just been filled in (or filled in again):
+            // say so, and take keyboard focus to it.
+            const filled = data.stage === 'proposed' && data.id === this.session?.id && (this.session?.stage !== 'proposed' || data.brief?.attempt !== this.session?.brief?.attempt);
+
             if (data.id !== this.session?.id) this.$emit('session', data.id);
 
             this.session = data;
@@ -311,8 +315,45 @@ export default {
                 if (chat) chat.scrollTop = chat.scrollHeight;
 
                 // Questions waiting: put the cursor where the answer goes.
-                if (this.asking) this.$refs.composer?.$el?.querySelector?.('textarea')?.focus() ?? this.$refs.composer?.$el?.focus?.();
+                if (this.asking) this.focusComposer();
+
+                if (filled) {
+                    this.announce(this.__('The brief is filled in. Check it, then start writing.'));
+                    this.$refs.card?.[0]?.focus?.() ?? this.$refs.card?.focus?.();
+                }
             });
+        },
+
+        // Polite, for screen readers: cleared first so the same words are
+        // read again after Try again.
+        announce(text) {
+            this.announcement = '';
+            this.$nextTick(() => (this.announcement = text));
+        },
+
+        // The brief card's buttons. Each sends the card as the person left it.
+        async briefAction(action, card) {
+            this.pending = action;
+            this.errors = {};
+
+            const [method, path] = {
+                agree: ['post', 'brief/agree'],
+                'try-again': ['post', 'brief/try-again'],
+                save: ['patch', 'brief'],
+            }[action];
+
+            try {
+                const { data } = await this.$axios[method](this.url(`sessions/${this.session.id}/${path}`), card);
+
+                this.receive(data);
+
+                if (action === 'save') this.$toast.success(this.__('The brief is saved. Ghostwriter works from it from the next message.'));
+            } catch (error) {
+                this.errors = error.response?.data?.errors ?? {};
+                this.fail(error);
+            } finally {
+                this.pending = null;
+            }
         },
 
         // "Draft updated · 957 → 1,012 words (+55)"
@@ -336,13 +377,17 @@ export default {
         },
 
         async send() {
-            if (!this.message.trim() || this.working) return;
+            if (!this.message.trim() || this.working || this.stage === 'proposed') return;
 
             const message = this.message;
             this.message = '';
 
             try {
-                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/messages`), { message });
+                // The quick details for a piece not kept yet: it is kept now,
+                // and the brief is filled in from them.
+                const { data } = this.session.id
+                    ? await this.$axios.post(this.url(`sessions/${this.session.id}/messages`), { message })
+                    : await this.$axios.post(this.url(`types/${this.session.type.handle}/sessions`), { examples: this.session.examples, details: message });
 
                 this.receive(data);
             } catch (error) {
@@ -501,8 +546,11 @@ export default {
             clearTimeout(this.timer);
 
             this.session = null;
-            this.type = this.nothingToChoose ? this.type : null;
+            this.message = '';
             this.$emit('session', null);
+
+            if (this.nothingToChoose) this.choose(this.type);
+            else this.type = null;
         },
     },
 };
@@ -618,91 +666,22 @@ export default {
                 </div>
             </div>
 
-            <!-- The questionnaire -->
-            <div v-else-if="step === 'brief'" class="mx-auto max-w-3xl">
-                <div class="mb-6 flex items-start justify-between gap-6">
-                    <div>
-                        <Heading size="lg" :text="type.title" />
-                        <Subheading class="mt-1" :text="type.description" />
-                    </div>
-                    <Button v-if="!nothingToChoose" size="sm" variant="ghost" :text="__('Change')" @click="type = null" />
-                </div>
-
-                <div class="mb-8 space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700!">
-                    <Heading :text="__('Quick brief')" />
-                    <Subheading :text="__('Give it a title and anything you already know. Ghostwriter fills in the questions below, for you to check and change.')" />
-                    <Input v-model="quick.title" :placeholder="__('Working title')" :disabled="guessing" @keydown.enter.stop.prevent="quick.title.trim() && guess()" />
-                    <Textarea v-model="quick.notes" elastic :rows="3" :disabled="guessing" :placeholder="__('Notes: the angle, who it is for, points to make, projects to mention…')" />
-                    <div class="flex items-center justify-between gap-4">
-                        <span class="text-sm text-gray-500">
-                            {{ guessed ? __('Filled in below. Anything in [square brackets] needs you.') : __('Optional. You can also just answer the questions.') }}
-                        </span>
-                        <Button
-                            :text="guessed ? __('Try again') : __('Fill in the brief')"
-                            :loading="guessing"
-                            :disabled="!info.configured || guessing || !quick.title.trim()"
-                            @click="guess"
-                        />
-                    </div>
-                </div>
-
-                <div class="space-y-6">
-                    <Field
-                        v-for="question in type.questions"
-                        :key="question.handle"
-                        :label="question.label"
-                        :instructions="question.instructions ?? ''"
-                        :required="question.required === true"
-                        :error="errors[`answers.${question.handle}`]?.[0]"
-                    >
-                        <Select v-if="question.type === 'select'" v-model="answers[question.handle]" :options="options(question)" />
-                        <Textarea v-else v-model="answers[question.handle]" :rows="rowsFor(question)" class="resize-y" />
-                    </Field>
-                </div>
-
-                <Field
-                    v-if="info.entries.length"
-                    class="mt-6"
-                    :label="__('Model it on')"
-                    :instructions="__('Optional. Tick up to six entries and the draft follows how they are built. With none ticked, Ghostwriter goes by the brief and how this collection is usually written.')"
-                >
-                    <ExamplePicker v-model="examples" :entries="info.entries" />
-                </Field>
-
-                <div class="mt-8 flex items-center justify-between">
-                    <span class="text-sm text-gray-500">{{ __('Short answers are fine. Ghostwriter asks for anything it still needs before it writes.') }}</span>
-                    <Button variant="primary" :text="__('Start writing')" :disabled="!info.configured || busy" :loading="busy" @click="start" />
-                </div>
-
-                <div v-if="nothingToChoose && info.sessions.length" class="mt-10">
-                    <Subheading :text="__('Or carry on with')" class="mb-2" />
-                    <button
-                        v-for="item in info.sessions"
-                        :key="item.id"
-                        type="button"
-                        class="flex w-full items-center justify-between rounded-md px-3 py-2 text-start hover:bg-gray-50! dark:hover:bg-gray-800!"
-                        @click="open(item.id)"
-                    >
-                        <span class="truncate">{{ item.title }}</span>
-                        <span class="text-sm text-gray-500">{{ item.updated_at }}</span>
-                    </button>
-                </div>
-            </div>
-
             <!-- The conversation and the draft -->
             <div v-else class="grid h-full gap-6 max-lg:grid-cols-1 lg:grid-cols-5">
-                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 lg:col-span-2 dark:border-gray-700!">
+                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 max-lg:min-h-[80vh] lg:col-span-2 dark:border-gray-700!">
+                    <div class="sr-only" aria-live="polite" aria-atomic="true">{{ announcement }}</div>
                     <div ref="chat" class="flex-1 space-y-3 overflow-y-auto p-4">
-                        <div v-if="!session.editing" class="rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800!">
-                            <button type="button" class="font-medium underline" @click="showBrief = !showBrief">
+                        <!-- A piece from before the brief card: its brief, as text. -->
+                        <div v-if="session.brief_text" class="rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800!">
+                            <button type="button" class="font-medium underline" :aria-expanded="showBrief ? 'true' : 'false'" @click="showBrief = !showBrief">
                                 {{ showBrief ? __('Hide the brief') : __('Show the brief') }}
                             </button>
-                            <div v-if="showBrief" class="mt-2 whitespace-pre-wrap">{{ session.messages[0]?.content }}</div>
+                            <div v-if="showBrief" class="mt-2 whitespace-pre-wrap">{{ session.brief_text }}</div>
                         </div>
 
+                        <template v-for="(entry, index) in conversation" :key="entry.index ?? index">
                         <div
-                            v-for="(entry, index) in conversation"
-                            :key="index"
+                            v-if="entry.step !== 'card' || !session.brief || session.brief.agreed !== true"
                             class="rounded-lg px-3 py-2 text-sm whitespace-pre-wrap"
                             :class="[
                                 entry.role === 'user' ? 'ms-8 bg-gray-100 dark:bg-gray-800!' : 'me-8 border',
@@ -714,9 +693,23 @@ export default {
                                 v-if="entry.draft"
                                 class="mt-2 flex items-center gap-1.5 border-t border-gray-200 pt-2 text-xs font-medium text-green-700 dark:border-gray-700! dark:text-green-400!"
                             ><svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ draftNote(entry.draft) }}</span></div>
+                        <BriefCard
+                            v-if="entry.step === 'card' && session.brief"
+                            ref="card"
+                            :brief="session.brief"
+                            :questions="session.type?.questions ?? []"
+                            :entries="info.entries"
+                            :disabled="working || (session.brief.agreed !== true && stage !== 'proposed')"
+                            :pending="pending"
+                            :errors="errors"
+                            @agree="(card) => briefAction('agree', card)"
+                            @try-again="(card) => briefAction('try-again', card)"
+                            @save="(card) => briefAction('save', card)"
+                        />
+                        </template>
 
                         <div v-if="working" class="me-8 flex items-center gap-2.5 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500 dark:border-gray-700!" role="status">
-                            <svg class="size-4 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <svg class="size-4 shrink-0 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
                                 <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
                             </svg>
@@ -724,6 +717,21 @@ export default {
                             <span class="ms-auto tabular-nums">{{ elapsed }}</span>
                         </div>
                         <Alert v-if="working && session.queue_waiting" variant="warning" :text="session.queue_waiting" role="status" />
+
+                        <!-- Nothing kept yet: pieces already under way are a click away. -->
+                        <div v-if="!session.id && nothingToChoose && info.sessions.length" class="pt-4">
+                            <Subheading :text="__('Or carry on with')" class="mb-2" />
+                            <button
+                                v-for="item in info.sessions"
+                                :key="item.id"
+                                type="button"
+                                class="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-start hover:bg-gray-50! dark:hover:bg-gray-800!"
+                                @click="open(item.id)"
+                            >
+                                <span class="truncate">{{ item.title }}</span>
+                                <span class="shrink-0 text-sm text-gray-500">{{ item.updated_at }}</span>
+                            </button>
+                        </div>
 
                         <div v-if="session.status === 'failed'" class="space-y-2">
                             <Alert variant="error" :heading="__('That didn’t work')" :text="session.error" />
@@ -734,7 +742,7 @@ export default {
                     <div class="space-y-2 border-t p-4" :class="asking ? 'border-amber-400 bg-amber-50 dark:border-amber-500! dark:bg-amber-950/40!' : 'border-gray-200 dark:border-gray-700!'">
                         <div v-if="asking" class="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-300!">
                             <span class="relative flex size-2.5">
-                                <span class="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-60"></span>
+                                <span class="absolute inline-flex size-full animate-ping rounded-full motion-reduce:animate-none bg-amber-500 opacity-60"></span>
                                 <span class="relative inline-flex size-2.5 rounded-full bg-amber-500"></span>
                             </span>
                             {{ session.draft ? __('Your turn: answer above to carry on.') : __('Your turn: answer the questions above and the draft follows.') }}
@@ -743,15 +751,16 @@ export default {
                             ref="composer"
                             v-model="message"
                             :rows="3"
-                            :disabled="working"
-                            :placeholder="asking ? __('Type your answers here. Short is fine; number them if it helps.') : session.draft ? __('Ask for a change…') : __('Answer the questions…')"
+                            :disabled="working || stage === 'proposed'"
+                            :aria-label="composerLabel"
+                            :placeholder="composerLabel"
                             @keydown.meta.enter.stop.prevent="send"
                             @keydown.ctrl.enter.stop.prevent="send"
                         />
                         <div class="flex items-center justify-between">
                             <Button v-if="!session.editing" size="sm" variant="ghost" :text="__('Start over')" @click="startOver" />
                             <Button v-else size="sm" variant="ghost" :text="__('Start again from the entry')" :disabled="working" @click="startAgain" />
-                            <Button :text="working ? __('Working…') : __('Send')" :loading="working" :disabled="working || !message.trim()" @click="send" />
+                            <Button :text="working ? __('Working…') : __('Send')" :loading="working" :disabled="working || stage === 'proposed' || !message.trim()" @click="send" />
                         </div>
                     </div>
                 </div>
@@ -787,12 +796,13 @@ export default {
                     <div class="flex-1 overflow-y-auto p-4">
                         <div v-if="!session.draft" class="py-24 text-center text-gray-500">
                             <template v-if="working">
-                                <svg class="mx-auto mb-3 size-6 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <svg class="mx-auto mb-3 size-6 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                     <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
                                     <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
                                 </svg>
-                                {{ __('Ghostwriter is working. A draft usually takes a minute or two.') }}
+                                {{ stage === 'filling' ? __('Filling in the brief…') : __('Ghostwriter is working. A draft usually takes a minute or two.') }}
                             </template>
+                            <template v-else-if="briefing">{{ __('Once the brief looks right, Ghostwriter starts writing and the draft appears here.') }}</template>
                             <template v-else-if="asking">
                                 <span class="mb-2 block text-base font-medium text-amber-700 dark:text-amber-400!">{{ __('Ghostwriter has questions for you first') }}</span>
                                 {{ __('They are in the conversation on the left. Answer them there and the draft will appear here.') }}
