@@ -37,7 +37,7 @@ Once changes have gone into the form, the next **Edit with Ghostwriter** starts 
 
 ## What is not changed
 
-Only the writing changes. Images, links, chosen entries, settings, blocks that are switched off and block IDs stay as they are in the form, including changes you've made there and not yet saved.
+Only the writing changes. Images, links, chosen entries, settings, blocks that are switched off and block IDs stay as they are in the form, including changes you've made there and not yet saved. So do the sets in rich text (Bard) other than pull quotes: each stays after the words it followed, even when a chosen layout moves those words to another block.
 
 Editing never applies [house style](fields.md#house-style) or [image placeholders](images.md#placeholders). Those are for new entries.
 

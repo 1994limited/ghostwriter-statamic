@@ -160,6 +160,18 @@ class BardToMarkdown
     }
 
     /**
+     * Whether a set placed in a Bard field comes through in the markdown,
+     * so a draft written from it holds it. Sets that don't (images, stats
+     * and other furniture) are for the entry to keep.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    public function carries(array $values): bool
+    {
+        return $this->set($values) !== '';
+    }
+
+    /**
      * @param  array<string, mixed>  $values
      */
     private function set(array $values): string

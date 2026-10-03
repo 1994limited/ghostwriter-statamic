@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Actions\WriteWithGhostwriter;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\StopReason;
@@ -31,6 +32,8 @@ use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\Widgets\Ghostwriter;
 use NineteenNinetyFour\Ghostwriter\WorkStates;
+use Statamic\Facades\AssetContainer;
+use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
@@ -1571,6 +1574,79 @@ class WritingTest extends TestCase
         // Without the form's values (an older script), the entry as saved is the base, as before.
         $saved = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']))->assertOk()->json('values');
         $this->assertSame('heroes/saved.mp4', $saved['page_builder'][0]['image']);
+    }
+
+    public function test_editing_keeps_the_sets_in_a_bard_field_that_the_draft_does_not_hold(): void
+    {
+        $this->signInWith(['access ghostwriter', 'view journal entries', 'edit journal entries', 'create journal entries']);
+
+        Storage::fake('assets');
+        AssetContainer::make('assets')->disk('assets')->save();
+        Collection::make('journal')->title('Journal')->save();
+
+        Blueprint::make('journal')->setNamespace('collections.journal')->setContents(['fields' => [
+            ['handle' => 'title', 'field' => ['type' => 'text']],
+            ['handle' => 'body', 'field' => ['type' => 'bard', 'sets' => ['main' => ['sets' => [
+                'photo' => ['display' => 'Photo', 'fields' => [['handle' => 'image', 'field' => ['type' => 'assets', 'container' => 'assets', 'max_files' => 1]]]],
+                'stats' => ['display' => 'Stats', 'fields' => [['handle' => 'items', 'field' => ['type' => 'grid', 'fields' => [
+                    ['handle' => 'figure', 'field' => ['type' => 'text']],
+                    ['handle' => 'label', 'field' => ['type' => 'text']],
+                ]]]]],
+                'pullquote' => ['display' => 'Pull Quote', 'fields' => [['handle' => 'text', 'field' => ['type' => 'textarea']]]],
+            ]]]]],
+        ]])->save();
+
+        $paragraph = fn (string $text) => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
+        $photo = ['type' => 'set', 'attrs' => ['id' => 'p1', 'values' => ['type' => 'photo', 'image' => 'journal/rain-garden.jpg']]];
+        $stats = ['type' => 'set', 'attrs' => ['id' => 's1', 'values' => ['type' => 'stats', 'items' => [['id' => 'i1', 'figure' => '40%', 'label' => 'Less runoff']]]]];
+
+        Entry::make()->collection('journal')->slug('rain-garden')->published(true)->data([
+            'title' => 'The Rain Garden',
+            'body' => [
+                $paragraph('Old opening.'),
+                $photo,
+                $stats,
+                $paragraph('Old middle.'),
+                ['type' => 'set', 'attrs' => ['id' => 'q1', 'values' => ['type' => 'pullquote', 'text' => 'Old quote.']]],
+                $paragraph('Old close.'),
+            ],
+        ])->save();
+
+        $entry = Entry::query()->where('slug', 'rain-garden')->first();
+        $detail = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertOk()->json();
+
+        // The draft holds the writing and the pull quote, not the photo or the figures.
+        $this->assertStringContainsString('Old quote.', $detail['draft']);
+        $this->assertStringNotContainsString('rain-garden.jpg', $detail['draft']);
+        $this->assertStringNotContainsString('Less runoff', $detail['draft']);
+
+        $this->ai->respond('writer', "<reply>Done.</reply>\n<draft>\ntitle: The Rain Garden\nbody: |\n  New opening.\n\n  New middle.\n\n  > New quote.\n</draft>");
+        $this->postJson(cp_route('ghostwriter.sessions.message', $detail['id']), ['message' => 'Tighten it.'])->assertOk();
+        $this->runTurn($this->sessions()->find($detail['id']));
+
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']))->assertOk()->json('values');
+        $body = $values['body'];
+
+        $shape = array_map(fn (array $node) => $node['type'] === 'set' ? $node['attrs']['values']['type'] : $node['type'], $body);
+
+        // The photo and the figures stay after the opening, where they were;
+        // the quote is the draft's, not a second copy of the old one.
+        $this->assertSame(['paragraph', 'photo', 'stats', 'paragraph', 'pullquote'], $shape);
+        $this->assertSame('New opening.', $body[0]['content'][0]['text']);
+        $this->assertSame('p1', $body[1]['attrs']['id']);
+        $this->assertSame('s1', $body[2]['attrs']['id']);
+        $this->assertSame('Less runoff', $body[2]['attrs']['values']['items'][0]['label']);
+        $this->assertSame('New quote.', $body[4]['attrs']['values']['text']);
+
+        // A draft cut shorter than where a set stood puts it at the end.
+        $this->ai->respond('writer', "<reply>Done.</reply>\n<draft>\ntitle: The Rain Garden\nbody: Just one line now.\n</draft>");
+        $this->postJson(cp_route('ghostwriter.sessions.message', $detail['id']), ['message' => 'One line.'])->assertOk();
+        $this->runTurn($this->sessions()->find($detail['id']));
+
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']))->assertOk()->json('values');
+        $body = $values['body'];
+
+        $this->assertSame(['paragraph', 'photo', 'stats'], array_map(fn (array $node) => $node['type'] === 'set' ? $node['attrs']['values']['type'] : $node['type'], $body));
     }
 
     /**
