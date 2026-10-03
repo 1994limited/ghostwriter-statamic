@@ -9,6 +9,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImageryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImagesController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\LibraryConnectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PlanController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\ProviderConnectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SessionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SetupController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\StockController;
@@ -44,6 +45,10 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('libraries/{library}/connect', [LibraryConnectionController::class, 'connect'])->name('libraries.connect');
     Route::get('libraries/{library}/callback', [LibraryConnectionController::class, 'callback'])->name('libraries.callback');
     Route::post('libraries/{library}/disconnect', [LibraryConnectionController::class, 'disconnect'])->name('libraries.disconnect');
+    Route::get('providers/{provider}/connect', [ProviderConnectionController::class, 'connect'])->name('providers.connect');
+    Route::get('providers/{provider}/callback', [ProviderConnectionController::class, 'callback'])->name('providers.callback');
+    Route::post('providers/{provider}/disconnect', [ProviderConnectionController::class, 'disconnect'])->name('providers.disconnect');
+    Route::post('providers/{provider}/check', [ProviderConnectionController::class, 'check'])->name('providers.check');
     Route::post('stock/libraries/{library}/check', [StockController::class, 'check'])->name('stock.check');
     Route::get('stock', [StockLedgerController::class, 'show'])->name('stock.index');
     Route::get('stock/export.csv', [StockLedgerController::class, 'csv'])->name('stock.csv');

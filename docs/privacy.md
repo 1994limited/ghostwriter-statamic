@@ -9,7 +9,7 @@ Ghostwriter only sends anything when someone in the Control Panel starts somethi
 | When | Sent to | What |
 | --- | --- | --- |
 | Writing or editing | Your writing provider | The voice guide, the brief, the conversation, the current draft, the blueprint's fields, and one or two example entries |
-| Filling in a quick brief | Your writing provider | The title and notes, the kind's questions, and the collection's entry titles |
+| Filling in the brief | Your writing provider | Your quick details (or the plan idea), the kind's questions, and the collection's entry titles |
 | Writing the voice guide | Your writing provider | Text from the newest published entries in the chosen collections |
 | Learning or suggesting kinds | Your writing provider | Entry titles, how entries are built and how they open, and example entries |
 | Writing the image style guide | Your writing provider | Small copies of images from the collection's entries |
@@ -27,6 +27,8 @@ Ghostwriter only sends anything when someone in the Control Panel starts somethi
 ## Each provider's terms
 
 Each provider's own terms decide how it handles what you send. In particular, on **Gemini's free tier**, Google may use what you send to improve its products; the paid tier doesn't. For client sites, use a paid account. See [API keys](api-keys.md#google-gemini-and-images).
+
+With **OpenRouter**, every request, including images, passes through OpenRouter on its way to the model's company, so OpenRouter's [privacy policy](https://openrouter.ai/privacy) and data settings apply as well as that company's. A key from **Connect with OpenRouter** is kept encrypted in `storage/ghostwriter/provider-keys.json`.
 
 ## What is kept, and where
 

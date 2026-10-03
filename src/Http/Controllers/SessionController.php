@@ -358,7 +358,7 @@ class SessionController
         $session = $this->session($session);
         $type = $this->type($session->kind)->forSession($session);
 
-        abort_unless($images->configured(), 422, 'No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY.');
+        abort_unless($images->configured(), 422, 'No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY, or connect OpenRouter.');
 
         $validated = $request->validate([
             'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],

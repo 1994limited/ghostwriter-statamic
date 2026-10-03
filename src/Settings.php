@@ -3,7 +3,11 @@
 namespace NineteenNinetyFour\Ghostwriter;
 
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectedKey;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectsProvider;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Models;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\Credentials;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\ProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\OnPublish;
 use Statamic\Facades\Addon;
 use Statamic\Facades\User;
@@ -22,7 +26,7 @@ class Settings
     public const ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14"><path d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0v4l-2.5 2.5Z" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"></path><path d="M11.5 10H9v2.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="5.4" cy="6.25" r=".75" fill="currentColor"></circle><circle cx="8.6" cy="6.25" r=".75" fill="currentColor"></circle></svg>';
 
     /** Providers Ghostwriter makes images with. */
-    public const IMAGE_PROVIDERS = ['openai', 'gemini'];
+    public const IMAGE_PROVIDERS = ['openai', 'gemini', 'openrouter'];
 
     /** Seconds one call to a model may take, unless the config says otherwise. */
     public const TIMEOUT = 300;
@@ -42,6 +46,8 @@ class Settings
         'on_unfinished_publish' => 'ghostwriter.publish.on_unfinished',
         'stock_default_source' => 'ghostwriter.stock.default_source',
         'stock_include_editorial' => 'ghostwriter.stock.include_editorial',
+        'openrouter_writing_model' => 'ghostwriter.openrouter.models.writing',
+        'openrouter_quick_model' => 'ghostwriter.openrouter.models.quick',
     ];
 
     /** When a page holding an unlicensed preview is published. */
@@ -69,6 +75,17 @@ class Settings
         $provider = $this->value('image_provider');
 
         return in_array($provider, self::IMAGE_PROVIDERS, true) ? $provider : null;
+    }
+
+    /**
+     * The OpenRouter model chosen for a tier ("writing" or "quick"), or null
+     * for the default.
+     */
+    public function openRouterModel(string $tier): ?string
+    {
+        $model = in_array($tier, ['writing', 'quick'], true) ? $this->value("openrouter_{$tier}_model") : null;
+
+        return is_string($model) && trim($model) !== '' ? trim($model) : null;
     }
 
     public function imageModel(): ?string
@@ -261,6 +278,67 @@ class Settings
                     'handle' => 'stock_libraries',
                     'field' => ['type' => 'html', 'html' => '<ul style="list-style:none;margin:0;padding:0">'.$rows.'</ul>', 'hide_display' => true],
                 ], ...$switches);
+            }
+        }
+
+        return $contents;
+    }
+
+    /**
+     * The AI provider section with OpenRouter's row: Connect with
+     * OpenRouter (or Disconnect), Check connection, the credit left, and a
+     * note that requests pass through OpenRouter; and the models offered
+     * for each tier.
+     *
+     * @param  array<string, mixed>  $contents
+     * @return array<string, mixed>
+     */
+    public function withOpenRouter(array $contents, ConnectsProvider $connection): array
+    {
+        $button = 'font-size:.8rem;padding:.15rem .6rem;border:1px solid currentColor;border-radius:.375rem;opacity:.85';
+        $check = '<button type="button" data-ghostwriter-provider-check="'.e(cp_route('ghostwriter.providers.check', 'openrouter')).'" style="'.$button.'">'.e(__('Check connection')).'</button>';
+        $kept = app(ProviderKeys::class)->get('openrouter');
+        $masked = is_string($kept) && trim($kept) !== '' ? ConnectedKey::mask(trim($kept)) : null;
+
+        [$state, $buttons, $line] = match (true) {
+            $connection->usesEnvKey() => [self::pill(__('Using OPENROUTER_API_KEY from .env'), true), $check, null],
+            $connection->connected() => [
+                self::pill($masked ? __('Connected to OpenRouter (:key)', ['key' => $masked]) : __('Connected to OpenRouter'), true),
+                $check.'<button type="button" data-ghostwriter-provider-disconnect="'.e(cp_route('ghostwriter.providers.disconnect', 'openrouter')).'" style="'.$button.'">'.e(__('Disconnect')).'</button>',
+                __('Disconnect only forgets the key here. To revoke it, delete the key at openrouter.ai/settings/keys.'),
+            ],
+            default => [
+                self::pill(__('Not connected'), false),
+                '<a href="'.e(cp_route('ghostwriter.providers.connect', 'openrouter')).'" style="'.$button.';text-decoration:none">'.e(__('Connect with OpenRouter')).'</a>',
+                __('Sign in to OpenRouter to use Claude, GPT or Gemini with one account, paid for with OpenRouter credit.'),
+            ],
+        };
+
+        $html = '<div style="display:flex;flex-direction:column;gap:.35rem">'
+            .'<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center"><strong>OpenRouter</strong>'.$state.' '.$buttons.'</div>'
+            .($line ? '<div style="font-size:.8rem;opacity:.75">'.e($line).'</div>' : '')
+            .'<div data-ghostwriter-provider-connection="openrouter" style="font-size:.8rem" role="status" aria-live="polite"></div>'
+            .'<div style="font-size:.8rem;opacity:.75">'.e(__('Requests, including images, pass through OpenRouter on their way to the model\'s company, and OpenRouter\'s own privacy policy applies.')).'</div>'
+            .'</div>';
+
+        $choices = Models::OPENROUTER_TEXT_CHOICES;
+
+        foreach ($contents['tabs'] ?? [] as $tab => $content) {
+            foreach ($content['sections'] ?? [] as $i => $section) {
+                if (($section['display'] ?? null) !== 'AI provider') {
+                    continue;
+                }
+
+                foreach ($section['fields'] ?? [] as $j => $field) {
+                    if (in_array($field['handle'] ?? null, ['openrouter_writing_model', 'openrouter_quick_model'], true)) {
+                        $contents['tabs'][$tab]['sections'][$i]['fields'][$j]['field']['options'] = $choices;
+                    }
+                }
+
+                $contents['tabs'][$tab]['sections'][$i]['fields'][] = [
+                    'handle' => 'openrouter_connection',
+                    'field' => ['type' => 'html', 'html' => $html, 'hide_display' => true],
+                ];
             }
         }
 

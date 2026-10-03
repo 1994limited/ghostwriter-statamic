@@ -140,6 +140,56 @@ Statamic.booting(() => {
         }
     });
 
+    // OpenRouter's row in the AI provider section: Check connection
+    // (the credit left) and Disconnect.
+    document.addEventListener('click', async (event) => {
+        const check = event.target.closest?.('[data-ghostwriter-provider-check]');
+        const disconnect = event.target.closest?.('[data-ghostwriter-provider-disconnect]');
+
+        if (!check && !disconnect) return;
+
+        event.preventDefault();
+
+        if (disconnect) {
+            if (!window.confirm(__('Disconnect OpenRouter? Ghostwriter stops writing with it until someone connects again.'))) return;
+
+            disconnect.disabled = true;
+
+            try {
+                const result = await request(disconnect.dataset.ghostwriterProviderDisconnect, { method: 'POST' });
+
+                Statamic.$toast.success(result.message);
+                window.location.reload();
+            } catch (error) {
+                Statamic.$toast.error(error.message);
+                disconnect.disabled = false;
+            }
+
+            return;
+        }
+
+        const out = document.querySelector('[data-ghostwriter-provider-connection="openrouter"]');
+
+        check.disabled = true;
+        if (out) out.textContent = __('Checking…');
+
+        try {
+            const result = await request(check.dataset.ghostwriterProviderCheck, { method: 'POST' });
+
+            if (out) {
+                out.textContent = result.message;
+                out.style.color = result.ok ? '#16a34a' : '#dc2626';
+            }
+        } catch (error) {
+            if (out) {
+                out.textContent = error.message;
+                out.style.color = '#dc2626';
+            }
+        } finally {
+            check.disabled = false;
+        }
+    });
+
     // "Check connection" on the settings screen's Stock photos rows. The
     // rows are plain HTML in the blueprint, so the button is handled here.
     document.addEventListener('click', async (event) => {

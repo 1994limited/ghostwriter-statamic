@@ -67,7 +67,7 @@ class Onboarding
             [
                 'key' => 'key',
                 'title' => 'Connect a model',
-                'text' => 'Ghostwriter writes with Claude, ChatGPT or Gemini, on your own account. Add the API key to your .env file; it is read from there and never stored.',
+                'text' => 'Ghostwriter writes with Claude, ChatGPT or Gemini, on your own account. Add the API key to your .env file; it is read from there and never stored. Or choose OpenRouter in the settings and Connect with OpenRouter, with no key to copy.',
                 'done' => $configured,
                 'working' => false,
                 'optional' => false,
@@ -317,9 +317,11 @@ class Onboarding
         $keys = $this->providers->keyStatus();
         $others = array_values(array_filter(Providers::TEXT, fn (string $other) => $other !== $provider && ($keys[Credentials::ENV[$other]] ?? false)));
 
-        $advice = $wanted
-            ? "Add {$wanted} to .env, then reload this page."
-            : "\"{$provider}\" is not a provider Ghostwriter can write with. Choose Claude, ChatGPT or Gemini in the settings.";
+        $advice = match (true) {
+            $provider === 'openrouter' => 'Connect with OpenRouter in the settings, or add OPENROUTER_API_KEY to .env, then reload this page.',
+            $wanted !== null => "Add {$wanted} to .env, then reload this page.",
+            default => "\"{$provider}\" is not a provider Ghostwriter can write with. Choose Claude, ChatGPT, Gemini or OpenRouter in the settings.",
+        };
 
         return $others === []
             ? $advice
@@ -336,6 +338,6 @@ class Onboarding
 
     private function providerName(string $provider): string
     {
-        return ['anthropic' => 'Claude (Anthropic)', 'openai' => 'ChatGPT (OpenAI)', 'gemini' => 'Gemini (Google)'][$provider] ?? $provider;
+        return ['anthropic' => 'Claude (Anthropic)', 'openai' => 'ChatGPT (OpenAI)', 'gemini' => 'Gemini (Google)', 'openrouter' => 'OpenRouter'][$provider] ?? $provider;
     }
 }

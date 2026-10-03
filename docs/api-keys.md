@@ -9,6 +9,7 @@ What the models use is billed to your account by the provider, pay as you go; it
 | `ANTHROPIC_API_KEY` | Anthropic (Claude) | Writing (the default) | No, pay as you go |
 | `OPENAI_API_KEY` | OpenAI (ChatGPT) | Writing, or making images | No, pay as you go |
 | `GEMINI_API_KEY` | Google (Gemini) | Writing, or making images | Free tier for writing with Flash models |
+| `OPENROUTER_API_KEY`, or **Connect with OpenRouter** | OpenRouter (Claude, GPT, Gemini and others) | Writing, or making images | No, prepaid credit |
 | `UNSPLASH_ACCESS_KEY` | Unsplash | Photo search | Yes |
 | `PIXABAY_API_KEY` | Pixabay | Photo search | Yes |
 | `PEXELS_API_KEY` | Pexels | Photo search | Yes |
@@ -20,11 +21,12 @@ You need **one** writing key. Everything else is optional. After adding or chang
 
 ## Choosing a writing provider
 
-Ghostwriter works with three providers, through its own connection to each: Anthropic, OpenAI and Google. It doesn't use the Laravel AI SDK, and no other provider is supported.
+Ghostwriter works with four providers, through its own connection to each: Anthropic, OpenAI, Google and OpenRouter. It doesn't use the Laravel AI SDK, and no other provider is supported.
 
 - **Claude (Anthropic):** the default, and the one the prompts were tuned on. Strong at matching a voice and following the brief closely.
 - **ChatGPT (OpenAI):** a good choice if you also want to make images with the same account.
 - **Gemini (Google):** the only one with a free tier. Leave **Model** blank to use the default Flash model.
+- **OpenRouter:** Claude, GPT, Gemini and others through one account, paid for with OpenRouter credit. No key to copy: **Connect with OpenRouter** signs you in. See [OpenRouter](#openrouter).
 
 Choose under **Ghostwriter → Settings → Provider**, or with `provider` in [`config/ghostwriter.php`](configuration.md). Leave **Model** blank for the provider's default. These were checked on 2026-10-01 and come from Ghostwriter Core:
 
@@ -64,6 +66,32 @@ A key made inside a workspace only works for that workspace; one that gives "not
 To **write** with OpenAI, set **Provider** to ChatGPT (OpenAI). To **make images** with it while writing with Claude, leave **Provider** as Claude.
 
 OpenAI may ask you to verify your organisation before its image models can be used. If making an image fails with a message about verification, complete it under **Settings → Organization** on the OpenAI platform.
+
+## OpenRouter
+
+[OpenRouter](https://openrouter.ai) sells access to many companies' models through one account and one key, paid for with prepaid credit.
+
+1. Under **Ghostwriter → Settings → AI provider**, choose **OpenRouter** as the provider and save.
+2. Click **Connect with OpenRouter**. Sign in to OpenRouter (or sign up), choose a spending limit for the key, and allow access. You come back to the settings screen with the key saved; nothing needs copying. The Control Panel must be on `https://` (or `http://localhost`), which is OpenRouter's rule.
+3. **Check connection** shows the credit left on the key. **Disconnect** forgets the key on this site; to revoke it, delete it at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).
+
+The key is kept encrypted with your app key in `storage/ghostwriter/provider-keys.json`, never in the content folder and never shown. Only people who may change Ghostwriter's settings can connect or disconnect.
+
+Or create a key on openrouter.ai and put it in `.env` instead:
+
+```dotenv
+OPENROUTER_API_KEY=sk-or-v1-...
+```
+
+**A key in `.env` always wins.** While it is set, the settings row says "Using OPENROUTER_API_KEY from .env", and Connect and Disconnect aren't offered.
+
+**Models.** OpenRouter names models `company/model`. Ghostwriter uses one model for writing (the writer, briefs, guides and planning; `anthropic/claude-opus-5.5` by default) and one for quick jobs (choosing photos and filling a gap; `anthropic/claude-sonnet-5.5`). Choose others under **OpenRouter model for writing** and **OpenRouter model for quick jobs**, or set `openrouter.models.writing` and `openrouter.models.quick` in the config. For a model not in the lists, put its id from [openrouter.ai/models](https://openrouter.ai/models) in **Model**.
+
+**Images.** OpenRouter makes images too (`openai/gpt-image-2.5-sunburst` by default). With no **Image provider** chosen, an OpenAI or Gemini key is used first. An **Image model** for OpenRouter uses its spelling, such as `google/gemini-3.1-flash-image`.
+
+**Privacy.** Every request, including images, passes through OpenRouter on its way to the model's company, and OpenRouter's own [privacy policy](https://openrouter.ai/privacy) applies as well as that company's.
+
+When the credit runs out, Ghostwriter says "Your OpenRouter credit has run out." Add credit at [openrouter.ai/settings/credits](https://openrouter.ai/settings/credits).
 
 ## Google (Gemini, and images)
 

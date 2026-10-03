@@ -46,15 +46,16 @@ php artisan vendor:publish --tag=ghostwriter-config
 
 | Key | Default | |
 | --- | --- | --- |
-| `provider` | `null` (the screen; Claude if that is blank too) | `anthropic`, `openai` or `gemini` |
+| `provider` | `null` (the screen; Claude if that is blank too) | `anthropic`, `openai`, `gemini` or `openrouter` |
+| `openrouter.models.writing`, `openrouter.models.quick` | `null` (the screen; then OpenRouter's defaults) | With OpenRouter, the model for each tier. See [OpenRouter](api-keys.md#openrouter) |
 | `model` | `null` (the provider's default) | |
 | `timeout` | `300` | Seconds to wait for one response |
-| `keys.anthropic`, `keys.openai`, `keys.gemini` | from `.env` | API keys. When one is empty, a key in `config/ai.php` is used, if there is one |
-| `base_urls.anthropic`, `base_urls.openai`, `base_urls.gemini` | `null` | A gateway that speaks the provider's API. See [Gateways and proxies](api-keys.md#gateways-and-proxies) |
+| `keys.anthropic`, `keys.openai`, `keys.gemini`, `keys.openrouter` | from `.env` | API keys. When one is empty, a key in `config/ai.php` is used, if there is one |
+| `base_urls.anthropic`, `base_urls.openai`, `base_urls.gemini`, `base_urls.openrouter` | `null` | A gateway that speaks the provider's API. See [Gateways and proxies](api-keys.md#gateways-and-proxies) |
 | `anthropic_fallbacks` | `true` | Pass a request Claude declines to the model Anthropic recommends, on models that support it |
 | `log_channel` | `null` (the default channel) | Where each call is logged |
 | `debug.log_replies` | `false` | Put the whole reply in the log when it can't be read. See [Seeing what went wrong](troubleshooting.md#seeing-what-went-wrong) |
-| `images.provider`, `images.model` | `null` | Making images. `null` provider uses OpenAI, then Gemini, whichever has a key |
+| `images.provider`, `images.model` | `null` | Making images. `null` provider uses OpenAI, then Gemini, then OpenRouter, whichever has a key |
 | `images.unsplash_key`, `images.pexels_key`, `images.pixabay_key` | from `.env` | Photo library keys |
 | `images.openverse` | `null` (the screen; on if that is blank) | Search Openverse |
 | `images.guide_path` | `resources/ghostwriter/imagery.md` | The image style guide |
@@ -74,7 +75,7 @@ php artisan vendor:publish --tag=ghostwriter-config
 | `drafts_unpublished` | `true` | **Use this draft** switches the form's Published toggle off on a new or unpublished entry. See [Use this draft](writing.md#use-this-draft) |
 | `writer` | `SchemaEntryWriter::class` | The class that turns a draft into entry data; bind your own to take over |
 
-Environment variables: `GHOSTWRITER_PROVIDER`, `GHOSTWRITER_MODEL`, `GHOSTWRITER_TIMEOUT`, `GHOSTWRITER_ANTHROPIC_BASE_URL`, `GHOSTWRITER_OPENAI_BASE_URL`, `GHOSTWRITER_GEMINI_BASE_URL`, `GHOSTWRITER_ANTHROPIC_FALLBACKS`, `GHOSTWRITER_LOG_CHANNEL`, `GHOSTWRITER_IMAGE_PROVIDER`, `GHOSTWRITER_IMAGE_MODEL`, `GHOSTWRITER_OPENVERSE`, `GHOSTWRITER_PLACEHOLDER_IMAGES`, `GHOSTWRITER_SUGGEST_KINDS`, `GHOSTWRITER_SHARED_CONVERSATIONS`, `GHOSTWRITER_DRAFTS_UNPUBLISHED`, and the keys in [API keys](api-keys.md).
+Environment variables: `GHOSTWRITER_PROVIDER`, `GHOSTWRITER_MODEL`, `GHOSTWRITER_TIMEOUT`, `GHOSTWRITER_ANTHROPIC_BASE_URL`, `GHOSTWRITER_OPENAI_BASE_URL`, `GHOSTWRITER_GEMINI_BASE_URL`, `GHOSTWRITER_OPENROUTER_BASE_URL`, `GHOSTWRITER_OPENROUTER_WRITING_MODEL`, `GHOSTWRITER_OPENROUTER_QUICK_MODEL`, `GHOSTWRITER_ANTHROPIC_FALLBACKS`, `GHOSTWRITER_LOG_CHANNEL`, `GHOSTWRITER_IMAGE_PROVIDER`, `GHOSTWRITER_IMAGE_MODEL`, `GHOSTWRITER_OPENVERSE`, `GHOSTWRITER_PLACEHOLDER_IMAGES`, `GHOSTWRITER_SUGGEST_KINDS`, `GHOSTWRITER_SHARED_CONVERSATIONS`, `GHOSTWRITER_DRAFTS_UNPUBLISHED`, and the keys in [API keys](api-keys.md).
 
 ## Where things are kept
 
@@ -94,6 +95,7 @@ Ghostwriter adds no database tables. Everything is a file.
 | Stock previews (watermarked, private, deleted when their period ends) | `storage/ghostwriter/stock/` | No |
 | Your own images uploaded for a picture under a draft | `storage/ghostwriter/uploads/` | No |
 | When work was queued (for the "still waiting" notice) | `storage/ghostwriter/queued/` | No |
+| The key from Connect with OpenRouter (encrypted) | `storage/ghostwriter/provider-keys.json` | No |
 | Whether Get started is hidden | `storage/ghostwriter/onboarding.json` | No |
 | Collections already looked over for kinds, and suggested kinds | `storage/ghostwriter/types.json`, `kinds.json` | No |
 | How the guides and plan runs stand | `storage/ghostwriter/voice.json`, `imagery.json`, `plan.json` | No |

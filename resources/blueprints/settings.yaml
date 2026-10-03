@@ -40,7 +40,7 @@ tabs:
         fields: []
       -
         display: AI provider
-        instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY in your .env file.'
+        instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY or OPENROUTER_API_KEY in your .env file, or Connect with OpenRouter below.'
         fields:
           -
             handle: provider
@@ -51,6 +51,7 @@ tabs:
                 anthropic: 'Claude (Anthropic)'
                 openai: 'ChatGPT (OpenAI)'
                 gemini: 'Gemini (Google)'
+                openrouter: 'OpenRouter (Claude, GPT, Gemini and others)'
               default: anthropic
               width: 50
           -
@@ -60,9 +61,31 @@ tabs:
               display: Model
               instructions: "Leave blank to use the provider's default model."
               width: 50
+          -
+            handle: openrouter_writing_model
+            field:
+              type: select
+              display: 'OpenRouter model for writing'
+              instructions: 'The writer, briefs, guides and planning. Leave blank for Claude Opus 5.5. For any other model on openrouter.ai/models, put its id in Model.'
+              clearable: true
+              options: []
+              width: 50
+              if:
+                provider: openrouter
+          -
+            handle: openrouter_quick_model
+            field:
+              type: select
+              display: 'OpenRouter model for quick jobs'
+              instructions: 'Choosing photos and filling a gap. Leave blank for Claude Sonnet 5.5.'
+              clearable: true
+              options: []
+              width: 50
+              if:
+                provider: openrouter
       -
         display: Images
-        instructions: 'Images are made by ChatGPT or Gemini; Claude cannot make them. Set OPENAI_API_KEY or GEMINI_API_KEY in your .env file. Each image is modelled on the ones already used in the same field on your other entries. Without a key, free photographs can still be searched for: Openverse needs no key, and UNSPLASH_ACCESS_KEY, PIXABAY_API_KEY or PEXELS_API_KEY add those libraries.'
+        instructions: 'Images are made by ChatGPT or Gemini, directly or through OpenRouter; Claude cannot make them. Set OPENAI_API_KEY or GEMINI_API_KEY in your .env file, or connect OpenRouter. Each image is modelled on the ones already used in the same field on your other entries. Without a key, free photographs can still be searched for: Openverse needs no key, and UNSPLASH_ACCESS_KEY, PIXABAY_API_KEY or PEXELS_API_KEY add those libraries.'
         fields:
           -
             handle: image_provider
@@ -74,6 +97,7 @@ tabs:
               options:
                 openai: 'ChatGPT (OpenAI)'
                 gemini: 'Gemini (Google)'
+                openrouter: OpenRouter
               width: 50
           -
             handle: placeholder_images

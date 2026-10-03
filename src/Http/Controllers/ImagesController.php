@@ -96,7 +96,7 @@ class ImagesController
         }
 
         if ($mode === 'make') {
-            abort_unless($this->studio->configured(), 422, 'No image provider has an API key. Add OPENAI_API_KEY or GEMINI_API_KEY to your .env file.');
+            abort_unless($this->studio->configured(), 422, 'No image provider has an API key. Add OPENAI_API_KEY or GEMINI_API_KEY to your .env file, or connect OpenRouter.');
 
             $request->validate(['source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'], 'direction' => ['nullable', 'string', 'max:2000']]);
 
