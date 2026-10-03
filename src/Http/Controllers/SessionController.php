@@ -5,8 +5,6 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -26,9 +24,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefStage;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
-use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionImages;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
-use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Brief;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
@@ -37,17 +33,13 @@ use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Jobs\FillBrief;
-use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Preview\PagePreview;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
-use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Entry as EntryContract;
-use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
 use Statamic\Fields\Blueprint;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\Yaml\Yaml;
 
 class SessionController
@@ -311,56 +303,6 @@ class SessionController
     }
 
     /**
-     * Make an image for one of the draft's image fields. `source` is an
-     * image of the editor's own, such as a logo, to build the picture around.
-     */
-    public function image(Request $request, string $session, ImageStudio $images): JsonResponse
-    {
-        $session = $this->session($session);
-        $type = $this->type($session->kind)->forSession($session);
-
-        abort_unless($images->configured(), 422, 'No image provider has an API key. Set OPENAI_API_KEY or GEMINI_API_KEY, or connect OpenRouter.');
-
-        $validated = $request->validate([
-            'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
-            'direction' => ['nullable', 'string', 'max:2000'],
-            'source' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
-        ]);
-
-        abort_if(SessionImages::status($session, $validated['key']) === SessionImages::WORKING, 409, 'That image is already being made.');
-
-        $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
-
-        $source = null;
-
-        if ($upload = $request->file('source')) {
-            $directory = storage_path('ghostwriter/uploads');
-            File::ensureDirectoryExists($directory);
-
-            $source = $upload->move($directory, Str::ulid().'.'.$upload->extension())->getPathname();
-        }
-
-        // Under the lock, so the image's record is not lost to a turn or
-        // another request saving at the same moment.
-        try {
-            $session = $this->guarded(fn () => $this->sessions->change($session->id, function (Session $session) use ($validated) {
-                SessionImages::startMaking($session, $validated['key']);
-                $session->touch($this->me());
-            })) ?? abort(404);
-        } catch (HttpException $exception) {
-            if ($source !== null) {
-                File::delete($source);
-            }
-
-            throw $exception;
-        }
-
-        GenerateImage::start($session->id, $validated['key'], (string) ($validated['direction'] ?? ''), $source);
-
-        return response()->json($this->presenter->detail($session));
-    }
-
-    /**
      * One piece of writing in the draft, changed where it is shown, without
      * opening the YAML. Rich text comes back as HTML and is turned into the
      * markdown the draft is written in.
@@ -402,94 +344,6 @@ class SessionController
 
             $session->draft = trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
         }, self::BUSY_DRAFT));
-
-        return response()->json($this->presenter->detail($session));
-    }
-
-    /**
-     * Free-to-use photographs that might suit one of the draft's image fields.
-     */
-    public function photos(Request $request, string $session, ImageStudio $images): JsonResponse
-    {
-        $session = $this->session($session);
-        $type = $this->type($session->kind)->forSession($session);
-
-        $validated = $request->validate([
-            'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
-            'query' => ['nullable', 'string', 'max:200'],
-        ]);
-
-        // Without words, the searches are chosen from the draft. The photos
-        // that suit the page and the site's own images come first.
-        return response()->json(ImageStudio::offered($images->photos($session, $type, $validated['key'], $validated['query'] ?? null)));
-    }
-
-    /**
-     * Bring a chosen photograph into the asset container as a field's image.
-     */
-    public function photo(Request $request, string $session, ImageStudio $images, StockSearch $stock): JsonResponse
-    {
-        $session = $this->session($session);
-        $type = $this->type($session->kind)->forSession($session);
-
-        $validated = $request->validate([
-            'key' => ['required', 'string', Rule::in(array_keys($images->slots($session, $type)))],
-            'source' => ['required', 'string', Rule::in($stock->sources())],
-            'id' => ['required', 'string', 'max:64'],
-            'term' => ['nullable', 'string', 'max:200'],
-        ]);
-
-        $this->ensureCanUploadTo($images->slots($session, $type)[$validated['key']]['container']);
-
-        try {
-            $file = $stock->fetch($validated['source'], $validated['id']);
-        } catch (InvalidArgumentException $exception) {
-            abort(422, $exception->getMessage());
-        }
-
-        $asset = $images->keep($session, $type, $validated['key'], $file, $validated['term'] ?? null);
-
-        // Fetching took a while: the choice is written to the session as it
-        // stands now, so a turn that saved meanwhile is not undone, nor
-        // undoes it.
-        $session = $this->guarded(fn () => $this->sessions->change($session->id, function (Session $session) use ($validated, $asset, $file) {
-            SessionImages::choose($session, $validated['key'], $asset->path(), $asset->url(), $file->photo->credit);
-            $session->touch($this->me());
-        })) ?? abort(404);
-
-        return response()->json($this->presenter->detail($session));
-    }
-
-    /**
-     * Use the image already chosen for one field in another as well, as
-     * sites often do with a hero image and a thumbnail.
-     */
-    public function copyImage(Request $request, string $session, ImageStudio $images): JsonResponse
-    {
-        $session = $this->session($session);
-        $slots = $images->slots($session, $this->type($session->kind)->forSession($session));
-
-        $validated = $request->validate([
-            'key' => ['required', 'string', Rule::in(array_keys($slots))],
-            'from' => ['required', 'string', 'different:key', Rule::in(array_keys($slots))],
-        ]);
-
-        $source = $session->images[$validated['from']] ?? [];
-
-        abort_unless(($source['status'] ?? null) === SessionImages::DONE && ! empty($source['path']), 422, 'That field has no image yet.');
-        abort_unless($slots[$validated['key']]['container'] === $slots[$validated['from']]['container'], 422, 'Those two fields keep their images in different places.');
-
-        // On the session as it stands now. The field keeps the photographs
-        // it was offered, in case of a change of mind.
-        $session = $this->guarded(fn () => $this->sessions->change($session->id, function (Session $session) use ($validated) {
-            try {
-                SessionImages::copy($session, $validated['key'], $validated['from']);
-            } catch (Conflict $exception) {
-                abort(422, $exception->getMessage());
-            }
-
-            $session->touch($this->me());
-        })) ?? abort(404);
 
         return response()->json($this->presenter->detail($session));
     }
@@ -618,17 +472,6 @@ class SessionController
         } catch (InvalidArgumentException $exception) {
             abort(422, $exception->getMessage());
         }
-    }
-
-    /**
-     * Saving an image into a container is uploading to it, and needs the
-     * same permission as uploading by hand.
-     */
-    private function ensureCanUploadTo(string $container): void
-    {
-        $found = AssetContainer::find($container) ?? abort(422, "The asset container \"{$container}\" no longer exists.");
-
-        abort_unless(User::current()?->can('store', [Asset::class, $found]), 403, 'You cannot upload to the '.$found->title().' container.');
     }
 
     private function type(string $handle): ContentType

@@ -96,7 +96,6 @@ Ghostwriter adds no database tables. Everything is a file.
 | Photo searches and made images waiting to be used | `storage/ghostwriter/images/` | No |
 | The stock image ledger (one file per stock photo, with its licence) | `content/ghostwriter/stock/*.yaml` | Yes |
 | Stock previews (watermarked, private, deleted when their period ends) | `storage/ghostwriter/stock/` | No |
-| Your own images uploaded for a picture under a draft | `storage/ghostwriter/uploads/` | No |
 | When work was queued (for the "still waiting" notice) | `storage/ghostwriter/queued/` | No |
 | The key from Connect with OpenRouter (encrypted) | `storage/ghostwriter/provider-keys.json` | No |
 | Whether Get started is hidden | `storage/ghostwriter/onboarding.json` | No |

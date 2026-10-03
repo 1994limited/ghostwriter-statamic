@@ -107,10 +107,6 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::patch('sessions/{session}/draft', [SessionController::class, 'draft'])->name('sessions.draft');
     Route::post('sessions/{session}/apply', [SessionController::class, 'apply'])->name('sessions.apply');
     Route::post('sessions/{session}/preview', [PreviewController::class, 'store'])->name('sessions.preview');
-    Route::post('sessions/{session}/images', [SessionController::class, 'image'])->name('sessions.image');
-    Route::get('sessions/{session}/photos', [SessionController::class, 'photos'])->name('sessions.photos');
-    Route::post('sessions/{session}/photos', [SessionController::class, 'photo'])->name('sessions.photo');
-    Route::post('sessions/{session}/images/copy', [SessionController::class, 'copyImage'])->name('sessions.image.copy');
     Route::post('sessions/{session}/entry', [SessionController::class, 'entry'])->name('sessions.entry');
     Route::delete('sessions/{session}', [SessionController::class, 'destroy'])->name('sessions.destroy');
 });

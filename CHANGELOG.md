@@ -14,6 +14,9 @@ Requires `1994/ghostwriter-core` ^1.7 (the page preview's markers, block map and
 ### Changed
 - Apply's mapping is now `Drafts\DraftValues`, shared with the preview; apply's results are unchanged.
 
+### Removed
+- **The Images section under a draft.** The writing panel no longer lists the draft's image fields with **Find a photo**, **Make the picture** and **Use the same image as**. It duplicated what happens on the form: **Use this draft** still puts the striped placeholder in each empty image field, and **Finish this page** turns each into a gap with **Find a photo** and **Choose from Assets** on the field, with stock libraries, previews and licensing. Asking in the conversation to add or make images still works, and those go into the form with the draft. The writer no longer searches for photos to offer with every first draft. Gone with it: `GET`/`POST sessions/{id}/photos`, `POST sessions/{id}/images` and `POST sessions/{id}/images/copy`, and `image_tools` and the photo options in a session's JSON. See [Images with a draft](docs/images.md#images-with-a-draft).
+
 ## 1.2.0 - 2026-10-03
 
 Requires `1994/ghostwriter-core` ^1.6.1, which no longer brackets quoted titles or figures you gave in a filled-in brief.

@@ -233,7 +233,6 @@ class ImageStudio
         }
 
         $actions = array_filter([
-            $canFind ? '- `find`: search free photo libraries and show your colleague photographs to choose from. Do this for every image field whenever you write a first draft, without being asked, and again if the subject of the entry changes.' : null,
             $canFind ? '- `fill`: search and put the best match straight into the field. Use this when your colleague asks you to add, choose, pick or fill in images.' : null,
             $canMake ? '- `make`: have a new image made, in the style of the images this site already uses in that field. Use this only when your colleague asks for an image to be made or generated.' : null,
         ]);
@@ -241,7 +240,7 @@ class ImageStudio
         return "Never put an image field in the draft. You arrange images with an `<images>` block instead, placed after the draft, holding one line per image field in the form `field | action | words`.\n\n"
             ."Image fields:\n".implode("\n", $fields)."\n\n"
             ."Actions:\n".implode("\n", $actions)."\n\n"
-            .'Words: for `find` and `fill`, three different searches separated by semicolons, each two to four plain words naming something concrete that can be photographed: objects, places, scenes. Make them three different angles, not three wordings of one. No brand names, no abstract ideas. The photographs that best match the images this site already uses are then chosen from the results.'
+            .'Words: for `fill`, three different searches separated by semicolons, each two to four plain words naming something concrete that can be photographed: objects, places, scenes. Make them three different angles, not three wordings of one. No brand names, no abstract ideas. The photographs that best match the images this site already uses are then chosen from the results.'
             ."\n\nChoosing what to search for is the part that matters. When the entry is about a thing (a project, a product, a place), search for that thing as the site's other images would show it. When it is about an idea, do not search for the activity it literally describes, which returns stock clichés; name a concrete, good-looking object or scene that stands for the argument the entry makes. An entry arguing that a careful repair can beat a replacement is pottery mended with gold, not builders on scaffolding. Whatever you choose must look at home beside the site's other images."
             .(($style = $this->style($type)) !== '' ? "\n\nThe house style for images in this section of the site:\n\n{$style}" : '')
             .($canMake ? ' For `make`, one sentence describing the image.' : '')
@@ -271,11 +270,19 @@ class ImageStudio
             }
 
             try {
-                $session->images[$key] = match (true) {
+                // Anything else (such as the `find` the writer was once given)
+                // is left alone: there is nowhere in the panel to choose from
+                // photographs any more. Fields left empty get a placeholder
+                // when the draft is used, and Finish this page fills them.
+                $image = match (true) {
                     $action === 'make' && $this->configured() => $this->startMaking($session, $key, $words),
                     $action === 'fill' => $this->fill($session, $type, $key, $words),
-                    default => $this->offer($session, $type, $key, $words),
+                    default => null,
                 };
+
+                if ($image !== null) {
+                    $session->images[$key] = $image;
+                }
             } catch (\Throwable $exception) {
                 report($exception);
 
@@ -284,23 +291,6 @@ class ImageStudio
         }
 
         return $session;
-    }
-
-    /**
-     * Photographs for the person to choose from. What is already in the
-     * field stays until they pick one.
-     *
-     * @return array<string, mixed>
-     */
-    private function offer(Session $session, ContentType $type, string $key, string $words): array
-    {
-        $current = $session->images[$key] ?? [];
-
-        if (($current['query'] ?? null) === $words && ! empty($current['options'])) {
-            return $current;
-        }
-
-        return self::offered($this->photos($session, $type, $key, $words)) + $current + ['status' => 'empty'];
     }
 
     /**

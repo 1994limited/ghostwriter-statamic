@@ -2,7 +2,6 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
@@ -107,150 +106,6 @@ class ImageTest extends TestCase
         $this->assertSame(2, $images[0]['references']);
     }
 
-    public function test_no_image_controls_without_a_provider_that_makes_images(): void
-    {
-        $this->withoutKeys('openai');
-        $this->signIn();
-
-        $session = $this->draftSession();
-
-        // The fields are still listed, for finding a photograph instead.
-        $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))
-            ->assertJsonPath('image_tools.generate', false)
-            ->assertJsonPath('image_tools.search', ['openverse'])
-            ->assertJsonCount(2, 'images');
-
-        $this->postJson(cp_route('ghostwriter.sessions.image', $session->id), ['key' => 'cover'])->assertStatus(422);
-        $this->assertNull(app(ImageStudio::class)->provider());
-
-    }
-
-    public function test_an_image_is_not_saved_where_the_person_could_not_upload(): void
-    {
-        config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
-        Bus::fake();
-
-        $this->signInWith(['access ghostwriter', 'view stories entries', 'edit stories entries', 'create stories entries']);
-
-        $session = $this->draftSession();
-
-        $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'unsplash', 'id' => 'abc123'])->assertForbidden();
-        $this->postJson(cp_route('ghostwriter.sessions.image', $session->id), ['key' => 'cover'])->assertForbidden();
-
-        Bus::assertNotDispatched(GenerateImage::class);
-        $this->assertSame(['stories/one.png', 'stories/two.png'], Storage::disk('assets')->files('stories'));
-        $this->assertNull($this->sessions()->find($session->id)->images['cover'] ?? null);
-    }
-
-    public function test_free_photographs_can_be_searched_for(): void
-    {
-        config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
-
-        $library = $this->photoLibrary([
-            'api.unsplash.com/search/photos*' => ['results' => [[
-                'id' => 'abc123', 'urls' => ['small' => 'https://images.unsplash.com/small.jpg'],
-                'user' => ['name' => 'Ada'], 'links' => ['html' => 'https://unsplash.com/photos/abc123'],
-            ]]],
-            'api.openverse.org/thumb.jpg' => $this->png(),
-            'api.openverse.org/*' => ['results' => [[
-                'id' => 'c0ffee', 'thumbnail' => 'https://api.openverse.org/thumb.jpg', 'url' => 'https://example.org/full.jpg',
-                'creator' => 'Bo', 'license' => 'cc0', 'foreign_landing_url' => 'https://example.org/page',
-            ]]],
-            'images.unsplash.com/*' => $this->png(),
-        ]);
-
-        $this->ai->respond('photo-researcher', 'Lighthouse at dusk.');
-        $this->ai->respond('photo-picker', "1: a lighthouse\n2: also a lighthouse");
-
-        $this->signIn();
-
-        $response = $this->getJson(cp_route('ghostwriter.sessions.photos', [$this->draftSession()->id, 'key' => 'cover']))->assertOk();
-
-        // With nothing typed, the model chooses what to search for from the draft.
-        $response->assertJsonPath('query', 'lighthouse at dusk')->assertJsonPath('judged', true)->assertJsonPath('with_references', true);
-        $this->assertSame(['unsplash', 'openverse'], array_column($response->json('options'), 'source'));
-        $this->assertSame('Ada on Unsplash', $response->json('options.0.credit'));
-        $this->assertSame('CC0', $response->json('options.1.licence'));
-        $this->ai->assertSent('photo-researcher', fn (TextRequest $prompt) => str_contains($prompt->prompt, 'Page title: A New Story') && str_contains($prompt->prompt, 'Summary: What happened next.'));
-
-        // Openverse is only ever asked for work free of conditions.
-        $this->assertNotEmpty(array_filter($this->photoRequests($library), fn (string $address) => str_contains($address, 'api.openverse.org/v1/images/') && str_contains($address, 'license=cc0,pdm')));
-    }
-
-    public function test_a_chosen_photograph_is_saved_with_its_credit(): void
-    {
-        config(['ghostwriter.images.unsplash_key' => 'unsplash-key', 'ghostwriter.images.pixabay_key' => 'pixabay-key']);
-
-        $library = $this->photoLibrary([
-            'api.unsplash.com/photos/abc123' => [
-                'id' => 'abc123',
-                'urls' => ['small' => 'https://images.unsplash.com/small.jpg', 'raw' => 'https://images.unsplash.com/photo-1?ixid=1'],
-                'user' => ['name' => 'Ada'],
-                'links' => ['html' => 'https://unsplash.com/photos/abc123', 'download_location' => 'https://api.unsplash.com/photos/abc123/download'],
-            ],
-            'api.unsplash.com/photos/abc123/download' => [],
-            'images.unsplash.com/*' => $this->png(),
-            'pixabay.com/api/*' => ['hits' => [['id' => 42, 'webformatURL' => 'https://pixabay.com/get/small.png', 'largeImageURL' => 'https://pixabay.com/get/large.png', 'user' => 'Cy', 'pageURL' => 'https://pixabay.com/photos/42', 'tags' => 'red boat, harbour']]],
-            'pixabay.com/get/*' => $this->png(),
-        ]);
-
-        $this->signIn();
-
-        $session = $this->draftSession();
-
-        $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'unsplash', 'id' => 'abc123'])
-            ->assertOk()
-            ->assertJsonPath('images.0.status', 'done')
-            ->assertJsonPath('images.0.credit', 'Ada on Unsplash');
-
-        $path = $this->sessions()->find($session->id)->images['cover']['path'];
-
-        // The library says nothing about this one, so it is named after the piece.
-        $this->assertStringStartsWith('stories/a-new-story-', $path);
-        Storage::disk('assets')->assertExists($path);
-        $this->assertSame('Ada on Unsplash', AssetContainer::find('assets')->asset($path)->get('credit'));
-
-        // Unsplash was told the photograph was used.
-        $this->assertContains('api.unsplash.com/photos/abc123/download', $this->photoRequests($library));
-
-        // Pixabay works the same way, looked up again by ID, and named from its tags.
-        $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'pixabay', 'id' => '42', 'term' => 'harbour boats'])
-            ->assertOk()
-            ->assertJsonPath('images.0.credit', 'Cy on Pixabay');
-
-        $path = $this->sessions()->find($session->id)->images['cover']['path'];
-        $this->assertStringStartsWith('stories/red-boat-harbour-', $path);
-        $this->assertSame('Red boat, harbour', AssetContainer::find('assets')->asset($path)->get('title'));
-
-        // A source that is not switched on, or a file that is not an image.
-        $this->postJson(cp_route('ghostwriter.sessions.photo', $session->id), ['key' => 'cover', 'source' => 'pexels', 'id' => '1'])->assertStatus(422);
-    }
-
-    public function test_asking_for_an_image_starts_the_job(): void
-    {
-        Bus::fake([GenerateImage::class]);
-        $this->signIn();
-
-        $session = $this->draftSession();
-
-        $this->postJson(cp_route('ghostwriter.sessions.image', $session->id), ['key' => 'nonsense'])->assertStatus(422);
-
-        $this->post(cp_route('ghostwriter.sessions.image', $session->id), [
-            'key' => 'cover',
-            'direction' => 'A lighthouse at dusk',
-            'source' => UploadedFile::fake()->createWithContent('logo.png', $this->png()),
-        ], ['Accept' => 'application/json'])
-            ->assertOk()
-            ->assertJsonPath('images.0.status', 'working');
-
-        Bus::assertDispatchedAfterResponse(GenerateImage::class, fn ($job) => $job->key === 'cover'
-            && $job->direction === 'A lighthouse at dusk'
-            && is_file($job->source));
-
-        // Not twice at once.
-        $this->postJson(cp_route('ghostwriter.sessions.image', $session->id), ['key' => 'cover'])->assertStatus(409);
-    }
-
     public function test_an_image_is_made_from_the_sites_own_and_saved_beside_them(): void
     {
 
@@ -316,9 +171,13 @@ class ImageTest extends TestCase
     {
         $instructions = app(Studio::class)->writerInstructions(app(TypeRepository::class)->find('any:stories'), '');
 
-        foreach (['`cover`: Cover', '`blocks:banner:0:picture`: Banner, Picture', '`find`', '`fill`', '`make`', 'never say you cannot help'] as $expected) {
+        foreach (['`cover`: Cover', '`blocks:banner:0:picture`: Banner, Picture', '`fill`', '`make`', 'never say you cannot help'] as $expected) {
             $this->assertStringContainsString($expected, $instructions);
         }
+
+        // Photographs are no longer offered in the panel, so the writer is
+        // not asked to find them unasked.
+        $this->assertStringNotContainsString('`find`', $instructions);
 
         // Nobody fills in the text block's aside.
         $this->assertStringNotContainsString('aside', $instructions);
@@ -329,7 +188,7 @@ class ImageTest extends TestCase
         $this->assertStringContainsString('cannot make new images', app(Studio::class)->writerInstructions(app(TypeRepository::class)->find('any:stories'), ''));
     }
 
-    public function test_the_writer_offers_photographs_with_its_draft_and_fills_them_when_asked(): void
+    public function test_the_writer_fills_images_only_when_asked(): void
     {
         config(['ghostwriter.images.unsplash_key' => 'unsplash-key', 'ghostwriter.images.openverse' => false]);
 
@@ -338,7 +197,7 @@ class ImageTest extends TestCase
             'user' => ['name' => 'Ada'], 'links' => ['html' => "https://unsplash.com/photos/{$id}"],
         ];
 
-        $this->photoLibrary([
+        $library = $this->photoLibrary([
             'api.unsplash.com/search/photos?query=lighthouse*' => ['results' => [$photo('light1'), $photo('light2')]],
             'api.unsplash.com/search/photos?query=harbour*' => ['results' => [$photo('harbour1'), $photo('harbour2')]],
             'api.unsplash.com/search/photos?query=stormy*' => ['results' => [$photo('storm1')]],
@@ -346,26 +205,26 @@ class ImageTest extends TestCase
             'images.unsplash.com/*' => $this->png(),
         ]);
 
+        // A `find` left over from older instructions is ignored: nothing is
+        // searched for, and the fields are left for Finish this page.
         $this->ai->respond('writer',
-            '<reply>Here is the draft, with photographs to choose from.</reply>
+            '<reply>Here is the draft.</reply>
 <draft>
 '.self::DRAFT.'
 </draft>
 <images>
 cover | find | lighthouse at dusk; harbour boats; stormy sea
-`blocks:banner:0:picture` | find | harbour boats
-blocks:text:0:aside | find | nobody uses this
 </images>',
             '<reply>I have put the best match in the cover.</reply>
 <images>
 cover | fill | lighthouse at dusk; harbour boats; stormy sea
+blocks:text:0:aside | fill | nobody uses this
 </images>',
         );
 
         // Shown the site's covers and the five candidates, the judge likes
-        // the fourth, the first and the fifth, in that order; for the banner,
-        // the second of two; and the same again when asked to fill the cover.
-        $this->ai->respond('photo-picker', "4: harbour\n1: lighthouse\n5: sea", '2: boats', "4: harbour\n1: lighthouse\n5: sea");
+        // the fourth, the first and the fifth, in that order.
+        $this->ai->respond('photo-picker', "4: harbour\n1: lighthouse\n5: sea");
 
         $session = $this->makeSession('any:stories', ['subject' => 'A new story.']);
         $session->addMessage('user', 'The brief.');
@@ -377,26 +236,10 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         $session = $this->sessions()->find($session->id);
 
-        // Options are waiting without anyone pressing a button, and the
-        // images block is not shown as part of the reply.
-        $this->assertSame('Here is the draft, with photographs to choose from.', end($session->messages)['content']);
-        $this->assertSame(['cover', 'blocks:banner:0:picture'], array_keys($session->images));
-        $this->assertSame('lighthouse at dusk; harbour boats; stormy sea', $session->images['cover']['query']);
-        // Only the ones that fit are offered, best first, and marked.
-        $this->assertSame(['harbour2', 'light1', 'storm1'], array_column($session->images['cover']['options'], 'id'));
-        $this->assertSame('harbour boats', $session->images['cover']['options'][0]['term']);
-        $this->assertTrue($session->images['cover']['options'][0]['picked']);
-        $this->assertTrue($session->images['cover']['judged']);
-
-        // The judge saw the two existing covers, then the five candidates.
-        $this->ai->assertSent('photo-picker', fn (TextRequest $prompt) => count($prompt->images) === 7 && str_contains($prompt->prompt, '4. from the search "harbour boats"'));
-
-        // A field with two results is judged too.
-        $this->assertSame(['harbour2'], array_column($session->images['blocks:banner:0:picture']['options'], 'id'));
-        $this->assertSame('empty', $session->images['cover']['status']);
-
-        $this->signIn();
-        $this->getJson(cp_route('ghostwriter.sessions.show', $session->id))->assertJsonPath('images.0.options.0.credit', 'Ada on Unsplash')->assertJsonPath('images.0.judged', true);
+        // The images block is not shown as part of the reply.
+        $this->assertSame('Here is the draft.', end($session->messages)['content']);
+        $this->assertSame([], $session->images);
+        $this->assertSame([], $this->photoRequests($library));
 
         // "Add the images for me": the best match goes straight in.
         $session->addMessage('user', 'Please add the cover image for me.');
@@ -406,42 +249,16 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
 
         $session = $this->sessions()->find($session->id);
 
+        // Only fields the site's pages use are filled.
+        $this->assertSame(['cover'], array_keys($session->images));
         $this->assertSame('done', $session->images['cover']['status']);
+        $this->assertSame('Ada on Unsplash', $session->images['cover']['credit']);
         Storage::disk('assets')->assertExists($session->images['cover']['path']);
-        $this->assertSame(['light1', 'storm1'], array_column($session->images['cover']['options'], 'id'));
         $this->assertSame(self::DRAFT, $session->draft);
-    }
 
-    public function test_one_fields_image_can_be_used_in_another(): void
-    {
-        $this->signIn();
-
-        $session = $this->draftSession();
-        $session->images = [
-            'cover' => ['status' => 'done', 'path' => 'stories/one.png', 'url' => '/assets/stories/one.png', 'credit' => 'Ada on Unsplash'],
-            'blocks:banner:0:picture' => ['status' => 'empty', 'query' => 'harbour boats', 'options' => [['id' => 'kept']]],
-        ];
-        $this->sessions()->save($session);
-
-        $copy = fn (string $key, string $from) => $this->postJson(cp_route('ghostwriter.sessions.image.copy', $session->id), ['key' => $key, 'from' => $from]);
-
-        $copy('blocks:banner:0:picture', 'cover')->assertOk()->assertJsonPath('images.1.status', 'done')->assertJsonPath('images.1.credit', 'Ada on Unsplash');
-
-        $banner = $this->sessions()->find($session->id)->images['blocks:banner:0:picture'];
-
-        // Same file, and the photographs it was offered are still there.
-        $this->assertSame('stories/one.png', $banner['path']);
-        $this->assertSame([['id' => 'kept']], $banner['options']);
-
-        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id))->json('values');
-
-        $this->assertSame((array) $values['cover'], (array) $values['blocks'][0]['picture']);
-
-        // Not from itself, and not from a field with nothing in it.
-        $copy('cover', 'cover')->assertStatus(422);
-        $session->images = [];
-        $this->sessions()->save($session);
-        $copy('cover', 'blocks:banner:0:picture')->assertStatus(422);
+        // The judge saw the two existing covers, then the five candidates.
+        $this->ai->assertSent('photo-picker', fn (TextRequest $prompt) => count($prompt->images) === 7 && str_contains($prompt->prompt, '4. from the search "harbour boats"'));
+        $this->assertContains('api.unsplash.com/photos/harbour2', $this->photoRequests($library));
     }
 
     public function test_an_image_field_tied_to_a_folder_is_a_choice_the_writer_can_make(): void
@@ -572,7 +389,7 @@ cover | fill | lighthouse at dusk; harbour boats; stormy sea
         // While the writer works, the person uses the banner's picture for
         // the cover. Image choices are not held up by the turn.
         $this->ai->respond('writer', function () use ($session, $changed) {
-            $this->postJson(cp_route('ghostwriter.sessions.image.copy', $session->id), ['key' => 'cover', 'from' => 'blocks:banner:0:picture'])->assertOk();
+            app(SessionGuard::class)->change($session->id, fn (Session $latest) => $latest->images['cover'] = $latest->images['blocks:banner:0:picture']);
 
             return "<reply>A new banner is on its way.</reply>\n<draft>\n{$changed}\n</draft>\n<images>\nblocks:banner:0:picture | make | a lighthouse at dusk\n</images>";
         });

@@ -1,6 +1,6 @@
 # Images
 
-This page covers finding and making images: the image button on assets fields, the Images section under a draft, how photos are ranked and named, and placeholders.
+This page covers finding and making images: the image button on assets fields, images with a draft, how photos are ranked and named, and placeholders.
 
 ## The image button
 
@@ -57,16 +57,9 @@ A logo or brand mark is never made or found. For a logo, add the file to the fie
 
 ## Images with a draft
 
-Under a draft in the writing panel, the **Images** section lists each image field the entry normally has: the top-level ones, and those in the draft's blocks that other entries fill in.
+The writing panel has no image controls of its own. When you use a draft on a new entry, each image field it leaves empty gets a [striped placeholder](#placeholders), and [Finish this page](finish-this-page.md) turns each one into a gap with **Find a photo** and **Choose from Assets** on the field itself, where stock libraries, previews and licensing are all to hand.
 
-- Photos are offered for each field as soon as the draft is written, from the writer's own searches, ranked the same way as on the image button, against the words of the draft. "Searched for: …" sits above them; **View N more** shows the rest.
-- **Find a photo** runs your own search. **Choose from the photos for** another field, or **Use the same image as** another field, where fields share a picture.
-- **Make the picture** (or **Make another**) makes one, with the same keys as on the image button, and can **Use my own image in it, such as a logo**.
-- Asking in the conversation works too: "find images for this" offers options, "add the images" puts the best match straight in.
-
-Chosen images go into the form with **Use this draft**. On a new entry, an image you already chose in the form yourself is kept. Images chosen or made while Ghostwriter is working on a message are kept when it finishes.
-
-![The Images section under a draft, with a chosen photo and three more marked Best match](images/image-panel.png)
+You can also ask in the conversation: "add the images" puts the best-matching photo straight into each image field, and "make a picture for the hero" has one made (with an image provider's key). These go into the form with **Use this draft**, and show in the [Preview tab](writing.md#the-preview-tab). On a new entry, an image you already chose in the form yourself is kept.
 
 ## Placeholders
 

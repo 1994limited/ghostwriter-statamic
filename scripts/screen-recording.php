@@ -157,15 +157,8 @@ $cp->click('^Blocks$');
 $record(1.2);
 $stopRecording();
 
-// 4. Images offered with the draft.
-$card('Images that match the ones you already use.', 'Three photographs per field, ranked against your own images. Or have one made.', hold: 2.4);
-$startRecording();
-$ws->evaluate("document.querySelector('[data-gw-images]')?.scrollIntoView({behavior: 'smooth', block: 'start'})");
-$record(3.2);
-$stopRecording();
-
-// 5. The image button on a field.
-$card('From any image field, too.', 'Find a photo or make one, for that one field.', hold: 2.2);
+// 4. The image button on a field.
+$card('Images that match the ones you already use.', 'Find a photo or make one, right on the image field.', hold: 2.4);
 $ws->navigate($url."/cp/collections/{$collection}/entries/create/default");
 $record(0.5);
 $cp->snooze();
@@ -175,7 +168,7 @@ $ws->evaluate("(() => { const b = [...document.querySelectorAll('button')].find(
 $record(2.6);
 $stopRecording();
 
-// 6. The content plan.
+// 5. The content plan.
 $card('Plan what the site is missing.', 'Ghostwriter reads everything you have and suggests what to write next.', hold: 2.2);
 $ws->navigate($url.'/cp/ghostwriter/plan');
 $record(0.5);
@@ -185,7 +178,7 @@ $record(1.2);
 $scroll(140, 6, 0.35);
 $stopRecording();
 
-// 7. The voice guide.
+// 6. The voice guide.
 $card('It learns how you write first.', 'A tone of voice guide from your own entries, edited like any other.', hold: 2.2);
 $ws->navigate($url.'/cp/ghostwriter/voice');
 $record(0.5);
@@ -195,7 +188,7 @@ $record(1.2);
 $scroll(120, 6, 0.35);
 $stopRecording();
 
-// 8. End.
+// 7. End.
 $card('Ghostwriter', 'For Statamic 6. By 1994.', end: true, hold: 4.0);
 
 // The list ffmpeg's concat demuxer reads: each frame and how long it shows.

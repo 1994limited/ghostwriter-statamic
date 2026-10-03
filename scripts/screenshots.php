@@ -8,7 +8,7 @@
  *
  * Usage:
  *   GW_SHOT_URL=https://1994.test GW_SHOT_EMAIL=… GW_SHOT_PASSWORD=… \
- *   GW_SHOT_SESSION=<a session id with a draft> \
+ *   GW_SHOT_SESSION=<a session id with a draft> GW_SHOT_COLLECTION=<handle> \
  *   php scripts/screenshots.php [output-dir]
  *
  * It signs in as that user, visits each screen, and saves PNGs at 1600×900
@@ -25,6 +25,7 @@ $url = rtrim((string) getenv('GW_SHOT_URL'), '/');
 $email = (string) getenv('GW_SHOT_EMAIL');
 $password = (string) getenv('GW_SHOT_PASSWORD');
 $session = (string) getenv('GW_SHOT_SESSION');
+$collection = getenv('GW_SHOT_COLLECTION') ?: 'articles';
 $chrome = getenv('GW_SHOT_CHROME') ?: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 $out = $argv[1] ?? __DIR__.'/../docs/store/raw';
 
@@ -52,10 +53,10 @@ $shots = [
         'wait' => 3,
     ],
     '02-content-plan' => ['url' => fn () => $url.'/cp/ghostwriter/plan', 'wait' => 1.5],
+    // The image button on an assets field, opened on a new entry.
     '03-image-choices' => [
-        'resolve' => fn () => $session !== '' ? null : 'GW_SHOT_SESSION is not set; skipping the image choices.',
-        'url' => fn () => $url.'/cp/ghostwriter/sessions/'.$session.'/open',
-        'after' => "document.querySelector('[data-gw-images]')?.scrollIntoView({block: 'start'})",
+        'url' => fn () => $url.'/cp/collections/'.$collection.'/entries/create/default',
+        'after' => "[...document.querySelectorAll('button')].find(b => (b.getAttribute('aria-label') || b.title || '') === 'Ghostwriter' && b.closest('[data-ui-field-header], .form-group, [class*=field]'))?.click()",
         'wait' => 3,
     ],
     '04-voice-guide' => ['url' => fn () => $url.'/cp/ghostwriter/voice', 'wait' => 1.5],

@@ -36,7 +36,6 @@ All of it is files; Ghostwriter adds no database tables. See [Where things are k
 
 - **Conversations and drafts:** `storage/ghostwriter/sessions/`, one JSON file each, with who sent each message when conversations are shared. Removing a piece deletes its file.
 - **Photo searches and made pictures:** `storage/ghostwriter/images/`, with the person who asked. Cleared after a day.
-- **Your own images uploaded for a picture under a draft:** `storage/ghostwriter/uploads/`.
 - **Guides, kinds and the plan:** `resources/ghostwriter/`.
 - **Logs:** the provider, model, tokens and time of each call, never the words or keys. A reply that couldn't be read is logged whole only with `debug.log_replies` on.
 
