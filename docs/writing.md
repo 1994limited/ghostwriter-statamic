@@ -74,9 +74,10 @@ If a turn fails, see ["That didn't work"](troubleshooting.md#that-didnt-work).
 
 ## The draft
 
-The draft sits on the right, laid out the way the entry is built: its fields, and its page-builder blocks in order.
+The draft sits on the right, under three tabs: **Preview**, **Blocks** and **Text**. Ghostwriter remembers your choice in this browser.
 
-- **Blocks** and **Text** switch between the full layout and just the words. Ghostwriter remembers your choice in this browser.
+- **Preview** shows the draft as a page of your site, rendered with the site's own templates. It is the first tab once there is a draft, for new entries and for [edits](editing.md). See [The Preview tab](#the-preview-tab).
+- **Blocks** lays the draft out the way the entry is built: its fields, and its page-builder blocks in order. **Text** shows just the words, read straight through.
 - **Click any writing (or Tab to it) to change it.** It's saved when you leave it; **Esc** puts back what was there. **Enter** finishes a one-line field; in longer text it starts a new line. Rich text stays rich: bold, links and lists are kept.
 - **Edit YAML** opens the whole draft as YAML, to add, move or remove blocks. Most people never need it.
 
@@ -87,6 +88,40 @@ The word count is at the top. Below the draft, the **Images** section offers pho
 The panel follows the Control Panel's dark mode.
 
 ![The same draft in dark mode](images/writing-draft-dark.png)
+
+### The Preview tab
+
+**Preview** renders the draft through your site's templates, exactly as **Use this draft** would fill the form, in a frame beside the conversation. The bar above the page shows its title and address, and **Preview · not saved**.
+
+- **Nothing is saved.** No entry is created or changed, and no image is added to your assets: it uses Statamic's Live Preview, with the draft held only for the preview. Image placeholders and [stock previews](stock-photos.md) show as they would on the page.
+- **Hover the page** to see its blocks: each is outlined with its name ("Hero", "Call to action"), and a set inside Bard or a section of rich text is outlined dashed, with the block it sits in ("Pull quote · in What the practice asked for").
+- **Desktop** and **Phone** switch the page's width. In a narrow panel, Desktop shows the full-width page scaled to fit.
+- **It follows your changes.** After you change writing in Blocks or Text, use **Edit YAML**, choose an image, or Ghostwriter revises the draft, the page renders again when you come back to Preview (or 0.8 seconds after the change while it's showing). The old page stays, dimmed, until the new one has loaded, at the same place on the page.
+- **Links on the page do nothing**, so the preview never navigates away. Forms can't be sent, and third-party scripts (analytics, tag managers, chat widgets) don't run.
+- **If the page can't render**, Preview says so in words ("The page template couldn't render this draft: …"), with **Show blocks instead** and **Try again**. Super users also see the error and the template. The draft itself is fine: **Blocks**, **Text** and **Use this draft** all still work, and the piece opens on Blocks next time in this browser tab. A page that takes longer than 8 seconds is given up on; if an earlier version is showing, it stays, with "This page is slow to render; showing the last version".
+- **No Preview tab** means the collection has no pages on the site (no route), or the preview is switched off (`preview.enabled`).
+
+The tabs are reachable by keyboard: Tab to the selected one, then the arrow keys move between them. The frame is titled for screen readers ("Preview of the draft: …"), and the outlines are visual only.
+
+### The preview, for site developers
+
+The preview is a Live Preview request, so everything that already treats Live Preview differently does here too: `{{ live_preview }}` is true, static caching and the `{{ cache }}` tag are skipped, and drafts render. To tell a Ghostwriter preview apart from Statamic's own, use `{{ live_preview:ghostwriter }}`:
+
+```antlers
+{{ unless live_preview }}
+    {{ partial:analytics }}
+{{ /unless }}
+
+{{ if live_preview:ghostwriter }}
+    {{# A draft from Ghostwriter: no comments widget, no view counter #}}
+{{ /if }}
+```
+
+- **Third-party scripts are blocked** on Ghostwriter's preview pages by a Content-Security-Policy (`script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self'; form-action 'none'; frame-ancestors 'self'; base-uri 'self'`), added beside any policy your site or Statamic (on multisite) already sends: the stricter rule wins. If your own scripts come from a CDN, allow it with `preview.script_hosts` (`GHOSTWRITER_PREVIEW_SCRIPT_HOSTS=https://cdn.example.com`).
+- **The entry may never have been saved.** Its id starts `gw-preview-`, and `{{ collection:next }}`, `previous`, `older` and `newer` work for it. In a structured collection its URL is the one it will have: under the parent chosen in the form, or at the top.
+- **The text carries invisible markers** (Unicode tag characters at the end of each value) that the panel reads and removes as soon as the page loads, to match the page to the draft's blocks. They don't change how the text looks, or what filters such as `title`, `upper` or `widont` do. A filter that cuts text short (`truncate`) may cut one off; that block is then found by its words instead.
+- **Chrome warns** in the console that a frame with `allow-scripts` and `allow-same-origin` "can escape its sandboxing". That is expected: the frame is your own site, as in Statamic's Live Preview, and the policy above keeps it to your own scripts.
+- **The frame must be allowed on the same origin.** If your web server sends `X-Frame-Options: DENY` or `frame-ancestors 'none'` for every page, the preview (and Statamic's Live Preview) can't show; allow `SAMEORIGIN`.
 
 ## Use this draft
 

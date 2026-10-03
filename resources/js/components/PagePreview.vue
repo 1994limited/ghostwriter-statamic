@@ -45,7 +45,8 @@ export default {
             // The frame on show: {id, url, title, path}. `next` is loading behind it.
             current: null,
             next: null,
-            loading: false,
+            // Preview requests in flight; with `next`, whether a render is.
+            requests: 0,
             // {message, detail, slow}: a failed render, or a slow one (slow keeps the last).
             problem: null,
             partial: false,
@@ -57,6 +58,12 @@ export default {
     },
 
     computed: {
+        // Only while a render is in flight: asked for, or loading behind the
+        // page on show. Never for the page's own images or fonts.
+        loading() {
+            return this.requests > 0 || this.next !== null;
+        },
+
         timeout() {
             return (this.session.page_preview?.timeout ?? 8) * 1000;
         },
@@ -157,9 +164,10 @@ export default {
 
         async render() {
             const key = this.renderKey;
-            this.loading = true;
 
             let data;
+
+            this.requests += 1;
 
             try {
                 ({ data } = await this.$axios.post(`${this.baseUrl}/sessions/${this.session.id}/preview`, {
@@ -168,18 +176,20 @@ export default {
                     site: window.Statamic?.$config?.get?.('selectedSite') ?? null,
                 }));
             } catch (error) {
-                if (key !== this.renderKey) return;
+                this.requests -= 1;
 
-                this.loading = false;
+                if (key !== this.renderKey) return;
                 this.renderedKey = key;
 
                 return this.fail({ message: error.response?.data?.message ?? this.__('The preview could not be made.') });
             }
 
+            this.requests -= 1;
+
+            // Superseded by a newer draft: that render (or the next visit) shows it.
             if (key !== this.renderKey) return;
 
             if (!data.available) {
-                this.loading = false;
                 this.renderedKey = key;
 
                 return this.fail({ message: this.__('This collection has no pages on the site, so there is nothing to preview.') });
@@ -189,7 +199,6 @@ export default {
 
             // The same render as the one on show: nothing to load.
             if (this.current && this.current.url === data.url && !this.problem) {
-                this.loading = false;
 
                 return;
             }
@@ -216,7 +225,6 @@ export default {
 
             if (error) {
                 this.next = null;
-                this.loading = false;
 
                 return this.fail({ message: error.message, detail: [error.exception, error.template, error.file].filter(Boolean).join(' · ') });
             }
@@ -226,7 +234,6 @@ export default {
 
             if (entry.sameOrigin && !overlay) {
                 this.next = null;
-                this.loading = false;
 
                 return this.fail({ message: this.__('Your server stops pages showing in a frame, so the preview can’t show here. Live Preview needs the same setting.') });
             }
@@ -240,7 +247,6 @@ export default {
 
             this.current = { ...entry, title: overlay?.title || '', path: this.path(entry.url), ms: Math.round(performance.now() - entry.started) };
             this.next = null;
-            this.loading = false;
             this.problem = null;
             this.partial = Boolean(overlay?.partial());
             this.$emit('rendered', this.current);
@@ -253,7 +259,6 @@ export default {
 
         slow() {
             this.next = null;
-            this.loading = false;
 
             if (this.current) {
                 this.problem = { slow: true, message: this.__('This page is slow to render; showing the last version.') };
@@ -303,6 +308,8 @@ export default {
         <p v-else-if="problem && problem.slow" class="text-sm text-amber-700 dark:text-amber-400!" role="status">{{ problem.message }}</p>
         <p v-if="partial && !problem" class="text-sm text-gray-500" role="status">{{ __('Some blocks couldn’t be matched on this page. They are all in Blocks.') }}</p>
 
+        <div class="sr-only" aria-live="polite" aria-atomic="true">{{ loading ? (current ? __('Updating preview…') : __('Rendering the page…')) : '' }}</div>
+
         <div ref="pane" class="w-full">
             <div
                 v-show="current || next || loading"
@@ -313,13 +320,16 @@ export default {
                     <span class="truncate font-medium" :title="barTitle">{{ barTitle }}</span>
                     <span v-if="current?.path && frameBox.outer >= 480" class="min-w-0 truncate text-gray-400 dark:text-gray-500!">{{ current.path }}</span>
                     <span class="grow"></span>
-                    <svg v-if="loading" class="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" role="img" :aria-label="__('Rendering…')">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
-                        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-                    </svg>
+                    <span v-if="loading && current" class="flex shrink-0 items-center gap-1.5" data-ghostwriter-updating>
+                        <svg class="size-3.5 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
+                            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                        </svg>
+                        {{ __('Updating preview…') }}
+                    </span>
                     <span class="shrink-0 rounded-full bg-amber-100 px-2 py-px font-medium whitespace-nowrap text-amber-800 dark:bg-amber-500/20! dark:text-amber-300!">{{ __('Preview · not saved') }}</span>
                 </div>
-                <div class="relative overflow-hidden" :style="{ height: `${frameHeight}px` }">
+                <div class="relative overflow-hidden" :style="{ height: `${frameHeight}px` }" :aria-busy="loading ? 'true' : 'false'">
                     <template v-for="entry in [current, next].filter(Boolean)" :key="entry.id">
                         <iframe
                             :src="entry.url"
@@ -336,7 +346,7 @@ export default {
                             @load="loaded(entry, $event)"
                         />
                     </template>
-                    <div v-if="!current && loading" class="absolute inset-0 flex items-center justify-center gap-2 bg-white text-sm text-gray-500 dark:bg-gray-900!" role="status">
+                    <div v-if="!current && loading" class="absolute inset-0 flex items-center justify-center gap-2 bg-white text-sm text-gray-500 dark:bg-gray-900!" data-ghostwriter-updating>
                         <svg class="size-4 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                             <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
                             <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />

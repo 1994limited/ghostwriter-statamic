@@ -319,9 +319,9 @@ final class PagePreviewTest extends TestCase
         $this->assertSame(['Photo', 's2', ['rain-garden.jpg']], [$map['b1']['label'], $map['b1']['parent'], $map['b1']['assets']]);
         $this->assertSame(['Stats', 's2'], [$map['b2']['label'], $map['b2']['parent']]);
 
-        // The set's text carries its marker; without markers it is the data as it was, and the hash is unchanged.
-        $this->assertSame(['b2.0', 'b2.0'], array_column(PreviewMarkers::decode(json_encode($marked->data['body'][4], JSON_UNESCAPED_UNICODE)), 'payload'));
-        $this->assertSame($data, PreviewMarkers::strip($marked->data));
+        // Found by their words and images, not by markers of their own: the data is core's, unchanged.
+        $this->assertSame(['14 benches'], $map['b2']['anchors']);
+        $this->assertSame((new PreviewMarkers)->mark($data, $schema)->data, $marked->data);
         $this->assertSame((new PreviewMarkers)->mark($data, $schema)->hash, $marked->hash);
     }
 

@@ -72,10 +72,13 @@ php artisan vendor:publish --tag=ghostwriter-config
 | `sessions_path` | `storage/ghostwriter/sessions` | Conversations. The rest of Ghostwriter's working files sit beside this folder |
 | `shared_conversations` | `true` | See [Shared conversations](permissions.md#shared-conversations) |
 | `stock_path`, `stock.*` | see [Stock photos](stock-photos.md#configuration) | The stock image ledger, paid libraries' keys, the demo library, the publish rule |
+| `preview.enabled` | `true` | The Preview tab. See [The Preview tab](writing.md#the-preview-tab) |
+| `preview.script_hosts` | `[]` | Hosts the site's own scripts load from (a CDN), allowed on preview pages. A list, or comma-separated in `.env` |
+| `preview.timeout` | `8` | Seconds the panel waits for a preview to render |
 | `drafts_unpublished` | `true` | **Use this draft** switches the form's Published toggle off on a new or unpublished entry. See [Use this draft](writing.md#use-this-draft) |
 | `writer` | `SchemaEntryWriter::class` | The class that turns a draft into entry data; bind your own to take over |
 
-Environment variables: `GHOSTWRITER_PROVIDER`, `GHOSTWRITER_MODEL`, `GHOSTWRITER_TIMEOUT`, `GHOSTWRITER_ANTHROPIC_BASE_URL`, `GHOSTWRITER_OPENAI_BASE_URL`, `GHOSTWRITER_GEMINI_BASE_URL`, `GHOSTWRITER_OPENROUTER_BASE_URL`, `GHOSTWRITER_OPENROUTER_WRITING_MODEL`, `GHOSTWRITER_OPENROUTER_QUICK_MODEL`, `GHOSTWRITER_ANTHROPIC_FALLBACKS`, `GHOSTWRITER_LOG_CHANNEL`, `GHOSTWRITER_IMAGE_PROVIDER`, `GHOSTWRITER_IMAGE_MODEL`, `GHOSTWRITER_OPENVERSE`, `GHOSTWRITER_PLACEHOLDER_IMAGES`, `GHOSTWRITER_SUGGEST_KINDS`, `GHOSTWRITER_SHARED_CONVERSATIONS`, `GHOSTWRITER_DRAFTS_UNPUBLISHED`, and the keys in [API keys](api-keys.md).
+Environment variables: `GHOSTWRITER_PROVIDER`, `GHOSTWRITER_MODEL`, `GHOSTWRITER_TIMEOUT`, `GHOSTWRITER_ANTHROPIC_BASE_URL`, `GHOSTWRITER_OPENAI_BASE_URL`, `GHOSTWRITER_GEMINI_BASE_URL`, `GHOSTWRITER_OPENROUTER_BASE_URL`, `GHOSTWRITER_OPENROUTER_WRITING_MODEL`, `GHOSTWRITER_OPENROUTER_QUICK_MODEL`, `GHOSTWRITER_ANTHROPIC_FALLBACKS`, `GHOSTWRITER_LOG_CHANNEL`, `GHOSTWRITER_IMAGE_PROVIDER`, `GHOSTWRITER_IMAGE_MODEL`, `GHOSTWRITER_OPENVERSE`, `GHOSTWRITER_PLACEHOLDER_IMAGES`, `GHOSTWRITER_SUGGEST_KINDS`, `GHOSTWRITER_SHARED_CONVERSATIONS`, `GHOSTWRITER_DRAFTS_UNPUBLISHED`, `GHOSTWRITER_PREVIEW`, `GHOSTWRITER_PREVIEW_SCRIPT_HOSTS`, `GHOSTWRITER_PREVIEW_TIMEOUT`, and the keys in [API keys](api-keys.md).
 
 ## Where things are kept
 

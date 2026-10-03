@@ -20,7 +20,7 @@
 // - The title's marker is usually only in <title>: it is read from there for
 //   the frame's bar, not listed as a block missing from the page.
 
-import { canRead, findMarkers, locate, measure, watch } from './locator.js';
+import { canRead, findMarkers, locate, measure, watch, words } from './locator.js';
 
 export const ERROR_META = 'ghostwriter-preview-error';
 
@@ -80,6 +80,48 @@ export function labelFor(block, byKey) {
     const parent = block?.parent ? byKey[block.parent] : null;
 
     return parent ? `${block.label} · in ${parent.label}` : String(block?.label ?? '');
+}
+
+/**
+ * A set inside rich text (a Bard set: its parent is a section or a field,
+ * not a block) is only the elements that show it: those holding its own
+ * marks, its images, or its words. Core's locator lets a bare region reach
+ * back over the unmarked elements before it, which suits a section (its
+ * heading and first paragraphs) but would give a photo or a pull quote the
+ * paragraphs above it.
+ */
+export function tighten(result, marks, byKey) {
+    for (const region of result.regions) {
+        const block = byKey[region.key];
+        const parent = block?.parent ? byKey[block.parent] : null;
+
+        if (!parent || parent.kind === 'block') continue;
+
+        const own = marks.filter((mark) => mark.key === region.key).map((mark) => mark.element);
+        const stems = (block.assets ?? []).map((asset) => String(asset).replace(/\.[^.]+$/, '')).filter(Boolean);
+        const anchors = (block.anchors ?? []).map((anchor) => ` ${words(anchor).join(' ')} `).filter((anchor) => anchor.trim() !== '');
+
+        const shows = (element) => {
+            if (own.some((mark) => element === mark || element.contains?.(mark))) return true;
+
+            if (stems.length) {
+                const images = [element, ...(element.querySelectorAll?.('img, source') ?? [])];
+                const urls = images.flatMap((image) => ['src', 'srcset', 'data-src'].map((name) => image.getAttribute?.(name) ?? '')).join(' ');
+
+                if (stems.some((stem) => urls.includes(stem))) return true;
+            }
+
+            const text = ` ${words(element.textContent ?? '').join(' ')} `;
+
+            return anchors.some((anchor) => text.includes(anchor));
+        };
+
+        const kept = region.elements.filter(shows);
+
+        if (kept.length) region.elements = kept;
+    }
+
+    return result;
 }
 
 /** How deep a block sits: 0 at the top. */
@@ -163,7 +205,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, onChange = () =
     // Find and strip every marker, <head> included (the title's code is there).
     let marks = findMarkers(doc).marks;
     const titleInHead = titleKey !== null && marks.some((mark) => mark.key === titleKey && !doc.body?.contains(mark.element));
-    let result = locate(doc, map, { marks });
+    let result = tighten(locate(doc, map, { marks }), marks, byKey);
 
     const state = { hovered: null, boxes: [], stopped: false };
     const cleanups = [];
@@ -269,7 +311,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, onChange = () =
     // Scripts that print more marked text: locate again with every mark so far.
     const watcher = watch(doc, (found) => {
         marks = [...marks, ...found];
-        result = locate(doc, map, { marks });
+        result = tighten(locate(doc, map, { marks }), marks, byKey);
         later();
     });
     cleanups.push(() => watcher.stop());

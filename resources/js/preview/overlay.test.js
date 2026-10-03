@@ -1,7 +1,7 @@
 // The preview overlay's logic, in Node with no DOM: node --test resources/js/preview/*.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cancelLinks, debounce, depthOf, innermost, labelFor, pageTitle, previewError } from './overlay.js';
+import { cancelLinks, debounce, depthOf, innermost, labelFor, pageTitle, previewError, tighten } from './overlay.js';
 
 const map = {
     f3: { key: 'f3', label: 'Body', parent: null },
@@ -75,4 +75,39 @@ test('renders wait for the edits to settle', async () => {
     later.cancel();
     await new Promise((resolve) => setTimeout(resolve, 60));
     assert.deepEqual(calls, [3, 4]);
+});
+
+test('a set inside rich text is only the elements holding its own marks', () => {
+    const el = (name, inside = [], text = '') => ({ name, textContent: text, contains: (other) => inside.includes(other) });
+    const quoteText = el('text');
+    const heading = el('h2');
+    const paragraph = el('p');
+    const quote = el('blockquote', [quoteText]);
+    const byKey = { ...map, s2: { ...map.s2, kind: 'section' }, f3: { ...map.f3, kind: 'field' }, b1: { ...map.b1, kind: 'block' }, b9: { key: 'b9', label: 'Card', parent: 'b1' } };
+    const result = { regions: [
+        { key: 'b6', method: 'marker', elements: [heading, paragraph, quote] },
+        { key: 'b9', method: 'marker', elements: [heading, paragraph] },
+    ] };
+
+    tighten(result, [{ key: 'b6', element: quoteText }, { key: 'b9', element: paragraph }], byKey);
+
+    assert.deepEqual(result.regions[0].elements.map((e) => e.name), ['blockquote']);
+    // A block's child in a page builder keeps what the locator gave it.
+    assert.deepEqual(result.regions[1].elements.map((e) => e.name), ['h2', 'p']);
+});
+
+test('an image-only set is only the element showing its image, and a set found by words only those', () => {
+    const img = { name: 'img', getAttribute: (name) => (name === 'src' ? '/img/asset/abc/rain-garden.jpg?w=800' : null), contains: () => false, textContent: '' };
+    const figure = { name: 'figure', textContent: '', contains: (other) => other === img, querySelectorAll: () => [img], getAttribute: () => null };
+    const paragraph = { name: 'p', textContent: 'The courtyard sits between the waiting room.', contains: () => false, querySelectorAll: () => [], getAttribute: () => null };
+    const stats = { name: 'ul', textContent: '14 benches 2 hours of sun', contains: () => false, querySelectorAll: () => [], getAttribute: () => null };
+    const byKey = { f3: { key: 'f3', kind: 'field', label: 'Body' }, b1: { key: 'b1', parent: 'f3', assets: ['rain-garden.jpg'] }, b2: { key: 'b2', parent: 'f3', anchors: ['14 benches'] } };
+    const result = { regions: [
+        { key: 'b1', method: 'asset', elements: [paragraph, figure] },
+        { key: 'b2', method: 'anchor', elements: [paragraph, stats] },
+    ] };
+
+    tighten(result, [], byKey);
+
+    assert.deepEqual(result.regions.map((region) => region.elements.map((e) => e.name)), [['figure'], ['ul']]);
 });

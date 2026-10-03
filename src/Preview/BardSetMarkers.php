@@ -19,12 +19,14 @@ use NineteenNinetyFour\Ghostwriter\Core\Schema\Set;
  *
  * - inside the section it sits in (by where core's section markers end),
  *   or the field (or block) the Bard value belongs to;
- * - its text values carry markers like any block's, at the end;
- * - its images are listed by file name, so an image-only set (a photo) is
- *   found by its address, as Glide's URLs end in the file name.
+ * - found by its words (the first eight of each text value, which the
+ *   locator matches when only one place on the page holds them) and its
+ *   images by file name, so an image-only set (a photo) is found by its
+ *   address, as Glide's URLs end in the file name.
  *
- * Runs on the preview's copy only, after PreviewMarkers::mark(); the hash
- * (of the unmarked data) is unchanged.
+ * A set's text gets no marker of its own: core's locator would then treat
+ * it as another block's inside its section, and the section's outline
+ * would stop short of its heading. The data is not changed at all.
  */
 final class BardSetMarkers
 {
@@ -52,14 +54,14 @@ final class BardSetMarkers
             }
 
             if ($this->isBard($field, $data[$field->handle])) {
-                $data[$field->handle] = $this->bard($data[$field->handle], $field, $field->handle);
+                $this->bard($data[$field->handle], $field, $field->handle);
             } elseif ($field->isBuilder() && is_array($data[$field->handle])) {
                 foreach ($data[$field->handle] as $i => $block) {
                     $set = is_array($block) ? $field->set((string) ($block['type'] ?? '')) : null;
 
                     foreach ($set?->fields ?? [] as $child) {
                         if (array_key_exists($child->handle, $block) && $this->isBard($child, $block[$child->handle])) {
-                            $data[$field->handle][$i][$child->handle] = $this->bard($block[$child->handle], $child, $field->handle.'/'.$i.'/'.$child->handle);
+                            $this->bard($block[$child->handle], $child, $field->handle.'/'.$i.'/'.$child->handle);
                         }
                     }
                 }
@@ -86,9 +88,8 @@ final class BardSetMarkers
 
     /**
      * @param  array<int, mixed>  $nodes
-     * @return array<int, mixed>
      */
-    private function bard(array $nodes, Field $field, string $path): array
+    private function bard(array $nodes, Field $field, string $path): void
     {
         // Where core's markers are: the owner's (the field's or block's) and where each section ends.
         $owner = null;
@@ -127,17 +128,14 @@ final class BardSetMarkers
                 }
             }
 
-            $nodes[$index]['attrs']['values'] = $this->set($values, $set, $type, $parent, $path.'/#'.($node['attrs']['id'] ?? $index));
+            $this->set($values, $set, $type, $parent, $path.'/#'.($node['attrs']['id'] ?? $index));
         }
-
-        return $nodes;
     }
 
     /**
      * @param  array<string, mixed>  $values
-     * @return array<string, mixed>
      */
-    private function set(array $values, Set $set, string $type, ?string $parent, string $path): array
+    private function set(array $values, Set $set, string $type, ?string $parent, string $path): void
     {
         $key = 'b'.(++$this->next);
         $fields = [];
@@ -150,7 +148,6 @@ final class BardSetMarkers
             }
 
             $value = $values[$child->handle];
-            $marker = PreviewMarkers::encode($key.'.'.$f);
 
             if ($child->files) {
                 foreach (is_array($value) ? $value : [$value] as $item) {
@@ -165,26 +162,18 @@ final class BardSetMarkers
             }
 
             if (in_array($child->kind, [Kind::Text, Kind::LongText], true) && is_string($value) && trim($value) !== '') {
-                $values[$child->handle] = PreviewMarkers::markText($value, $marker);
                 $fields[$f] = $child->handle;
                 $anchors[] = self::anchor($value);
             } elseif ($child->kind === Kind::Rows && is_array($value)) {
-                foreach ($value as $r => $row) {
-                    foreach ($child->fields as $cell) {
-                        if (is_array($row) && is_string($row[$cell->handle] ?? null) && trim($row[$cell->handle]) !== '' && in_array($cell->kind, [Kind::Text, Kind::LongText], true)) {
-                            $value[$r][$cell->handle] = PreviewMarkers::markText($row[$cell->handle], $marker);
-                        }
-                    }
-                }
-
-                $values[$child->handle] = $value;
+                // A grid's first row, read across: "2 hours of sun in June".
+                $first = is_array($value[0] ?? null) ? $value[0] : [];
+                $cells = array_filter(array_map(fn (Field $cell) => is_string($first[$cell->handle] ?? null) ? trim($first[$cell->handle]) : '', $child->fields));
                 $fields[$f] = $child->handle;
+                $anchors[] = self::anchor(implode(' ', $cells));
             }
         }
 
         $this->added[] = new MappedBlock($key, MappedBlock::BLOCK, $path, $set->label !== '' ? $set->label : $type, $parent, [], $fields, $assets, array_values(array_filter($anchors)), $type);
-
-        return $values;
     }
 
     /**

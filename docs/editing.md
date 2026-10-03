@@ -14,7 +14,7 @@ Ask for what you want in plain words:
 - "Rewrite this for a client who has never commissioned a garden."
 - "Add a short section on maintenance before the closing paragraph."
 
-The revised draft shows on the right. You can change any writing in it yourself, as when [writing](writing.md#the-draft).
+The revised draft shows on the right, in **Preview** as the page will look with the changes (the entry is copied for the preview, with the draft over it; nothing is saved). You can change any writing in it yourself in **Blocks** or **Text**, as when [writing](writing.md#the-draft).
 
 ![The About page in the panel, with a request, Ghostwriter's reply, and the revised draft with Use these changes](images/editing.png)
 
