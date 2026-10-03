@@ -31,6 +31,8 @@ Ghostwriter learns how your site writes and what its pictures look like, then dr
 ## Requirements
 
 - PHP 8.3 or later, with GD.
-- Statamic 6.
+- Statamic 6.30 or later. Roles and permissions need Statamic Pro.
 - An API key for Anthropic, OpenAI or Google Gemini.
 - A queue worker, or PHP-FPM on the `sync` queue.
+- Laravel's scheduler, for the hourly stock photos cleanup.
+- Optional: a Shutterstock API plan for paid stock photos, billed by Shutterstock to your account.

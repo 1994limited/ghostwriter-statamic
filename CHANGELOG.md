@@ -1,62 +1,37 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 - 2026-10-03
 
-### Fixed
-- Finish this page's current field has a 2px line and a lighter tint; open and fixed fields a 1px line. Drawn as an outline, so the set around a field never clips it.
-- The flying mark says "Your turn" (or "Over here", "This one") rather than repeating the tag beside it, and fades while its field is scrolled out of sight.
-- A required date filled in on the form was counted as empty.
-- Finish this page keeps one live list of gaps, straight from the latest check, for the count by Save, the guide's "n of total" and its progress bar, which could disagree (fixed gaps stayed in the guide's total and the bar). Suggestions are numbered on their own.
-- A field shows "Fixed ✓" only when every gap in it has gone, and a fix that leaves a new gap (a placeholder swapped for a stock preview) shows the new one as open; field states come from the next check, never from the step clicked.
-- The flying mark's label and place follow the step when its gap changes kind, and are measured again when the page shifts (a banner appearing, a set opening).
-- A field's tag names the step the guide is on, or the range of its steps ("2–4 · 3 to do"), and sits beside the field's name instead of over its border and buttons.
-- A place is named once: "Text" rather than "Text: Text" when a set and its field share a name, in the guide and in the publish messages.
-- "Choose from Assets" uses the field's visible Browse button.
-- Finish this page highlighted a new, empty entry's required fields (with tags) although the guide and count stayed hidden. Fields are now highlighted only once the guide has something to show.
+Stock photos from paid libraries, licensed from your own account; **Finish this page**, which marks what only a person can finish and walks you through it; and drafts that start unpublished. Requires `1994/ghostwriter-core` 1.4. Statamic 6.30 or later and PHP 8.3 or later, as before.
 
 ### Added
-- **"Include editorial images" explained.** A hint under it ("News and event photos. Not for advertising or promotion.") and an (i) button that opens what editorial use allows, by click, tap or keyboard. The checkbox shows only when the source being searched can return editorial images (core's `Capabilities::$editorial`): not for the free libraries or the demo library, and for Everything only when it includes such a library. Each "Search in" choice now says `editorial`.
-- **Finish this page, server side** (core 1.3). Ghostwriter finds what only a person can finish in an entry, whoever wrote it: a fact to add (`[[ask: adult ticket price]]`), a link to choose (`#gw-link:contact-page`, inline or in a `link` field), a link to an entry that's gone, the striped image placeholder, a stock preview not licensed, template text left in, and required or usually-filled fields left empty. Found for nothing: no model call, no save.
-  - `POST cp/ghostwriter/finish/check` checks the publish form's values as they stand, for the count by Save and the guide; each gap comes with its message, speech label and fixes in the editor's words (`__()`), and the tab its field is on. "Link to …" is suggested from entries whose title or slug match the link's hint.
-  - Using a draft returns its gaps too, and the conversation keeps what the draft left for a person, so the guide can say why ("I didn't want to guess").
-  - `POST cp/ghostwriter/finish/fill`: **Write around it** (the sentence without the missing fact) and **Write it for me** (a summary from the page's own words), one small model call per click. Ghostwriter never fills in a fact.
-  - `POST cp/ghostwriter/finish/guide` remembers, per person, whether the guide was left open or minimised (it starts minimised).
-  - Core's ports, with its contract tests: `StatamicPlaceholderAssets`, `StatamicAssetRefs` (assets fields, Bard images and Bard sets) and `StatamicLinkTargets`; and `MarkerRoundTripContract` and `PublishGuardContract` through the addon's real apply path and saves.
-
-- **Finish this page, on the entry's form.** A count by Save ("5 things to finish", then "Ready to publish"); amber, purple and green highlights with numbered tags on each field; Ghostwriter's markers underlined inside Bard (ProseMirror decorations, so they survive every edit, and fixes go through the editor so undo works); and a floating guide that steps through each gap with its fixes, Back, Skip for now and Next. It opens a field's tab and expands collapsed sets with Statamic's own reveal. Fixes write into the form, never a save: the answer box for a fact, Link to …, Find a photo, Choose from Assets, Leave it empty, License (the stock feature's own License & replace), Write around it and Write it for me.
-  - The flying Ghostwriter mark follows the current field as the page scrolls; the guide tucks into a corner button with a count badge (sucked in, pop, wisps, a wave, a peek every few seconds, a leap and unfurl to restore, a pulse when the count changes), all still under reduced motion.
-  - Keyboard: Alt+Shift+N / P / G, Esc in the guide; a polite live region; tags are buttons; fields get a hidden note. Dark mode, RTL, Windows high contrast, and a bottom sheet on phones.
-  - Remembered per person (starts tucked away), and opens by itself after a draft is used (`finish.open_after_draft`). On a new, empty entry it waits for something that blocks publishing.
-  - The guide shell (`resources/js/finish/shell.js`) is framework-free, with a five-part adapter for Statamic, so Craft and Filament can share it.
-
-### Changed
-- **One publish guard** for Finish this page and stock photos (core's `PublishReadiness`): a page can't be published, scheduled or have its working copy published while it holds a fact to add, a link to choose or to a deleted page, an image placeholder, template text, or an unlicensed stock preview. One message per field, by the form's path ("Add adult ticket price before publishing."); saving unpublished always works. `publish.on_unfinished` (`GHOSTWRITER_ON_UNFINISHED_PUBLISH`, or **When a page with something unfinished is published** on the settings screen) can make it a warning instead; it replaces the stock photos setting, and `stock.on_publish` is still read when it isn't set.
-- A link a new page usually has but the draft can't settle now points at `#gw-link:<hint>` (a link to choose), not `https://example.com`.
-
-### Added (stock photos)
-- **Stock image ledger.** Every photo Ghostwriter puts into the site from a photo library is recorded: the library and photo, the asset, its licence and credit, who added it and when, and where it is used. One YAML file per record in `content/ghostwriter/stock/` (`ghostwriter.stock_path`), so it is committed with the site. Records are never deleted.
-- **Stock photos settings.** A Stock photos section on the settings screen: a row for each paid library with whether its keys are set in `.env` (never the keys), **Check connection** (the account and what it can still buy), a switch for each library set up, the default source for "Search in", "Include editorial images by default", and what happens when a page with an unlicensed preview is published (Block or Warn; `stock.on_publish` in config wins). Getty Images and iStock are listed as coming: their keys can be set now.
-- **Demo stock (no charge)**: a pretend paid library for trying the whole preview and licence flow. Only on a local site (or where `stock.demo` turns it on), never in production.
-- **Search in** in the image dialog's Find a photo tab: the free libraries, a paid library, or everything (each library's best taking turns). Each person's last choice is remembered. Result cards show the library and the cost ("Free", "1 download", "3 credits", or "Paid"), and an **Editorial** chip with its restrictions; editorial images are left out unless "Include editorial images" is ticked. Paid results are never judged by a model and come in the library's own order, which the dialog says.
-- **Insert preview** for a paid photo: the field gets a labelled stand-in image (with the photo's title, alt text and aspect ratio), the library's watermarked comp is kept privately for signed-in editors, and the ledger records it as a preview. "Preview added. Only signed-in editors see the photo; license it before publishing."
-- The comp is served only in the Control Panel, from `cp/ghostwriter/stock/{id}/comp`, never cached (`Cache-Control: private, no-store`) or indexed (`X-Robots-Tag: noindex`).
-- **"Preview · not licensed"** badge beside the image button on an assets field that holds a stock preview, with the comp's thumbnail. It opens the preview with **License**, or "Ask a manager to license" and **Request licence** for people without the permission. **Refresh preview** once the comp's period is over (once per preview); **Download again and replace** if a licensed file didn't go in.
-- A **Stock photo** panel in the asset editor of any asset in the ledger: its state, library, ID, order and credit, with the same actions.
-- **License & replace**: the confirm step shows the licence options, what it uses from your account ("Uses 1 of your 742 remaining downloads (…)"), any editorial restrictions and seat notices, and the credit line to show for editorial use. The licence is bought once (a second press is refused), then the stand-in's file is swapped for the licensed original with `Asset::reupload()`: same asset and path, so every reference stays, and its alt text, title and focal point are kept. The original is never re-encoded. Failures say what happened and never buy twice; an unknown outcome says "Ghostwriter will check with the library in a few minutes; don't buy it again."
-- In **Live Preview**, signed-in editors see the comp in place of the stand-in (any `src` or `srcset` ending in the stand-in's file name, Glide addresses included). Shared preview links opened while signed out get the stand-in. `stock.live_preview` turns it off.
-- **Publishing is blocked** while a page holds a stock preview that isn't licensed: "The hero image is a Getty preview, not licensed yet. License it, or choose another image, before publishing.", shown on the image field. Saving unpublished still works. `stock.on_publish` (or the settings screen) can make it a warning instead.
-- **Stock images** screen (a Ghostwriter sub-page): tabs Previews (requested licences first), Licensed, Failed and All, with where each image is used, its state, cost, licence and credit; License, Reconcile, Remove preview and the licence record; and a CSV export. The Overview shows "N stock previews to license" (amber when one is on a live page or its preview expired), and the widget says so in a line.
-- `ghostwriter:stock-cleanup`, hourly on the scheduler: deletes previews when the library's preview period ends (the stand-in stays), removes stand-ins no page has used for 30 days, and settles licences whose outcome wasn't known.
-- [Stock photos](docs/stock-photos.md) in the docs.
-- A **License stock images** permission, given to nobody by default (super users have it), since licensing spends from the site's account.
-- Where each ledger image is used is kept up to date as entries are saved (inside Replicator and Bard sets too), as assets are moved or renamed, and when an asset is deleted. `php please ghostwriter:stock-usages` rescans every entry.
-
-- **Shutterstock**, licensed from your own API plan: set `SHUTTERSTOCK_API_KEY` and `SHUTTERSTOCK_API_SECRET`, then **Connect account** on the settings screen (sign in with Shutterstock; **Disconnect** to forget it). The connection's tokens are kept encrypted with the app key. Shutterstock previews are never stored: editors see Shutterstock's own watermarked preview. On a local site it uses Shutterstock's sandbox (`stock.shutterstock_sandbox`). If the connection is lost, licensing says so, with **Connect again in Settings**.
+- **Finish this page.** Ghostwriter never makes up a fact: where a draft needs a price, a date, a name or a quote it wasn't given, it writes `[[ask: adult ticket price]]`, and a link it can't place points at `#gw-link:contact-page`. On any entry in a collection Ghostwriter writes for, whoever wrote it, the form then shows:
+  - a count beside **Save** ("5 things to finish", then "Ready to publish");
+  - highlighted fields (amber to do, indigo current, green fixed) with a numbered tag beside each field's name, and the markers underlined inside Bard;
+  - a guide that steps through each gap: an answer box for a fact, **Link to …** (an entry whose title or slug matches), **Find a photo**, **Choose from Assets**, **Leave it empty**, **License** (the stock photos License & replace), and, each one small model call, **Write around it** and **Write it for me**. Ghostwriter never fills in a fact. Fixes go into the form; nothing is saved until you save;
+  - the Ghostwriter mark flying to the field, and the guide tucking into a corner button with a count, all still under reduced motion;
+  - Alt+Shift+N / P / G, a live region and labelled tags for keyboard and screen-reader users; dark mode; a bottom sheet on phones.
+  It's checked as you type, for nothing (no model, no save), remembered per person (it starts tucked away) and opens after **Use this draft** (`finish.open_after_draft`). See [Finish this page](docs/finish-this-page.md).
+- **Stock photos** from paid libraries, licensed from your own account with your own keys. See [Stock photos](docs/stock-photos.md).
+  - **Shutterstock (API plan required).** Set `SHUTTERSTOCK_API_KEY` and `SHUTTERSTOCK_API_SECRET`, then **Connect account** on the settings screen. Its own watermarked previews are shown; nothing is stored. On a local site its sandbox is used. Getty Images and iStock are coming: their keys can be set now.
+  - **Demo stock (no charge)** to try the whole flow on a local site, never in production.
+  - **Search in** (free libraries, a paid library or everything), cost and **Editorial** chips, and **Include editorial images** with a short explanation, offered only for libraries that have editorial images.
+  - **Insert preview**: a labelled stand-in in the field, the watermarked comp kept privately for signed-in editors (and shown to them in Live Preview), and a **Preview · not licensed** badge.
+  - **License & replace**: the options, what it uses from your account and the credit line, then the licensed original swapped in byte for byte, keeping alt text, title and focal point. Never bought twice.
+  - A **stock image ledger** (one YAML file per photo in `content/ghostwriter/stock/`, made when first needed), a **Stock images** screen with a CSV export, a **Stock photo** panel in the asset editor, and `ghostwriter:stock-cleanup` hourly on the scheduler.
+  - A **License stock images** permission, given to nobody by default (super users have it), as licensing spends from the site's account.
+- A "Finish this page" section on the settings screen: **When a page with something unfinished is published**, Block (default) or Warn.
+- Continuous integration: PHPUnit and Pint on PHP 8.3 and 8.4 against the lowest and newest dependencies, and the guide's logic on Node.
 
 ### Changed
-- **Drafts start unpublished.** **Use this draft** on a new entry, or one that isn't published, switches the form's Published toggle off, so the entry can be saved straight away and goes live only when someone switches it on. An entry already published is left as it is. Config `drafts_unpublished` (default `true`).
-- Requires `1994/ghostwriter-core` 1.2.
-- Images from a paid library (and any file named or credited as Getty Images or iStock) are never sent to a model: not as references when finding or making a picture, nor as samples for the image style guide.
+- **One publish guard.** A page can't be published, scheduled or have its working copy published while it holds a fact to add, a link to choose or to a deleted entry, an image placeholder, template text left in, or a stock preview not licensed. One message per field ("Add adult ticket price before publishing."); saving unpublished always works. `publish.on_unfinished` (`GHOSTWRITER_ON_UNFINISHED_PUBLISH`) or the settings screen can make it a warning; `stock.on_publish` is still read when it isn't set.
+- **Drafts start unpublished.** **Use this draft** on a new or unpublished entry switches the form's Published toggle off (`drafts_unpublished`, default `true`). A published entry is left as it is.
+- After **Use this draft**, image placeholders and links still to choose are Finish this page's steps, not lines in the notes notice.
+- Images from a paid library, and any file named or credited as Getty Images or iStock, are never sent to a model.
+- Requires `1994/ghostwriter-core` 1.4 (was 1.0).
+
+### Fixed
+- A link a new page usually has, but whose target the examples didn't agree on, pointed at `https://example.com`, a real address if published. It now points at `#gw-link:<hint>`, a place on the same page, and publishing waits until it's chosen.
 
 ## 1.0.1 - 2026-10-02
 
