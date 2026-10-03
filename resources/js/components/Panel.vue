@@ -14,12 +14,13 @@
 import { Alert, Button, Heading, Subheading, Textarea } from '@statamic/cms/ui';
 import BriefCard from './BriefCard.vue';
 import DraftPreview from './DraftPreview.vue';
+import PagePreview from './PagePreview.vue';
 import ImageSlots from './ImageSlots.vue';
 import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
 
 export default {
-    components: { Alert, BriefCard, Button, DraftPreview, ImageSlots, Heading, LearnForm, SetupAlert, Subheading, Textarea },
+    components: { Alert, BriefCard, Button, DraftPreview, ImageSlots, Heading, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -62,19 +63,41 @@ export default {
             retrying: false,
             adding: false,
             showBrief: false,
-            // How the draft is shown: in its blocks, or as plain reading text.
-            view: (() => {
+            // How the draft is shown: rendered as the page (Preview, the
+            // default where the site can), in its blocks, or as plain
+            // reading text. The choice is remembered.
+            chosenView: (() => {
                 try {
-                    return localStorage.getItem('ghostwriter.draft-view') === 'text' ? 'text' : 'blocks';
+                    return ['preview', 'blocks', 'text'].includes(localStorage.getItem('ghostwriter.draft-tab')) ? localStorage.getItem('ghostwriter.draft-tab') : 'preview';
                 } catch (error) {
-                    return 'blocks';
+                    return 'preview';
                 }
             })(),
+            // Desktop or Phone, for Preview.
+            previewWidth: 'desktop',
+            // Blocks, for a piece whose preview failed when it was last open
+            // in this tab: until a tab is chosen.
+            sessionView: null,
             timer: null,
         };
     },
 
     computed: {
+        // The tabs this piece has: Preview only where its pages can render.
+        tabs() {
+            return [
+                ...(this.session?.page_preview ? [{ value: 'preview', label: this.__('Preview') }] : []),
+                { value: 'blocks', label: this.__('Blocks') },
+                { value: 'text', label: this.__('Text') },
+            ];
+        },
+
+        view() {
+            const view = this.sessionView ?? this.chosenView;
+
+            return this.tabs.some((tab) => tab.value === view) ? view : 'blocks';
+        },
+
         step() {
             if (!this.info) return 'loading';
             if (this.session) return 'write';
@@ -297,7 +320,10 @@ export default {
             // say so, and take keyboard focus to it.
             const filled = data.stage === 'proposed' && data.id === this.session?.id && (this.session?.stage !== 'proposed' || data.brief?.attempt !== this.session?.brief?.attempt);
 
-            if (data.id !== this.session?.id) this.$emit('session', data.id);
+            if (data.id !== this.session?.id) {
+                this.$emit('session', data.id);
+                this.sessionView = this.failedBefore(data.id) ? 'blocks' : null;
+            }
 
             this.session = data;
 
@@ -472,12 +498,53 @@ export default {
         },
 
         setView(view) {
-            this.view = view;
+            this.chosenView = view;
+            this.sessionView = null;
 
             try {
-                localStorage.setItem('ghostwriter.draft-view', view);
+                localStorage.setItem('ghostwriter.draft-tab', view);
             } catch (error) {
                 // Private windows and the like: the choice just is not remembered.
+            }
+        },
+
+        // The tabs by keyboard: arrows move along them (and choose), Home and End to the ends.
+        tabKey(event, index) {
+            const keys = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: this.tabs.length - 1 };
+
+            if (!(event.key in keys)) return;
+
+            event.preventDefault();
+
+            const tab = this.tabs[(keys[event.key] + this.tabs.length) % this.tabs.length];
+            this.setView(tab.value);
+            this.$nextTick(() => this.$refs.tabs?.querySelector(`[data-tab="${tab.value}"]`)?.focus());
+        },
+
+        // The preview failed: it says so where it is, and the piece opens on
+        // Blocks from now on in this browser tab.
+        previewFailedFor() {
+            try {
+                if (this.session?.id) sessionStorage.setItem(`ghostwriter.preview-failed.${this.session.id}`, '1');
+            } catch (error) {
+                // Not remembered.
+            }
+        },
+
+        previewRendered() {
+            try {
+                if (this.session?.id) sessionStorage.removeItem(`ghostwriter.preview-failed.${this.session.id}`);
+            } catch (error) {
+                // Nothing to forget.
+            }
+        },
+
+        // A piece whose preview failed before opens on Blocks.
+        failedBefore(id) {
+            try {
+                return Boolean(id) && sessionStorage.getItem(`ghostwriter.preview-failed.${id}`) === '1';
+            } catch (error) {
+                return false;
             }
         },
 
@@ -767,11 +834,28 @@ export default {
 
                 <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 lg:col-span-3 dark:border-gray-700!">
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700!">
-                        <div class="flex items-center gap-3 text-sm text-gray-500">
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-gray-500">
                             <span>{{ session.draft ? __n(':count word|:count words', session.words) : __('Draft') }}</span>
-                            <div v-if="session.draft && !editing" class="flex rounded-md border border-gray-200 text-xs dark:border-gray-700!" role="group" :aria-label="__('Draft view')">
-                                <button type="button" class="px-2 py-0.5" :class="view === 'blocks' ? 'bg-gray-100 font-medium dark:bg-gray-800!' : ''" @click="setView('blocks')">{{ __('Blocks') }}</button>
-                                <button type="button" class="px-2 py-0.5" :class="view === 'text' ? 'bg-gray-100 font-medium dark:bg-gray-800!' : ''" @click="setView('text')">{{ __('Text') }}</button>
+                            <div v-if="session.draft && !editing" ref="tabs" class="flex rounded-md border border-gray-200 text-xs dark:border-gray-700!" role="tablist" :aria-label="__('Draft view')">
+                                <button
+                                    v-for="(tab, index) in tabs"
+                                    :id="`gw-tab-${tab.value}`"
+                                    :key="tab.value"
+                                    type="button"
+                                    role="tab"
+                                    class="px-2 py-0.5"
+                                    :class="view === tab.value ? 'bg-gray-100 font-medium text-gray-900 dark:bg-gray-800! dark:text-gray-100!' : ''"
+                                    :data-tab="tab.value"
+                                    :aria-selected="view === tab.value ? 'true' : 'false'"
+                                    aria-controls="gw-draft-view"
+                                    :tabindex="view === tab.value ? 0 : -1"
+                                    @click="setView(tab.value)"
+                                    @keydown="tabKey($event, index)"
+                                >{{ tab.label }}</button>
+                            </div>
+                            <div v-if="session.draft && !editing && view === 'preview'" class="flex rounded-md border border-gray-200 text-xs dark:border-gray-700!" role="group" :aria-label="__('Preview width')">
+                                <button type="button" class="px-2 py-0.5" :class="previewWidth === 'desktop' ? 'bg-gray-100 font-medium text-gray-900 dark:bg-gray-800! dark:text-gray-100!' : ''" :aria-pressed="previewWidth === 'desktop' ? 'true' : 'false'" @click="previewWidth = 'desktop'">{{ __('Desktop') }}</button>
+                                <button type="button" class="px-2 py-0.5" :class="previewWidth === 'phone' ? 'bg-gray-100 font-medium text-gray-900 dark:bg-gray-800! dark:text-gray-100!' : ''" :aria-pressed="previewWidth === 'phone' ? 'true' : 'false'" @click="previewWidth = 'phone'">{{ __('Phone') }}</button>
                             </div>
                         </div>
                         <div v-if="session.draft" class="flex gap-2">
@@ -819,10 +903,26 @@ export default {
 
                             <Textarea v-if="editing || session.draft_problem" v-model="raw" elastic :rows="24" class="font-mono text-sm" @focus="editing = true" />
 
-                            <template v-else>
-                                <p v-if="!working" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
-                                <DraftPreview :nodes="session.preview" :view="view" :editable="!working" @edit="editField" />
-                            </template>
+                            <div v-else id="gw-draft-view" role="tabpanel" :aria-labelledby="`gw-tab-${view}`">
+                                <PagePreview
+                                    v-if="session.page_preview && session.id"
+                                    v-show="view === 'preview'"
+                                    :key="session.id"
+                                    :session="session"
+                                    :base-url="baseUrl"
+                                    :blueprint="blueprint"
+                                    :form-values="formValues"
+                                    :width="previewWidth"
+                                    :active="view === 'preview'"
+                                    @failed="previewFailedFor"
+                                    @rendered="previewRendered"
+                                    @blocks="setView('blocks')"
+                                />
+                                <template v-if="view !== 'preview'">
+                                    <p v-if="!working" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
+                                    <DraftPreview :nodes="session.preview" :view="view" :editable="!working" @edit="editField" />
+                                </template>
+                            </div>
 
                             <ImageSlots
                                 v-if="session.images?.length && !session.draft_problem"

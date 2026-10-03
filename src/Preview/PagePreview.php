@@ -96,7 +96,8 @@ class PagePreview
     }
 
     /**
-     * The preview's copy of the data, marked, with the draft's units.
+     * The preview's copy of the data, marked, with the draft's units, and
+     * Bard's sets as blocks of their own.
      */
     public function mark(Session $session, Draft $draft, BuiltValues $built): PreviewData
     {
@@ -106,7 +107,8 @@ class PagePreview
             $units = $units->restore($session->units);
         }
 
-        return (new PreviewMarkers)->mark($built->data, $built->schema, $units);
+        // Core marks the text and sections; Bard's sets are mapped here.
+        return (new BardSetMarkers)->mark((new PreviewMarkers)->mark($built->data, $built->schema, $units), $built->schema);
     }
 
     /**

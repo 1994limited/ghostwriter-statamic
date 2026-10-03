@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
+use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Preview\PreviewMarkers;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Field;
@@ -14,6 +15,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Schema\Kind;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
+use NineteenNinetyFour\Ghostwriter\Preview\BardSetMarkers;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntry;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntryRepository;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewPolicy;
@@ -286,6 +288,41 @@ final class PagePreviewTest extends TestCase
 
         $this->assertSame(ContainerAssetSink::PATH, (new ContainerAssetSink)->placeholder($field, fn () => 'png'));
         $this->assertSame(ContainerAssetSink::PATH, (new ContainerAssetSink(create: false))->placeholder($field, fn () => 'png'));
+    }
+
+    public function test_bard_sets_are_blocks_of_their_own_inside_their_section(): void
+    {
+        Blueprint::make('story')->setNamespace('collections.journal')->setContents(['fields' => [
+            ['handle' => 'title', 'field' => ['type' => 'text']],
+            ['handle' => 'body', 'field' => ['type' => 'bard', 'buttons' => ['h2'], 'sets' => ['main' => ['sets' => [
+                'photo' => ['display' => 'Photo', 'fields' => [['handle' => 'image', 'field' => ['type' => 'assets', 'container' => 'assets', 'max_files' => 1]]]],
+                'stats' => ['display' => 'Stats', 'fields' => [['handle' => 'items', 'field' => ['type' => 'grid', 'fields' => [['handle' => 'value', 'field' => ['type' => 'text']], ['handle' => 'label', 'field' => ['type' => 'text']]]]]]],
+            ]]]]],
+        ]])->save();
+        $schema = app(SchemaReader::class)->schema(Blueprint::find('collections.journal.story'));
+        $text = fn (string $words) => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $words]]];
+
+        $data = ['title' => 'Sets', 'body' => [
+            $text('A lead paragraph before any heading.'),
+            ['type' => 'heading', 'attrs' => ['level' => 2], 'content' => [['type' => 'text', 'text' => 'The site']]],
+            $text('Two hours of sun in June.'),
+            ['type' => 'set', 'attrs' => ['id' => 'p1', 'values' => ['type' => 'photo', 'image' => 'journal/rain-garden.jpg']]],
+            ['type' => 'set', 'attrs' => ['id' => 's1', 'values' => ['type' => 'stats', 'items' => [['id' => 'r1', 'value' => '14', 'label' => 'benches']]]]],
+            $text('Hellebores for winter.'),
+        ]];
+
+        $marked = (new BardSetMarkers)->mark((new PreviewMarkers)->mark($data, $schema), $schema);
+        $map = collect($marked->map->toArray())->keyBy('key');
+
+        // After core's keys; inside the section they sit in.
+        $this->assertSame(['f1', 'f2', 's1', 's2', 'b1', 'b2'], $map->keys()->all());
+        $this->assertSame(['Photo', 's2', ['rain-garden.jpg']], [$map['b1']['label'], $map['b1']['parent'], $map['b1']['assets']]);
+        $this->assertSame(['Stats', 's2'], [$map['b2']['label'], $map['b2']['parent']]);
+
+        // The set's text carries its marker; without markers it is the data as it was, and the hash is unchanged.
+        $this->assertSame(['b2.0', 'b2.0'], array_column(PreviewMarkers::decode(json_encode($marked->data['body'][4], JSON_UNESCAPED_UNICODE)), 'payload'));
+        $this->assertSame($data, PreviewMarkers::strip($marked->data));
+        $this->assertSame((new PreviewMarkers)->mark($data, $schema)->hash, $marked->hash);
     }
 
     private function sessionWithDraft(string $draft): Session
