@@ -305,6 +305,31 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Page preview
+    |--------------------------------------------------------------------------
+    |
+    | The Preview tab renders the unsaved draft through the site's own
+    | templates (Statamic's Live Preview), in a frame beside the
+    | conversation. Nothing is saved. Templates can tell a Ghostwriter
+    | render by {{ live_preview:ghostwriter }}.
+    |
+    | The frame's pages get a Content-Security-Policy that blocks
+    | third-party scripts (tag managers, analytics, chat widgets) and their
+    | beacons. script_hosts allows hosts the site's own scripts come from,
+    | such as a CDN: a list, or a comma-separated string in .env.
+    |
+    | timeout: seconds the panel waits for a render before it gives up.
+    |
+    */
+
+    'preview' => [
+        'enabled' => (bool) env('GHOSTWRITER_PREVIEW', true),
+        'script_hosts' => env('GHOSTWRITER_PREVIEW_SCRIPT_HOSTS', []),
+        'timeout' => (int) env('GHOSTWRITER_PREVIEW_TIMEOUT', 8),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Shared conversations
     |--------------------------------------------------------------------------
     |

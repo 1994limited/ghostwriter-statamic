@@ -11,7 +11,6 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
-use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Busy;
@@ -29,27 +28,25 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionImages;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
-use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
-use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Brief;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
-use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
-use NineteenNinetyFour\Ghostwriter\Drafts\FormBaseline;
-use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
+use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Jobs\FillBrief;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
+use NineteenNinetyFour\Ghostwriter\Preview\PagePreview;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
+use Statamic\Fields\Blueprint;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -267,7 +264,7 @@ class SessionController
      * The draft as values for the publish form the panel is open on. Nothing
      * is saved: the person reviews the filled-in form and saves it themselves.
      */
-    public function apply(Request $request, string $session, SchemaReader $reader, EntryLayouts $layouts, ImageStudio $images, EntryMerger $merger, HouseFinish $finish, FormBaseline $baseline, EntryGaps $gaps): JsonResponse
+    public function apply(Request $request, string $session, DraftValues $values, EntryGaps $gaps): JsonResponse
     {
         $session = $this->session($session);
         $type = $this->type($session->kind)->forSession($session);
@@ -275,54 +272,18 @@ class SessionController
 
         // The form being filled decides the blueprint; the type's own is the
         // fallback for a collection with only one.
-        $blueprint = ($request->input('blueprint') ? TypeRepository::collectionOf($type)?->entryBlueprint($request->input('blueprint')) : null)
-            ?? TypeRepository::blueprintOf($type)
-            ?? abort(422, 'The collection this was written for no longer exists.');
-        $specs = $reader->read($blueprint);
-        $schema = Schema::fromSpecs($specs);
+        $blueprint = self::blueprintFor($type, $request->input('blueprint'));
 
         $original = $session->source !== null ? Entry::find((string) $session->source) : null;
 
         // Filling a form the person could not save is pointless, and the
         // draft is theirs to see only where they could use it.
-        abort_unless($original
-            ? User::current()?->can('edit', $original)
-            : User::current()?->can('create', [EntryContract::class, $blueprint->parent()]), 403, 'You cannot save entries in this collection.');
+        self::ensureCanSave($original, $blueprint);
 
-        if ($original) {
-            // Editing an entry: only the writing changes. Its images, links,
-            // settings and block IDs come from the form as it stands, unsaved
-            // changes included, not from what this kind of entry usually has.
-            $built = $layouts->build($draft->data, $schema);
-            $data = $merger->merge($built->data, $baseline->data($original, $request->input('values')), $specs);
-            $notes = $built->notes;
-            $left = SessionGaps::fromDraft($built);
-        } else {
-            $pattern = $layouts->pattern($schema, $type->group, $type->variant, $type->where, $type->examples);
-            $built = $layouts->build($draft->data, $schema, $pattern, $type->defaults);
-            $data = $built->data;
-
-            // An image already chosen in the form stays: no placeholder,
-            // nor anything the model entries suggest, goes over it. One
-            // chosen in the panel still goes in below.
-            $form = $baseline->values($blueprint, $request->input('values'));
-
-            foreach ($schema as $field) {
-                if ($field->type === 'assets' && ! empty($form[$field->handle])) {
-                    $data[$field->handle] = $form[$field->handle];
-                }
-            }
-
-            // What the model entries agree on place by place, and a striped
-            // placeholder where an image is still to come. The entry has no
-            // ID yet, so links to itself wait.
-            $finished = $finish->finish($data, $schema, $pattern, null, $draft->title());
-            $data = $finished['data'];
-            $notes = [...$built->notes, ...$finished['notes']];
-            $left = SessionGaps::fromDraft($built, $finished['places'], $finished['placeholders']);
-        }
-
-        $data = $images->place(['title' => $draft->title()] + $data, $session, $specs);
+        $built = $values->build($session, $type, $draft, $blueprint, $request->input('values'), $original);
+        $data = $built->data;
+        $notes = $built->notes;
+        $left = $built->left;
 
         // Run the data through each fieldtype's own pre-processing, so the
         // form receives exactly what it would have loaded from a saved entry.
@@ -339,7 +300,7 @@ class SessionController
 
         // What is still to finish in the entry as the form will hold it,
         // for the count by Save and the guide, which opens now.
-        $report = $gaps->find($gaps->context($blueprint, ['title' => $draft->title()] + $data, $original ? null : $type->group, $original ? (string) $original->id() : null, $left));
+        $report = $gaps->find($gaps->context($blueprint, $data, $original ? null : $type->group, $original ? (string) $original->id() : null, $left));
 
         return response()->json([
             'values' => $fields->values()->only(array_keys($data))->all(),
@@ -564,11 +525,14 @@ class SessionController
         return response()->json(['entry_url' => $entry->editUrl()] + $this->presenter->detail($session));
     }
 
-    public function destroy(string $session): JsonResponse
+    public function destroy(string $session, PagePreview $previews): JsonResponse
     {
         $session = $this->session($session);
 
         $this->guarded(fn () => $this->sessions->delete($session->id, $this->viewer(), 'Only the person who started this piece, or someone who manages Ghostwriter, can delete it.'));
+
+        // Its page previews' tokens go with it.
+        $previews->forget($session->id);
 
         return response()->json(['deleted' => true]);
     }
@@ -621,6 +585,28 @@ class SessionController
         }
 
         return $card;
+    }
+
+    /**
+     * The blueprint a draft is put into: the form's, or the type's own for
+     * a collection with only one.
+     */
+    public static function blueprintFor(ContentType $type, mixed $handle): Blueprint
+    {
+        return (is_string($handle) && $handle !== '' ? TypeRepository::collectionOf($type)?->entryBlueprint($handle) : null)
+            ?? TypeRepository::blueprintOf($type)
+            ?? abort(422, 'The collection this was written for no longer exists.');
+    }
+
+    /**
+     * Only someone who could save the entry by hand may fill its form or
+     * see the draft rendered as it.
+     */
+    public static function ensureCanSave(?EntryContract $original, Blueprint $blueprint): void
+    {
+        abort_unless($original
+            ? User::current()?->can('edit', $original)
+            : User::current()?->can('create', [EntryContract::class, $blueprint->parent()]), 403, 'You cannot save entries in this collection.');
     }
 
     private function parsedDraft(Session $session): Draft
