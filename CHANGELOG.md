@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- **"Include editorial images" explained.** A hint under it ("News and event photos. Not for advertising or promotion.") and an (i) button that opens what editorial use allows, by click, tap or keyboard. The checkbox shows only when the source being searched can return editorial images (core's `Capabilities::$editorial`): not for the free libraries or the demo library, and for Everything only when it includes such a library. Each "Search in" choice now says `editorial`.
 - **Finish this page, server side** (core 1.3). Ghostwriter finds what only a person can finish in an entry, whoever wrote it: a fact to add (`[[ask: adult ticket price]]`), a link to choose (`#gw-link:contact-page`, inline or in a `link` field), a link to an entry that's gone, the striped image placeholder, a stock preview not licensed, template text left in, and required or usually-filled fields left empty. Found for nothing: no model call, no save.
   - `POST cp/ghostwriter/finish/check` checks the publish form's values as they stand, for the count by Save and the guide; each gap comes with its message, speech label and fixes in the editor's words (`__()`), and the tab its field is on. "Link to …" is suggested from entries whose title or slug match the link's hint.
   - Using a draft returns its gaps too, and the conversation keeps what the draft left for a person, so the guide can say why ("I didn't want to guess").

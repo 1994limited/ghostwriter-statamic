@@ -55,7 +55,7 @@ Then open **Ghostwriter → Settings → Stock photos**:
 ## Finding and inserting
 
 - Each result card shows the library ("Getty", "iStock", "Unsplash") and the cost: **Free**, or what the library says before licensing ("1 download", "3 credits"), or **Paid** when it doesn't say. Ghostwriter never shows a cash price: none of these libraries gives one before you license.
-- **Editorial** images (news, events, well-known people) carry a chip with their restrictions. They may not be used to sell or promote anything, and most pages are commercial use, so they are left out unless **Include editorial images** is ticked.
+- **Editorial** images (news, events, well-known people) carry a chip with their restrictions. They may not be used to sell or promote anything, and most pages are commercial use, so they are left out unless **Include editorial images** is ticked. The checkbox shows only when the library you're searching (or one of those in **Everything**) can return editorial images; the free libraries and the demo library never do. The (i) beside it explains what editorial use allows.
 - Paid results come in the library's own order. Ghostwriter doesn't ask a model to judge them: the libraries' licences forbid using their photos or their captions with AI.
 - **Use this** puts a free photo in; **Insert preview** puts a paid photo in as a preview: "Preview added. Only signed-in editors see the photo; license it before publishing."
 

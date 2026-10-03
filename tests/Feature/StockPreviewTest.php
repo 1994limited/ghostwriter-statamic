@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImage;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImageQuery;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImageStore;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Testing\FakeLibrary;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
+use NineteenNinetyFour\Ghostwriter\Stock\DemoLibrary;
 use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
@@ -61,6 +63,27 @@ class StockPreviewTest extends TestCase
         $this->postJson(cp_route('ghostwriter.images.start'), $this->slot() + ['mode' => 'find', 'words' => 'meadow', 'source' => 'getty'])
             ->assertStatus(422)
             ->assertJsonPath('message', 'That photo library isn\'t available. Choose another in "Search in".');
+    }
+
+    public function test_include_editorial_images_is_offered_only_where_the_source_can_return_them(): void
+    {
+        $this->signIn();
+        config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
+
+        // The free libraries and the demo library are creative only.
+        $choices = collect($this->getJson(cp_route('ghostwriter.images.tools'))->json('sources'))->keyBy('value');
+        $this->assertSame(['free' => false, 'demo' => false, 'everything' => false], $choices->map(fn (array $choice) => $choice['editorial'])->all());
+
+    }
+
+    public function test_a_library_that_can_return_editorial_images_offers_the_choice_and_so_does_everything(): void
+    {
+        $this->signIn();
+        config(['ghostwriter.images.unsplash_key' => 'unsplash-key']);
+        $this->app->instance(DemoLibrary::BINDING, new FakeLibrary(DemoLibrary::ID));
+
+        $choices = collect($this->getJson(cp_route('ghostwriter.images.tools'))->json('sources'))->keyBy('value');
+        $this->assertSame(['free' => false, 'demo' => true, 'everything' => true], $choices->map(fn (array $choice) => $choice['editorial'])->all());
     }
 
     public function test_paid_results_carry_their_source_and_cost_are_never_judged_and_editorial_is_left_out(): void

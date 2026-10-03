@@ -36,6 +36,8 @@ export default {
             // "Search in": the free libraries, one paid library, or everything.
             searchIn: 'free',
             editorial: false,
+            // The editorial explainer, opened by click or tap.
+            editorialHelp: false,
             request: null,
             busy: false,
             more: false,
@@ -67,6 +69,12 @@ export default {
         // Whether "Search in" offers any paid library.
         offersPaid() {
             return (this.tools?.sources ?? []).some((choice) => choice.paid);
+        },
+
+        // Whether the source being searched can return editorial images at
+        // all (core's Capabilities::$editorial): only then is there a choice.
+        offersEditorial() {
+            return Boolean(this.chosen?.editorial);
         },
 
         // The "Search in" choice, with its short name for running text.
@@ -190,7 +198,7 @@ export default {
             if (mode === 'find') {
                 form.append('words', this.words);
                 form.append('source', this.searchIn);
-                form.append('editorial', this.editorial ? '1' : '0');
+                form.append('editorial', this.offersEditorial && this.editorial ? '1' : '0');
             }
             if (mode === 'make') {
                 form.append('direction', this.direction);
@@ -316,11 +324,37 @@ export default {
                     </label>
                     <Button :text="working ? __('Looking…') : __('Find photos')" variant="primary" :loading="working || busy" :disabled="working || busy" @click="start('find')" />
                 </div>
-                <label v-if="offersPaid && searchIn !== 'free'" class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-gray-600 dark:text-gray-300!">
-                    <input v-model="editorial" type="checkbox" :disabled="working" />
-                    {{ __('Include editorial images') }}
-                    <span class="text-xs text-gray-500">{{ __('(news and events only; not for selling or promoting anything)') }}</span>
-                </label>
+                <div v-if="offersEditorial" class="text-sm text-gray-600 dark:text-gray-300!" data-ghostwriter-editorial>
+                    <div class="flex items-start gap-1.5">
+                        <label class="flex min-w-0 items-start gap-2">
+                            <input v-model="editorial" type="checkbox" class="mt-0.5 shrink-0" :disabled="working" aria-describedby="gw-editorial-hint gw-editorial-help" />
+                            <span class="min-w-0">
+                                <span class="block">{{ __('Include editorial images') }}</span>
+                                <span id="gw-editorial-hint" class="block text-xs text-gray-500 dark:text-gray-400!">{{ __('News and event photos. Not for advertising or promotion.') }}</span>
+                            </span>
+                        </label>
+                        <!-- Opened by click or tap, so it reads on touch; shown in the flow, so the dialog never clips it. -->
+                        <button
+                            type="button"
+                            class="flex size-6 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100! hover:text-gray-800! focus-visible:outline-2 focus-visible:outline-blue-500! dark:text-gray-400! dark:hover:bg-gray-800! dark:hover:text-gray-100!"
+                            :title="__('About editorial images')"
+                            :aria-label="__('About editorial images')"
+                            :aria-expanded="editorialHelp ? 'true' : 'false'"
+                            aria-controls="gw-editorial-help"
+                            aria-describedby="gw-editorial-help"
+                            @click="editorialHelp = !editorialHelp"
+                            @keydown.esc.stop.prevent="editorialHelp = false"
+                        >
+                            <svg viewBox="0 0 16 16" class="size-4" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" /><path d="M8 7.25v4" stroke="currentColor" stroke-linecap="round" /><circle cx="8" cy="4.9" r=".8" fill="currentColor" /></svg>
+                        </button>
+                    </div>
+                    <p
+                        id="gw-editorial-help"
+                        role="note"
+                        :hidden="!editorialHelp"
+                        class="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-700 dark:border-gray-700! dark:bg-gray-900! dark:text-gray-200!"
+                    >{{ __('Editorial photos show real news and events: public figures, sports, named brands and places. You can use them only in news or educational content, such as a story or blog post about the event, not in advertising or anything that promotes a product. They need their credit line shown next to the image. Off: only creative photos, which are safe on any page.') }}</p>
+                </div>
                 <Alert v-if="request?.status === 'failed'" variant="error" :text="request.error" />
                 <p v-if="working" class="text-sm text-gray-500" role="status"><span class="animate-pulse">{{ __('Choosing searches, running them, and comparing the results with the page and any images already in this place…') }}</span></p>
                 <Alert v-if="working && request.waiting" variant="warning" :text="request.waiting" role="status" />
