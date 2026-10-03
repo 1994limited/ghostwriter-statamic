@@ -379,7 +379,10 @@ export class FinishGuide {
         this.root.classList.toggle('is-phone', this.phone);
         this.panel.classList.toggle('is-collapsed', this.phone && !this.sheetOpen);
 
-        this.highlight();
+        // Nothing on the fields until the guide has something to show: a
+        // new entry's empty required fields aren't highlighted on their own.
+        if (visible) this.highlight();
+        else this.unhighlight();
 
         if (this.panel.hidden) {
             this.flyer.hidden = true;
@@ -735,7 +738,7 @@ export class FinishGuide {
 
         this.frame = requestAnimationFrame(() => {
             this.frame = null;
-            this.highlight();
+            if (!this.pill.hidden) this.highlight();
             this.follow();
         });
     }
