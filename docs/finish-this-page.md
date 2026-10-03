@@ -2,7 +2,7 @@
 
 Some things only a person can finish: the price of a ticket, where a button should go, the photo for the hero. Ghostwriter never makes these up. It marks the place instead, and **Finish this page** finds every mark in an entry, highlights it on the entry's form and walks you through it. A page can't be published while something still needs you.
 
-![The guide on a page's form: the count by Save, a highlighted Bard field with the fact to add underlined, and the guide's answer box](images/finish-this-page.png)
+![The guide on a page's form: the count beside Save, the current Bard field outlined with the Ghostwriter mark by its set, the fact to add and a link to choose marked in the text, a stock preview still to license below, and the guide asking what the fact should say](images/finish-this-page.png)
 
 It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 
