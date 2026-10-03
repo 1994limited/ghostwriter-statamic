@@ -459,7 +459,8 @@ export class FinishGuide {
     }
 
     // The fixes, primary first. A fact gets an answer box: always editable,
-    // Enter or leaving it puts the words in, Esc puts it back.
+    // Enter or leaving it puts the words in, Esc puts it back. A count to
+    // check gets "Change it", which opens its value to edit.
     fixes(step) {
         const { gap } = step;
         const box = el('div', { class: 'gw-f-fixes' });
@@ -487,6 +488,39 @@ export class FinishGuide {
                 });
                 input.addEventListener('blur', put);
                 box.append(el('label', { class: 'gw-f-answer-wrap' }, [el('span', { class: 'gw-f-sr', text: fix.label }), input]));
+
+                return;
+            }
+
+            // "Change it" on a count to check: the value, editable, in place
+            // of the button. Enter puts it in; Esc goes back to the button.
+            if (fix.action === 'change') {
+                const input = el('input', { type: 'text', class: 'gw-f-answer', 'aria-label': fix.label, autocomplete: 'off' });
+                const wrap = el('label', { class: 'gw-f-answer-wrap', hidden: true }, [el('span', { class: 'gw-f-sr', text: fix.label }), input]);
+                const open = el('button', { type: 'button', class: 'gw-f-btn', disabled: this.busy === gap.id, onclick: () => {
+                    open.hidden = true;
+                    wrap.hidden = false;
+                    input.value = fix.value ?? gap.hint ?? '';
+                    input.focus();
+                    input.select();
+                } }, [el('span', { text: fix.label })]);
+
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+
+                        if (input.value.trim() && !input.dataset.done) {
+                            input.dataset.done = '1';
+                            this.run(gap, fix, input.value.trim());
+                        }
+                    } else if (event.key === 'Escape') {
+                        event.stopPropagation();
+                        wrap.hidden = true;
+                        open.hidden = false;
+                        open.focus();
+                    }
+                });
+                box.append(open, wrap);
 
                 return;
             }

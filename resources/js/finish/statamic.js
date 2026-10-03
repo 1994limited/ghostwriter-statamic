@@ -4,7 +4,8 @@
 // fix writes into the form. Fixes write into the publish form's state, never
 // a save: the editor checks and saves as usual.
 import { unref } from 'vue';
-import { asks, leftovers, normaliseHint, sentenceAround, LINK_PREFIX } from './patterns.js';
+import { asks, checks, leftovers, normaliseHint, sentenceAround, LINK_PREFIX } from './patterns.js';
+import { checkReplacement, pickCheck } from './check.js';
 import { bardEditor, editorAt, setCurrent } from './bard.js';
 import { ensure, stock } from '../stock/store.js';
 import { request } from '../stock/request.js';
@@ -138,6 +139,12 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
             return m ? { start: m.index, end: m.index + m[0].length, words: m[1] } : null;
         }
 
+        if (gap.kind === 'check') {
+            const m = pickCheck(checks(text), gap);
+
+            return m ? { start: m.index, end: m.index + m.length } : null;
+        }
+
         const list = gap.kind === 'leftover-token' ? leftovers(text) : asks(text);
         const same = list.filter((m) => normaliseHint(m.hint) === normaliseHint(gap.hint));
         const m = same[gap.occurrence ?? 0] ?? same[0];
@@ -268,6 +275,17 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
 
                 case 'remove':
                     return { fixed: replaceMarker(gap, '') };
+
+                // A count to check: "Looks right" (or "Use “4 areas”") puts
+                // the value in place of the marker; "Change it" what was typed.
+                case 'confirm':
+                case 'change': {
+                    const text = checkReplacement(gap, fix, value);
+
+                    if (text === null) break;
+
+                    return { fixed: replaceMarker(gap, text) };
+                }
 
                 case 'write-around': {
                     const { text } = await fill(gap, 'write-around');

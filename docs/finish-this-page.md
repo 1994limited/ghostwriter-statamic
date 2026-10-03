@@ -12,6 +12,7 @@ It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 | --- | --- | --- |
 | **A fact to add** | `[[ask: adult ticket price]]` in the text. Ghostwriter writes this wherever a draft needs a figure, a date, a name or a quote it wasn't given. | Yes |
 | **A fact for a number or date field** | The field is empty, and the draft asked for it. | When the field is required |
+| **A count to check** | `[[check: 3 areas \| from: Northumberland, Durham and the Tyne Valley]]`: a number Ghostwriter counted from a list you gave, in an [extra](writing.md#extras) such as a stat. See [Counts to check](#counts-to-check). | Yes |
 | **A link to choose** | A link whose address is `#gw-link:contact-page`, in Bard or Markdown, or a Link field holding `#gw-link:…`. The words stay; only where it goes is missing. | Yes |
 | **A link to a page that's gone** | A Link field, an Entries field or a Bard link pointing at an entry that has been deleted. | Yes |
 | **An image placeholder** | Ghostwriter's striped placeholder (`ghostwriter/image-placeholder.png` in the field's container), in an assets field or inline in Bard. See [Images](images.md#placeholders). | Yes |
@@ -27,7 +28,8 @@ Everything is found from the entry's values and its blueprint, as you type. Find
 
 - `[[ask: …]]` is plain text, so it survives every field: Bard, Markdown, text and textarea. It shows on the page in Live Preview, on purpose. Type the fact over it, or use the guide.
 - `#gw-link:` is a real link to a place on the same page, so if one were ever published it would go nowhere rather than to a wrong page. Choose an entry for it, or remove the link and keep the words.
-- Neither keyword is translated. The words inside are in your site's language.
+- `[[check: … | from: …]]` holds a count and the list it was counted from. It shows on the form as written, and in the panel's preview as the number alone.
+- No keyword is translated. The words inside are in your site's language.
 
 ## On the entry's form
 
@@ -47,7 +49,28 @@ Click the count, or the Ghostwriter button in the bottom corner, to open the gui
 - **A link to choose:** **Link to Contact** when an entry's title or slug matches the link's hint; otherwise **Choose an entry** (the field's own picker, or type an address) or **Remove the link**, which keeps the words.
 - **An image placeholder or an empty image:** **Find a photo** (Ghostwriter's image dialog for that field), **Choose from Assets**, or **Leave it empty** when the field isn't required.
 - **A stock preview:** **License**, which opens the same License & replace step as the field's badge (or Request licence, without the permission), or **Choose another**.
+- **A count to check:** see below.
 - **Template text:** **Remove it**.
+
+### Counts to check
+
+A stat such as "3 areas" may be counted from a list you gave ("Northumberland, Durham and the Tyne Valley"). Ghostwriter counts the list itself; the model never supplies the number. Before the page goes live, the guide asks you to check it:
+
+> I counted 3 areas from "Northumberland, Durham and the Tyne Valley". Is that right?
+
+- **Looks right** puts the count in place of the marker.
+- **Change it** opens the count to edit, filled in: change it and press Enter (Esc goes back).
+- **Remove it** takes it out.
+
+If the list has changed since (in your answers, your messages or the draft), the step says so and offers the new count first:
+
+> I counted 3 areas from "…", but that list has changed since. It now has 4. Use "4 areas" instead?
+
+When no list like it is there any more, it asks whether the count is still right, with **Change it** and **Remove it**; when the number was edited by hand and no longer matches its list, it offers the list's own count. Each is counted beside Save, tagged "Check me" on its field, underlined in Bard like a fact to add, and [blocks publishing](#publishing) until it's resolved.
+
+![The guide on a count to check: Looks right, Change it, Remove it](images/finish-check.png)
+
+![The list changed since: Use "4" instead](images/finish-check-stale.png)
 
 **Back**, **Skip for now** and **Next** move between gaps. A skipped gap stays highlighted and still counts. Every fix goes into the form only: nothing is saved until you press Save.
 
@@ -70,6 +93,10 @@ When an entry is saved as published (now, or on a future date), publishing a wor
 > Add adult ticket price before publishing.
 
 > Choose where this link goes before publishing.
+
+> Check "3 areas" before publishing.
+
+![A count to check refused on publishing, by its field](images/finish-check-publish.png)
 
 Saving it unpublished always works, and drafts Ghostwriter writes start unpublished (see [Use this draft](writing.md#use-this-draft)). Markers are never removed silently: a sentence with its fact cut out reads worse than one that plainly needs it.
 
