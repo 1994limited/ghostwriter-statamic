@@ -525,6 +525,16 @@ export class FinishGuide {
 
             if (result?.message) this.announce(result.message);
 
+            // The CMS's own editor or picker is open for the person: leave
+            // focus with it.
+            if (result?.stay) {
+                this.busy = null;
+                this.adapter.recheck?.();
+                this.paint();
+
+                return;
+            }
+
             // Whether it is fixed, and what the fix left (a placeholder
             // swapped for a stock preview is a new gap), is the next check's
             // to say: the steps and the fields' states come only from it.
@@ -656,7 +666,7 @@ export class FinishGuide {
 
     // A CMS dialog or stack is on top: the mark keeps out of its way.
     covered() {
-        return !!document.querySelector('[role="dialog"]:not([hidden]), [data-ui-stack]:not([hidden])');
+        return !!document.querySelector('[role="dialog"]:not([hidden]), .stack-container');
     }
 
     fly(step, shown = true) {
@@ -759,6 +769,9 @@ export class FinishGuide {
 
         this.frame = requestAnimationFrame(() => {
             this.frame = null;
+            // A CMS stack or dialog (a selector, License & replace) is on top:
+            // the guide steps out of its way until it closes.
+            this.root.classList.toggle('is-covered', this.covered());
             if (!this.pill.hidden) this.highlight();
             this.follow();
         });

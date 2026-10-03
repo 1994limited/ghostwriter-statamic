@@ -9,6 +9,7 @@ import { bardEditor, editorAt, setCurrent } from './bard.js';
 import { ensure, stock } from '../stock/store.js';
 import { request } from '../stock/request.js';
 import { browseButton } from './fields.js';
+import { entryId, entryMeta, get, isLinkMeta, metaPath } from './links.js';
 
 const idOf = (dotted) => `field_${String(dotted).replace(/\./g, '_')}`;
 const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -23,6 +24,87 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
     const valueAt = (dotted) => String(dotted).split('.').reduce((value, key) => (value == null ? undefined : value[key]), values());
 
     const set = (dotted, value) => form.setFieldValue(dotted, value);
+
+    const metas = () => unref(form.meta) ?? {};
+
+    // A Link field's meta, and where it sits, or null for other fields.
+    const linkMeta = (dotted) => {
+        const path = metaPath(dotted, values());
+        const meta = get(metas(), path);
+
+        return isLinkMeta(meta) ? { path, meta: JSON.parse(JSON.stringify(meta)) } : null;
+    };
+
+    // The entry type's own meta (titles, URLs) for these entries, as the
+    // Link field loads it when someone picks Entry.
+    const loadEntryMeta = async (meta, id) => {
+        const config = JSON.stringify({ ...meta.types.entry.config, handle: 'entry' });
+        const base = Statamic.$config.get('cpUrl') ?? '/cp';
+        const { meta: loaded } = await request(`${base.replace(/\/$/, '')}/fields/field-meta`, {
+            method: 'POST',
+            body: { config: btoa(unescape(encodeURIComponent(config))), value: id },
+        });
+
+        return loaded;
+    };
+
+    // Points a Link field at an entry: mode Entry, the entry showing, the
+    // value `entry::<id>`. Confirmed by reading the value back.
+    const linkFieldTo = async (gap, value) => {
+        const link = linkMeta(gap.dotted);
+        const id = entryId(value);
+
+        if (!link || !id) {
+            set(gap.dotted, value);
+
+            return valueAt(gap.dotted) === value;
+        }
+
+        const loaded = await loadEntryMeta(link.meta, id).catch(() => null);
+
+        form.setFieldMeta(link.path, entryMeta(link.meta, [id], loaded));
+        set(gap.dotted, `entry::${id}`);
+        await frames(3);
+
+        return valueAt(gap.dotted) === `entry::${id}`;
+    };
+
+    // "Choose an entry" on a Link field in URL mode: switch it to Entry
+    // through its meta, then open its own entry selector. Cancelled, the
+    // field goes back to URL mode and the link to choose, so nothing is lost.
+    const chooseEntryFor = async (gap) => {
+        const link = linkMeta(gap.dotted);
+
+        if (!link) return null;
+
+        const before = { meta: link.meta, value: valueAt(gap.dotted) };
+        const loaded = await loadEntryMeta(link.meta, null).catch(() => null);
+
+        form.setFieldMeta(link.path, entryMeta(link.meta, [], loaded));
+        set(gap.dotted, null);
+        await frames(4);
+
+        const field = locate(gap);
+        const open = [...(field?.querySelectorAll('button:not(.gw-f-tag)') ?? [])].find((button) => button.offsetParent && /link|browse|select/i.test(button.textContent ?? ''));
+        const dialogs = () => document.querySelectorAll('[role="dialog"], .stack-container').length;
+        const had = dialogs();
+
+        open?.click();
+
+        // Wait for the selector to open, then to close.
+        for (let i = 0; i < 20 && dialogs() <= had; i++) await new Promise((resolve) => setTimeout(resolve, 100));
+        while (dialogs() > had) await new Promise((resolve) => setTimeout(resolve, 250));
+        await frames(3);
+
+        const chosen = entryId(valueAt(gap.dotted));
+
+        if (chosen) return { fixed: true };
+
+        form.setFieldMeta(link.path, before.meta);
+        set(gap.dotted, before.value);
+
+        return { message: t('Nothing chosen: the link is as it was.') };
+    };
 
     const locate = (gap) => {
         const label = document.querySelector(`label[for="${CSS.escape(idOf(gap.dotted))}"]`);
@@ -103,7 +185,12 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
 
         if (!range) return false;
 
-        set(gap.dotted, (value.slice(0, range.start) + text + value.slice(range.end)).replace(/ {2,}/g, ' '));
+        let next = (value.slice(0, range.start) + text + value.slice(range.end)).replace(/ {2,}/g, ' ');
+
+        // Taking text out leaves no stray space before punctuation or at the ends.
+        if (text === '') next = next.replace(/ +([.,;:!?])/g, '$1').trim();
+
+        set(gap.dotted, next);
 
         return true;
     };
@@ -149,7 +236,29 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
         Statamic.$events.$emit('ghostwriter.stock.open', { key });
     };
 
+    // A fix counts only when the field's value really changed: read back
+    // from the form (Bard writes into it a moment after the editor).
+    const changed = async (dotted, before) => {
+        for (let i = 0; i < 12; i++) {
+            if (JSON.stringify(valueAt(dotted) ?? null) !== before) return true;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        return false;
+    };
+
     const run = async (gap, fix, value) => {
+        const before = JSON.stringify(valueAt(gap.dotted) ?? null);
+        const result = await attempt(gap, fix, value);
+
+        if (result?.fixed && !(await changed(gap.dotted, before))) {
+            return { message: t('That didn\'t change the field. Try again, or change it by hand.') };
+        }
+
+        return result;
+    };
+
+    const attempt = async (gap, fix, value) => {
         const field = locate(gap);
 
         try {
@@ -191,9 +300,7 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
                         return { fixed: true };
                     }
 
-                    set(gap.dotted, fix.value);
-
-                    return { fixed: true };
+                    return { fixed: await linkFieldTo(gap, fix.value) };
                 }
 
                 case 'remove-link': {
@@ -253,9 +360,14 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
             return {};
         }
 
-        // Choose an entry in a link or entries field: its own picker.
+        // Choose an entry in a Link field: switch it to Entry and open its
+        // selector. In an Entries field: its own picker.
         if (fix.action === 'choose-entry' && !gap.meta?.inline) {
             await reveal(gap);
+
+            const chosen = await chooseEntryFor(gap);
+
+            if (chosen) return chosen;
 
             const picker = field?.querySelector('[role="combobox"], button');
 
@@ -264,6 +376,23 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
 
                 return { message: t('Choose where it goes with the field\'s own picker, or type an address.') };
             }
+        }
+
+        // Choose an entry for a link inside Bard: its own link editor, which
+        // has the entry picker, on the link's words.
+        if (fix.action === 'choose-entry' && gap.meta?.inline && editorAt(gap.dotted)) {
+            await reveal(gap);
+            bardEditor(gap.dotted).select(gap);
+            await frames(2);
+
+            // Bard's own Link button (it acts on mousedown, keeping the
+            // editor's selection), on the link's words.
+            const button = locate(gap)?.querySelector('button[aria-label="Link" i]:not(.gw-f-tag), button[aria-label*="link" i]:not(.gw-f-tag)');
+
+            button?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            button?.click();
+
+            return { message: t('Choose an entry for the link in the link editor.'), stay: true };
         }
 
         // Focus, and anything else that is the editor's to do.
