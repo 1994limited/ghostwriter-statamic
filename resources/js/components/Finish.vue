@@ -3,10 +3,17 @@
     (finish/shell.js) and its Statamic adapter, checks the form's values as
     they change (800ms after typing stops; no model, no save), and opens the
     guide when a draft is put into the form. Renders nothing itself.
+
+    Plain text inputs (a Grid's or a Table's cells, text fields) can't show
+    a highlight inside them, so one whose value holds a gap marker gets a
+    row of chips under it (finish/inputs.js); the field-level highlight
+    stays.
 -->
 <script>
 import { unref } from 'vue';
 import { FinishGuide } from '../finish/shell.js';
+import { watchInputs } from '../finish/inputs.js';
+import { gapLabels } from '../preview/overlay.js';
 import { statamicAdapter } from '../finish/statamic.js';
 import { stock } from '../stock/store.js';
 import { request } from '../stock/request.js';
@@ -49,7 +56,13 @@ export default {
         this.applied = ({ report }) => this.guide.update(report, { open: this.openAfterDraft });
         Statamic.$events.$on('ghostwriter.finish', this.applied);
 
-        this.$watch(() => unref(this.form.values), () => this.check(), { deep: true });
+        // Chips under plain text inputs whose value has a gap marker.
+        this.inputs = watchInputs(this.slot?.closest('main') ?? document.querySelector('main') ?? document.body, { labels: gapLabels(t) });
+
+        this.$watch(() => unref(this.form.values), () => {
+            this.inputs.refresh();
+            this.check();
+        }, { deep: true });
         // A stock preview licensed, requested or refreshed: check again.
         this.$watch(() => stock.assets, () => this.check(300), { deep: true });
 
@@ -60,6 +73,7 @@ export default {
         clearTimeout(this.timer);
         Statamic.$events.$off('ghostwriter.finish', this.applied);
         this.guide?.destroy();
+        this.inputs?.stop();
         this.slot?.remove();
     },
 

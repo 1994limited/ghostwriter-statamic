@@ -100,7 +100,8 @@ final class LayoutsTest extends TestCase
         // for review, and each says where it came from.
         $stats = $detail['extras'][0];
         $this->assertSame(['stats', 'Stats'], [$stats['kind'], $stats['label']]);
-        $this->assertSame(['3 areas', '3'], [$stats['items'][0]['text'], $stats['items'][0]['parts']['value']]);
+        // As stored, markers and all: the extras list shows the count to check as a chip.
+        $this->assertSame(['[[check: 3 areas | from: Northumberland, Durham and the Tyne Valley]]', '[[check: 3 | from: Northumberland, Durham and the Tyne Valley]]'], [$stats['items'][0]['text'], $stats['items'][0]['parts']['value']]);
         $this->assertSame(['needs-review', 'Needs review'], [$stats['items'][0]['state'], $stats['items'][0]['state_label']]);
         $this->assertSame('Counted from your answer: “Northumberland, Durham and the Tyne Valley”', $stats['items'][0]['count_label']);
         $this->assertSame(['answer', 'from your answer'], [$stats['items'][0]['source']['kind'], $stats['items'][0]['source']['label']]);
@@ -224,7 +225,7 @@ final class LayoutsTest extends TestCase
         $list = 'Northumberland, Durham and the Tyne Valley';
         $this->patchJson(cp_route('ghostwriter.sessions.extras.update', [$session->id, 'x1.1']), ['text' => "[[check: 3 counties | from: {$list}]]", 'parts' => ['value' => "[[check: 3 | from: {$list}]]", 'label' => 'counties']])
             ->assertOk()
-            ->assertJsonPath('extras.0.items.0.text', '3 counties')
+            ->assertJsonPath('extras.0.items.0.text', "[[check: 3 counties | from: {$list}]]")
             ->assertJsonPath('extras.0.items.0.state', 'needs-review')
             ->assertJsonPath('extras.0.items.0.source.label', 'from your answer')
             ->assertJsonPath('layouts.chosen', 'p1')
@@ -309,8 +310,8 @@ final class LayoutsTest extends TestCase
 
         $html = $this->get(parse_url($p1['url'], PHP_URL_PATH).'?'.parse_url($p1['url'], PHP_URL_QUERY))->assertOk()->getContent();
         $this->assertStringContainsString('class="stats"', $html);
-        $this->assertStringContainsString('<b>3', $html, 'a count to check reads as the page will say it');
-        $this->assertStringNotContainsString('[[check:', $html);
+        // The marker is printed as it is; the panel shows it as a chip in the frame.
+        $this->assertStringContainsString('[[check: 3 | from: Northumberland, Durham and the Tyne Valley]]', $html);
         $this->ai->assertNothingSent();
     }
 
