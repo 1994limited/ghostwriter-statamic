@@ -147,7 +147,7 @@ export default {
             return true;
         },
 
-        apply({ values, meta, notes }) {
+        apply({ values, meta, notes, gaps }) {
             // Field by field, so everything the draft does not cover keeps the
             // value and meta it already had. Meta goes first: fields such as
             // Bard and Replicator read it as soon as their value arrives.
@@ -157,6 +157,13 @@ export default {
             const unpublished = this.startUnpublished();
 
             this.open = false;
+
+            // What the draft left for a person becomes Finish this page's
+            // steps, so those notes needn't be listed again.
+            if (gaps?.gaps?.length) {
+                Statamic.$events.$emit('ghostwriter.finish', { report: gaps });
+                notes = notes.filter((note) => !/^(A striped placeholder marks|Still to set by hand|Still to choose by hand|Still to add by hand)/.test(note));
+            }
 
             const done = this.entry ? this.__('Changes added to the form. Check them over, then save.') : this.__('Draft added to the form. Check it over, then save.');
             const hint = unpublished ? this.__('Ghostwriter drafts start unpublished. Switch on Published when you\'re ready.') : null;
