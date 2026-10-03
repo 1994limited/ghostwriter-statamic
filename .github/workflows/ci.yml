@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }} (${{ matrix.deps }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # composer.json requires PHP ^8.3 (PHPUnit 12 and Laravel 13 need it).
+        php: ['8.3', '8.4']
+        deps: [highest]
+        include:
+          # The oldest versions composer.json allows: Statamic 6.30 on Laravel 12.
+          - php: '8.3'
+            deps: lowest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, mbstring, gd, exif, fileinfo, intl
+          coverage: none
+
+      # composer.lock isn't committed, so the cache is keyed on composer.json
+      # and holds downloads only; every run resolves afresh.
+      - name: Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ matrix.php }}-${{ matrix.deps }}-${{ hashFiles('composer.json') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php${{ matrix.php }}-${{ matrix.deps }}-
+            composer-${{ runner.os }}-php${{ matrix.php }}-
+
+      - name: Install dependencies
+        env:
+          DEPS: ${{ matrix.deps }}
+        run: |
+          flags="--no-interaction --no-progress --prefer-dist"
+          case "$DEPS" in
+            lowest) composer update $flags --prefer-lowest --prefer-stable ;;
+            *)      composer update $flags ;;
+          esac
+          composer show | grep -E '^(statamic/cms|laravel/framework|1994/ghostwriter-core|orchestra/testbench|phpunit/phpunit) '
+
+      # Style doesn't depend on the versions installed.
+      - name: Code style
+        if: matrix.deps != 'lowest'
+        run: vendor/bin/pint --test
+
+      - name: Tests
+        run: vendor/bin/phpunit
