@@ -190,7 +190,7 @@ class Presenter
             'words' => $words,
             // The layout cards (the writer's draft and up to two others) and
             // the extras prepared with the draft, for the Text tab.
-            ...($session->draft !== null && $problem === null ? $this->layouts->present($session) : ['layouts' => null, 'extras' => []]),
+            ...($session->draft !== null && $problem === null ? $this->layouts->present($session, $type) : ['layouts' => null, 'extras' => []]),
             'usage' => $session->usage,
             'images' => $this->images($session, $type),
         ];

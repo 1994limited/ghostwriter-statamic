@@ -69,6 +69,8 @@ final class LayoutsTest extends TestCase
         app(TypeRepository::class)->save(TypeRepository::make('services', [
             'title' => 'Service',
             'collection' => 'services',
+            // A kind of one blueprint: reading its entries mustn't leave the preview without its collection.
+            'blueprint' => 'service',
             'questions' => [['handle' => 'what', 'label' => 'What is it?', 'type' => 'textarea', 'required' => true]],
         ]));
     }
@@ -89,6 +91,7 @@ final class LayoutsTest extends TestCase
         $this->assertSame([3, 4, 5], array_column($cards, 'blocks'));
         $this->assertSame([false, true, false], array_column($cards, 'suggested'), 'the layout most like the site\'s pages');
         $this->assertSame('The numbers up top, then the visits', $cards[1]['description']);
+        $this->assertSame(['Hero', 'Stats', 'Text', 'Call to action'], $cards[1]['outline']);
         $this->assertSame('w', $detail['layouts']['chosen']);
         $this->assertFalse($detail['layouts']['planning']);
 
@@ -146,6 +149,7 @@ final class LayoutsTest extends TestCase
         $this->assertTrue($nodes[0]['fields'][0]['editable']);
         $this->assertSame(['page_builder', 1, 'body'], $nodes[2]['fields'][0]['path']);
         $this->assertFalse($nodes[1]['fields'][0]['items'][0][0]['editable'], 'an extra is changed under Extras');
+        $this->assertSame('3', $nodes[1]['fields'][0]['items'][0][0]['text']);
 
         $applied = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->assertOk()->json();
         $this->assertSame(['hero', 'stats', 'text', 'cta'], array_column($applied['values']['page_builder'], 'type'));
@@ -215,6 +219,16 @@ final class LayoutsTest extends TestCase
         $this->patchJson(cp_route('ghostwriter.sessions.layout', $session->id), ['plan' => 'p1'])->assertOk();
         $this->ai->reset();
 
+        // A new label, the count left as it was: still a count to check, and the layout still holds it.
+        $list = 'Northumberland, Durham and the Tyne Valley';
+        $this->patchJson(cp_route('ghostwriter.sessions.extras.update', [$session->id, 'x1.1']), ['text' => "[[check: 3 counties | from: {$list}]]", 'parts' => ['value' => "[[check: 3 | from: {$list}]]", 'label' => 'counties']])
+            ->assertOk()
+            ->assertJsonPath('extras.0.items.0.text', '3 counties')
+            ->assertJsonPath('extras.0.items.0.state', 'needs-review')
+            ->assertJsonPath('extras.0.items.0.source.label', 'from your answer')
+            ->assertJsonPath('layouts.chosen', 'p1')
+            ->assertJsonPath('layouts.stale', false);
+
         // Changed by the editor: their words, and no longer a count to check.
         $this->patchJson(cp_route('ghostwriter.sessions.extras.update', [$session->id, 'x1.1']), ['text' => '3 counties', 'parts' => ['value' => '3', 'label' => 'counties']])
             ->assertOk()
@@ -249,6 +263,8 @@ final class LayoutsTest extends TestCase
 
         $html = $this->get(parse_url($p1['url'], PHP_URL_PATH).'?'.parse_url($p1['url'], PHP_URL_QUERY))->assertOk()->getContent();
         $this->assertStringContainsString('class="stats"', $html);
+        $this->assertStringContainsString('<b>3', $html, 'a count to check reads as the page will say it');
+        $this->assertStringNotContainsString('[[check:', $html);
         $this->ai->assertNothingSent();
     }
 

@@ -14,12 +14,15 @@
 import { Alert, Button, Heading, Subheading, Textarea } from '@statamic/cms/ui';
 import BriefCard from './BriefCard.vue';
 import DraftPreview from './DraftPreview.vue';
+import ExtrasList from './ExtrasList.vue';
+import LayoutCards from './LayoutCards.vue';
 import PagePreview from './PagePreview.vue';
 import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
+import { useLabel } from '../preview/layouts.js';
 
 export default {
-    components: { Alert, BriefCard, Button, DraftPreview, Heading, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
+    components: { Alert, BriefCard, Button, DraftPreview, ExtrasList, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -77,6 +80,13 @@ export default {
             // Blocks, for a piece whose preview failed when it was last open
             // in this tab: until a tab is chosen.
             sessionView: null,
+            // The layout card being chosen, and Refresh layouts, while the server stores them.
+            choosing: null,
+            refreshingLayouts: false,
+            // The page preview has loaded once: the cards' thumbnails may follow.
+            previewLoaded: false,
+            // It failed: the cards show their blocks instead of thumbnails.
+            previewFailed: false,
             timer: null,
         };
     },
@@ -163,6 +173,16 @@ export default {
             if (this.waited < 30) return this.session.draft ? this.__('Revising the draft…') : this.__('Thinking it through…');
 
             return this.session.draft ? this.__('Still revising. Long drafts take a while…') : this.__('Writing. Long drafts take a while…');
+        },
+
+        // "Use this draft (Numbers first)" once there are layouts to choose from.
+        useText() {
+            return useLabel(this.session.editing ? this.__('Use these changes') : this.__('Use this draft'), this.session.layouts);
+        },
+
+        // Thumbnails render after the page preview, or straight away on Blocks and Text.
+        thumbsReady() {
+            return this.view !== 'preview' || this.previewLoaded;
         },
 
         elapsed() {
@@ -322,6 +342,13 @@ export default {
             if (data.id !== this.session?.id) {
                 this.$emit('session', data.id);
                 this.sessionView = this.failedBefore(data.id) ? 'blocks' : null;
+                this.previewLoaded = false;
+                this.previewFailed = false;
+            }
+
+            // Other layouts have arrived while the draft was on show: say so.
+            if (data.id === this.session?.id && this.session?.layouts?.planning && !data.layouts?.planning && (data.layouts?.plans?.length ?? 0) > 1) {
+                this.announce(this.__(':count layouts to choose from, above the draft.', { count: data.layouts.plans.length }));
             }
 
             this.session = data;
@@ -333,7 +360,8 @@ export default {
 
             const drawing = (data.images ?? []).some((image) => image.status === 'working');
 
-            if (data.status === 'working' || drawing) this.later(() => this.open(data.id));
+            // The planner may still be looking for other layouts after the draft lands.
+            if (data.status === 'working' || drawing || data.layouts?.planning) this.later(() => this.open(data.id));
 
             this.$nextTick(() => {
                 const chat = this.$refs.chat;
@@ -471,6 +499,8 @@ export default {
         // The preview failed: it says so where it is, and the piece opens on
         // Blocks from now on in this browser tab.
         previewFailedFor() {
+            this.previewFailed = true;
+
             try {
                 if (this.session?.id) sessionStorage.setItem(`ghostwriter.preview-failed.${this.session.id}`, '1');
             } catch (error) {
@@ -479,6 +509,9 @@ export default {
         },
 
         previewRendered() {
+            this.previewLoaded = true;
+            this.previewFailed = false;
+
             try {
                 if (this.session?.id) sessionStorage.removeItem(`ghostwriter.preview-failed.${this.session.id}`);
             } catch (error) {
@@ -504,6 +537,62 @@ export default {
             } catch (error) {
                 this.fail(error);
                 revert?.();
+            }
+        },
+
+        // A layout card chosen: stored on the piece, for everyone on it. No model.
+        async chooseLayout(plan) {
+            this.choosing = plan;
+
+            try {
+                const { data } = await this.$axios.patch(this.url(`sessions/${this.session.id}/layout`), { plan });
+
+                this.receive(data);
+
+                const chosen = data.layouts?.plans?.find((card) => card.id === plan);
+
+                if (chosen) this.announce(this.__(':name layout. The preview, Blocks and Text show it.', { name: chosen.name }));
+            } catch (error) {
+                this.fail(error);
+            } finally {
+                this.choosing = null;
+            }
+        },
+
+        // Refresh layouts: one call to the planner, in the background.
+        async refreshLayouts() {
+            this.refreshingLayouts = true;
+
+            try {
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/layouts/refresh`));
+
+                this.receive(data);
+            } catch (error) {
+                this.fail(error);
+            } finally {
+                this.refreshingLayouts = false;
+            }
+        },
+
+        async editExtra({ id, payload, revert }) {
+            try {
+                const { data } = await this.$axios.patch(this.url(`sessions/${this.session.id}/extras/${encodeURIComponent(id)}`), payload);
+
+                this.receive(data);
+            } catch (error) {
+                this.fail(error);
+                revert?.();
+            }
+        },
+
+        async removeExtra({ id, label }) {
+            try {
+                const { data } = await this.$axios.delete(this.url(`sessions/${this.session.id}/extras/${encodeURIComponent(id)}`));
+
+                this.receive(data);
+                this.announce(this.__(':kind item deleted.', { kind: label }));
+            } catch (error) {
+                this.fail(error);
             }
         },
 
@@ -779,7 +868,7 @@ export default {
                     </div>
                 </div>
 
-                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 lg:col-span-3 dark:border-gray-700!">
+                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 max-lg:min-h-[80vh]! lg:col-span-3 dark:border-gray-700!">
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700!">
                         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-gray-500">
                             <span>{{ session.draft ? __n(':count word|:count words', session.words) : __('Draft') }}</span>
@@ -805,7 +894,7 @@ export default {
                                 <button type="button" class="px-2 py-0.5" :class="previewWidth === 'phone' ? 'bg-gray-100 font-medium text-gray-900 dark:bg-gray-800! dark:text-gray-100!' : ''" :aria-pressed="previewWidth === 'phone' ? 'true' : 'false'" @click="previewWidth = 'phone'">{{ __('Phone') }}</button>
                             </div>
                         </div>
-                        <div v-if="session.draft" class="flex gap-2">
+                        <div v-if="session.draft" class="flex flex-wrap gap-2">
                             <template v-if="editing">
                                 <Button size="sm" variant="ghost" :text="__('Cancel')" @click="(editing = false), (raw = session.draft)" />
                                 <Button size="sm" :text="__('Save changes')" :loading="busy" @click="saveDraft" />
@@ -815,7 +904,7 @@ export default {
                                 <Button
                                     size="sm"
                                     variant="primary"
-                                    :text="session.editing ? __('Use these changes') : __('Use this draft')"
+                                    :text="useText"
                                     :disabled="working || !!session.draft_problem"
                                     :loading="busy"
                                     @click="apply"
@@ -850,7 +939,22 @@ export default {
 
                             <Textarea v-if="editing || session.draft_problem" v-model="raw" elastic :rows="24" class="font-mono text-sm" @focus="editing = true" />
 
-                            <div v-else id="gw-draft-view" role="tabpanel" :aria-labelledby="`gw-tab-${view}`">
+                            <LayoutCards
+                                v-else
+                                :session="session"
+                                :base-url="baseUrl"
+                                :blueprint="blueprint"
+                                :form-values="formValues"
+                                :ready="thumbsReady"
+                                :thumbnails="!previewFailed"
+                                :disabled="working"
+                                :pending="choosing"
+                                :refreshing="refreshingLayouts"
+                                @choose="chooseLayout"
+                                @refresh="refreshLayouts"
+                            />
+
+                            <div v-if="!editing && !session.draft_problem" id="gw-draft-view" role="tabpanel" :aria-labelledby="`gw-tab-${view}`">
                                 <PagePreview
                                     v-if="session.page_preview && session.id"
                                     v-show="view === 'preview'"
@@ -868,6 +972,7 @@ export default {
                                 <template v-if="view !== 'preview'">
                                     <p v-if="!working" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
                                     <DraftPreview :nodes="session.preview" :view="view" :editable="!working" @edit="editField" />
+                                    <ExtrasList v-if="view === 'text'" :extras="session.extras ?? []" :editable="!working" @edit="editExtra" @remove="removeExtra" />
                                 </template>
                             </div>
                         </template>

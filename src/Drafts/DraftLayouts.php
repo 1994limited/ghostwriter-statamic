@@ -22,6 +22,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Markers;
+use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Conversation;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\WriterContext;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
@@ -277,11 +278,12 @@ class DraftLayouts
      *
      * @return array{layouts: array<string, mixed>, extras: list<array<string, mixed>>}
      */
-    public function present(Session $session): array
+    public function present(Session $session, ?ContentType $type = null): array
     {
         $plans = $session->plans === [] ? [] : $this->layouts->plans($session)->all();
         $chosen = $this->chosen($session);
         $used = $chosen?->extrasUsed() ?? [];
+        $schema = $type && count($plans) > 1 ? $this->safeSchema($type->forSession($session)) : null;
 
         return [
             'layouts' => [
@@ -298,10 +300,48 @@ class DraftLayouts
                     'suggested' => $plan->suggested,
                     'stale' => $plan->stale,
                     'writer' => $plan->origin === PlanOrigin::Writer,
+                    // Its blocks by name, in order: the card's outline where
+                    // there is no thumbnail, and what a screen reader hears.
+                    'outline' => self::outline($plan, $schema),
                 ], $plans),
             ],
             'extras' => $this->presentExtras($session, $used, $chosen),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function outline(Plan $plan, ?Schema $schema): array
+    {
+        $names = [];
+
+        foreach ($plan->sequences() as $handle => $types) {
+            $field = $schema?->field($handle);
+
+            foreach ($types as $type) {
+                $label = $field?->set($type)?->label;
+                $names[] = $label !== null && $label !== '' ? $label : match (true) {
+                    preg_match('/\\Ah([1-6])\\z/', $type, $m) === 1 => __('Heading :n', ['n' => $m[1]]),
+                    $type === 'text', $type === 'p' => __('Text'),
+                    $type === 'list' => __('List'),
+                    $type === 'quote' => __('Quote'),
+                    $type === 'value' => $field?->label ?: $handle,
+                    default => ucfirst(str_replace(['set:', '_'], ['', ' '], $type)),
+                };
+            }
+        }
+
+        return $names;
+    }
+
+    private function safeSchema(ContentType $type): ?Schema
+    {
+        try {
+            return $this->context($type, site: false)?->schema;
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -346,6 +386,8 @@ class DraftLayouts
                 'state_label' => ($state = $item->state()) ? $text->text($state) : null,
                 'count_label' => ($label = $item->countLabel()) ? $text->text($label) : null,
                 'used' => in_array($item->id, $used, true),
+                // As stored, markers and all: what an edit sends back for the parts it didn't touch.
+                'raw' => ['text' => $item->text, 'parts' => (object) $item->parts],
             ], $extra->items);
 
             $inUse = collect($items)->contains(fn (array $item) => $item['used']);
@@ -506,6 +548,16 @@ class DraftLayouts
                     $node['path'] = $found[0];
                 } else {
                     $node['editable'] = false;
+                }
+            }
+
+            // Read-only here (an extra, mostly): a count to check reads as
+            // the page will say it; the extras list says it needs review.
+            if (($node['editable'] ?? false) !== true) {
+                foreach (['text', 'html'] as $key) {
+                    if (is_string($node[$key] ?? null)) {
+                        $node[$key] = Markers::withoutChecks($node[$key]);
+                    }
                 }
             }
 
