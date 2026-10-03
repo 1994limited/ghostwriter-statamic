@@ -1,0 +1,102 @@
+<!--
+    Finish this page on an entry's publish form: owns the guide shell
+    (finish/shell.js) and its Statamic adapter, checks the form's values as
+    they change (800ms after typing stops; no model, no save), and opens the
+    guide when a draft is put into the form. Renders nothing itself.
+-->
+<script>
+import { unref } from 'vue';
+import { FinishGuide } from '../finish/shell.js';
+import { statamicAdapter } from '../finish/statamic.js';
+import { stock } from '../stock/store.js';
+import { request } from '../stock/request.js';
+
+export default {
+    props: {
+        collection: { type: String, required: true },
+        entry: { type: String, default: null },
+        blueprint: { type: String, default: null },
+        form: { type: Object, required: true },
+        baseUrl: { type: String, required: true },
+    },
+
+    data() {
+        return { slot: null, timer: null, asked: 0 };
+    },
+
+    mounted() {
+        const config = Statamic.$config.get('ghostwriter')?.finish ?? {};
+        const save = document.querySelector('header[data-ui-header] [data-ui-button-group]')?.parentElement;
+
+        if (save?.parentElement) {
+            this.slot = document.createElement('div');
+            this.slot.dataset.ghostwriter = 'finish';
+            this.slot.className = 'flex items-center';
+            save.parentElement.insertBefore(this.slot, save);
+        }
+
+        const t = (text, params = {}) => __(text, params);
+
+        this.guide = new FinishGuide({
+            adapter: statamicAdapter({ form: this.form, baseUrl: this.baseUrl, payload: () => this.payload(), recheck: () => this.check(300), t }),
+            t,
+            state: config.guide,
+            key: `${this.collection}.${this.entry ?? 'new'}`,
+            onState: (state) => request(`${this.baseUrl}/finish/guide`, { method: 'POST', body: { state } }).catch(() => {}),
+        }).mount(this.slot);
+
+        this.openAfterDraft = config.open_after_draft !== false;
+        this.applied = ({ report }) => this.guide.update(report, { open: this.openAfterDraft });
+        Statamic.$events.$on('ghostwriter.finish', this.applied);
+
+        this.$watch(() => unref(this.form.values), () => this.check(), { deep: true });
+        // A stock preview licensed, requested or refreshed: check again.
+        this.$watch(() => stock.assets, () => this.check(300), { deep: true });
+
+        this.check(50);
+    },
+
+    beforeUnmount() {
+        clearTimeout(this.timer);
+        Statamic.$events.$off('ghostwriter.finish', this.applied);
+        this.guide?.destroy();
+        this.slot?.remove();
+    },
+
+    methods: {
+        payload() {
+            const session = new URLSearchParams(window.location.search).get('ghostwriter');
+
+            return {
+                collection: this.collection,
+                entry: this.entry,
+                blueprint: this.blueprint,
+                session: session && session !== 'new' ? session : null,
+                site: unref(this.form.site) ?? null,
+                values: JSON.parse(JSON.stringify(unref(this.form.values) ?? {})),
+            };
+        },
+
+        // Debounced: the last of a burst of changes is the one checked, and
+        // an answer that comes back after a newer question is dropped.
+        check(wait = 800) {
+            clearTimeout(this.timer);
+            this.timer = setTimeout(async () => {
+                const asked = ++this.asked;
+
+                try {
+                    const report = await request(`${this.baseUrl}/finish/check`, { method: 'POST', body: this.payload() });
+
+                    if (asked === this.asked) this.guide.update(report);
+                } catch (error) {
+                    // The guide keeps what it had; the next change checks again.
+                }
+            }, wait);
+        },
+    },
+
+    render() {
+        return null;
+    },
+};
+</script>

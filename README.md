@@ -19,6 +19,7 @@
 - **House style.** New entries copy what your existing entries agree on: block settings, links, and how rich text is dressed.
 - **Photo search.** Finds free photos for any assets field, ranked by the model against the page's words and the images already in that place, with names, alt text and credits from the library.
 - **Stock photos.** Paid photos go into a page as a labelled preview, licensed from your own account with **License & replace**, which swaps in the full image and keeps its alt text. Pages can't be published with a preview still in them, and a ledger records every stock photo and its licence. Shutterstock works today with your own API plan; Getty Images and iStock are coming; a demo library lets you try it without an account. See [Stock photos](docs/stock-photos.md).
+- **Finish this page.** Ghostwriter never makes up a price, a date or where a button goes: it marks the place (`[[ask: adult ticket price]]`, a link to `#gw-link:contact-page`, a striped image placeholder) and the form counts what's left by Save. A guide walks you through each gap, with the field highlighted and the Ghostwriter mark flying to it, and a page can't be published until they're done. See [Finish this page](docs/finish-this-page.md).
 - **Make an image.** Makes a picture in your site's own style, with an OpenAI or Gemini key.
 - **Content plan.** Suggests entries the site is missing, to keep or dismiss, each ready to draft.
 - **Shared conversations.** With Statamic Pro, everyone with access can carry on a piece, with each message showing who sent it.

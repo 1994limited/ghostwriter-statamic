@@ -2,6 +2,8 @@
 
 Some things only a person can finish: the price of a ticket, where a button should go, the photo for the hero. Ghostwriter never makes these up. It marks the place instead, and **Finish this page** finds every mark in an entry, highlights it on the entry's form and walks you through it. A page can't be published while something still needs you.
 
+![The guide on a page's form: the count by Save, a highlighted Bard field with the fact to add underlined, and the guide's answer box](images/finish-this-page.png)
+
 It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 
 ## What it finds
@@ -26,6 +28,40 @@ Everything is found from the entry's values and its blueprint, as you type. Find
 - `[[ask: …]]` is plain text, so it survives every field: Bard, Markdown, text and textarea. It shows on the page in Live Preview, on purpose. Type the fact over it, or use the guide.
 - `#gw-link:` is a real link to a place on the same page, so if one were ever published it would go nowhere rather than to a wrong page. Choose an entry for it, or remove the link and keep the words.
 - Neither keyword is translated. The words inside are in your site's language.
+
+## On the entry's form
+
+When an entry has something to finish, a count appears beside **Save** ("5 things to finish"), and the fields are highlighted:
+
+- **amber**: still to do (or skipped for now);
+- **purple**: the one the guide is on;
+- **green**: fixed since you opened the page.
+
+Each highlighted field has a numbered tag ("2 · Needs a link"); click it to go to that step. Inside Bard, the marker itself is underlined with a dashed line, so you can see exactly where the gap is.
+
+### The guide
+
+Click the count, or the Ghostwriter button in the bottom corner, to open the guide. It shows one gap at a time: what's missing, and what you can do about it. It opens the field's tab, expands a collapsed set and scrolls to it, and the Ghostwriter mark flies over to point at it.
+
+- **A fact to add:** type it into the box in the guide and press Enter. It replaces the marker in the field. Esc clears the box.
+- **A link to choose:** **Link to Contact** when an entry's title or slug matches the link's hint; otherwise **Choose an entry** (the field's own picker, or type an address) or **Remove the link**, which keeps the words.
+- **An image placeholder or an empty image:** **Find a photo** (Ghostwriter's image dialog for that field), **Choose from Assets**, or **Leave it empty** when the field isn't required.
+- **A stock preview:** **License**, which opens the same License & replace step as the field's badge (or Request licence, without the permission), or **Choose another**.
+- **Template text:** **Remove it**.
+
+**Back**, **Skip for now** and **Next** move between gaps. A skipped gap stays highlighted and still counts. Every fix goes into the form only: nothing is saved until you press Save.
+
+Press **—** (or Esc while you're in the guide) to tuck it away into the corner button, which shows the count; click it to bring the guide back. Ghostwriter remembers, for each person, whether they left the guide open. It starts tucked away, and opens by itself when you put a Ghostwriter draft into the form (`finish.open_after_draft`).
+
+The count and the highlights follow your typing: the form is checked again a moment after you stop.
+
+### Keyboard and screen readers
+
+- **Alt+Shift+N** and **Alt+Shift+P**: the next and previous gap. **Alt+Shift+G**: open or tuck away the guide. They work anywhere except while typing in a field.
+- The guide is a labelled region that never traps focus, so the form stays usable. Each step, each fix and opening or closing it are announced. Highlighted fields carry a hidden "Ghostwriter: needs a link" note, and every tag is a button.
+- With **Reduce motion** on in your system, nothing moves: no flight, no bobbing, no animations when it opens or closes.
+
+On a phone the guide is a sheet along the bottom of the screen that folds down to one line ("2 of 5 · Needs a link · Next"), and the count beside Save shows just the number. It follows Statamic's dark mode.
 
 ## Publishing
 

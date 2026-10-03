@@ -9,6 +9,8 @@ import Launcher from './components/Launcher.vue';
 import ImageDialog from './components/ImageDialog.vue';
 import StockPanel from './components/StockPanel.vue';
 import StockFieldtype from './components/StockFieldtype.vue';
+import Finish from './components/Finish.vue';
+import { extension as finishMarks } from './finish/bard.js';
 import { previewIn, put } from './stock/store.js';
 import ghost from './icon.js';
 import { request } from './stock/request.js';
@@ -25,6 +27,11 @@ Statamic.booting(() => {
     Statamic.$components.register('ghostwriter-image-dialog', ImageDialog);
     Statamic.$components.register('ghostwriter-stock-panel', StockPanel);
     Statamic.$components.register('ghostwriter_stock-fieldtype', StockFieldtype);
+    Statamic.$components.register('ghostwriter-finish', Finish);
+
+    // Finish this page: Ghostwriter's markers inside every Bard field are
+    // underlined, and the guide can select and replace them.
+    Statamic.$bard.addExtension(finishMarks);
 
     // A preview inserted from the image dialog shows on its field at once.
     Statamic.$events.$on('ghostwriter.stock', put);
@@ -46,6 +53,11 @@ Statamic.booting(() => {
 
         container.pushComponent('ghostwriter-launcher', {
             props: { collection: match[1], entry, form: container, baseUrl: config.url },
+        });
+
+        // Finish this page: the count by Save, the highlights and the guide.
+        container.pushComponent('ghostwriter-finish', {
+            props: { collection: match[1], entry, blueprint, form: container, baseUrl: config.url },
         });
 
         // The dialog behind the image button on every assets field of this form.

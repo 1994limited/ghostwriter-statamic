@@ -1,0 +1,391 @@
+/*
+    Finish this page: the pill by Save, highlighted fields and their tags,
+    dashed marks inside Bard, the floating guide, the flying mark and the
+    dock, from the approved mockup. Colours are --gw-f-* tokens with light
+    and dark values (Statamic 6's .dark); amber text passes 4.5:1 on its fill
+    in both. Every animation is off under prefers-reduced-motion, and the
+    script stops its own choreography too.
+*/
+
+:root {
+    --gw-f-amber: #9a6400;
+    --gw-f-amber-fill: #fff4e0;
+    --gw-f-amber-line: rgb(217 145 22 / 0.55);
+    --gw-f-amber-tag: #f5b445;
+    --gw-f-amber-tag-ink: #3a2600;
+    --gw-f-purple: #5b4cf0;
+    --gw-f-purple-fill: rgb(91 76 240 / 0.08);
+    --gw-f-purple-ink: #4334d6;
+    --gw-f-green: #137a4b;
+    --gw-f-green-fill: rgb(76 195 138 / 0.12);
+    --gw-f-green-line: rgb(19 122 75 / 0.45);
+    --gw-f-surface: #ffffff;
+    --gw-f-surface-line: #e3e3e8;
+    --gw-f-ink: #1b1b1f;
+    --gw-f-muted: #62626c;
+    --gw-f-track: #e6e6ec;
+    --gw-f-skip: #a3a3ad;
+    --gw-f-shadow: 0 18px 50px rgb(16 16 24 / 0.18);
+    --gw-f-paper: #f3eee4;
+    --gw-f-fold: #cfc5b2;
+    --gw-f-mark-ink: #2b3a64;
+}
+
+.dark {
+    --gw-f-amber: #f5b445;
+    --gw-f-amber-fill: rgb(245 180 69 / 0.12);
+    --gw-f-amber-line: rgb(245 180 69 / 0.45);
+    --gw-f-purple: #7d70ff;
+    --gw-f-purple-fill: rgb(91 76 240 / 0.18);
+    --gw-f-purple-ink: #cfc9ff;
+    --gw-f-green: #4cc38a;
+    --gw-f-green-fill: rgb(76 195 138 / 0.14);
+    --gw-f-green-line: rgb(76 195 138 / 0.4);
+    --gw-f-surface: #26262c;
+    --gw-f-surface-line: #3d3d46;
+    --gw-f-ink: #ececf1;
+    --gw-f-muted: #9a9aa5;
+    --gw-f-track: #3a3a42;
+    --gw-f-skip: #6b6b75;
+    --gw-f-shadow: 0 18px 50px rgb(0 0 0 / 0.5);
+}
+
+/* The mark: paper with a fold, outlined in ink on light so it reads on white. */
+.gw-f svg .gw-f-body,
+.gw-f-pill svg .gw-f-body { fill: var(--gw-f-paper); stroke: var(--gw-f-mark-ink); stroke-width: 0.45; }
+.gw-f svg .gw-f-fold,
+.gw-f-pill svg .gw-f-fold { fill: var(--gw-f-fold); }
+.dark .gw-f svg .gw-f-body,
+.dark .gw-f-pill svg .gw-f-body { stroke: none; }
+
+.gw-f-sr {
+    position: absolute !important;
+    width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* -- The pill by Save ---------------------------------------------------- */
+
+.gw-f-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 2.25rem;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--gw-f-amber-line);
+    background: var(--gw-f-amber-fill);
+    color: var(--gw-f-amber);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.gw-f-pill[hidden] { display: none; }
+.gw-f-pill.is-ready { border-color: var(--gw-f-green-line); background: var(--gw-f-green-fill); color: var(--gw-f-green); }
+.gw-f-pill:focus-visible { outline: 2px solid var(--gw-f-purple); outline-offset: 2px; }
+.gw-f-pill-mark svg { width: 15px; height: 15px; display: block; }
+.gw-f-pill-n { display: none; font-variant-numeric: tabular-nums; }
+.gw-f-pill.is-floating { position: fixed; inset-inline-end: 24px; top: 72px; z-index: 40; }
+
+/* -- Fields: amber when open or skipped, purple when current, green fixed -- */
+
+[data-gw-gap] {
+    position: relative;
+    scroll-margin-top: 96px;
+    border-radius: 10px;
+    box-shadow: 0 0 0 8px var(--gw-f-amber-fill), 0 0 0 9px var(--gw-f-amber-line);
+    background: var(--gw-f-amber-fill);
+    transition: box-shadow 0.25s, background 0.25s;
+}
+[data-gw-gap="current"] { box-shadow: 0 0 0 8px var(--gw-f-purple-fill), 0 0 0 10px var(--gw-f-purple); background: var(--gw-f-purple-fill); }
+[data-gw-gap="fixed"] { box-shadow: 0 0 0 8px var(--gw-f-green-fill), 0 0 0 9px var(--gw-f-green-line); background: var(--gw-f-green-fill); }
+
+.gw-f-tag {
+    position: absolute;
+    top: -25px;
+    inset-inline-end: 14px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 0;
+    background: var(--gw-f-amber-tag);
+    color: var(--gw-f-amber-tag-ink);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    cursor: pointer;
+}
+[data-gw-gap="current"] > .gw-f-tag { background: var(--gw-f-purple); color: #fff; }
+[data-gw-gap="fixed"] > .gw-f-tag { background: var(--gw-f-green); color: #fff; }
+.dark [data-gw-gap="fixed"] > .gw-f-tag { color: #06301c; }
+.gw-f-tag:focus-visible { outline: 2px solid var(--gw-f-ink); outline-offset: 2px; }
+
+/* Inside Bard: a dashed underline on the marker, purple when current. */
+.gw-gap-mark {
+    background: var(--gw-f-amber-fill);
+    border-bottom: 1px dashed var(--gw-f-amber);
+    border-radius: 3px;
+    padding: 0 1px;
+    color: var(--gw-f-amber);
+}
+.gw-gap-mark.is-current { background: var(--gw-f-purple-fill); border-bottom-color: var(--gw-f-purple); color: var(--gw-f-purple-ink); }
+
+/* Windows high contrast: system colours, still not colour alone (the tag text says). */
+@media (forced-colors: active) {
+    [data-gw-gap] { outline: 2px solid Mark; box-shadow: none; }
+    [data-gw-gap="current"] { outline: 3px solid Highlight; }
+    .gw-gap-mark { border-bottom: 2px dashed Mark; }
+    .gw-gap-mark.is-current { border-bottom-color: Highlight; }
+}
+
+/* -- The guide ----------------------------------------------------------- */
+
+.gw-f-guide {
+    position: fixed;
+    inset-inline-end: 24px;
+    bottom: 24px;
+    z-index: 30;
+    width: 360px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid var(--gw-f-surface-line);
+    background: var(--gw-f-surface);
+    color: var(--gw-f-ink);
+    box-shadow: var(--gw-f-shadow);
+    font-size: 13px;
+    line-height: 1.5;
+    transform-origin: bottom right;
+}
+[dir="rtl"] .gw-f-guide { transform-origin: bottom left; }
+.gw-f-guide[hidden] { display: none; }
+
+.gw-f-handle { display: none; }
+.gw-f-summary { display: none; }
+
+.gw-f-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.gw-f-head strong { flex: 1; font-weight: 600; }
+.gw-f-head-mark svg { width: 28px; height: 28px; display: block; }
+.gw-f-step { color: var(--gw-f-muted); font-size: 12px; }
+.gw-f-min { border: 0; background: none; color: var(--gw-f-muted); font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.gw-f-min:hover { background: var(--gw-f-track); color: var(--gw-f-ink); }
+
+.gw-f-bar { display: flex; gap: 4px; margin-bottom: 10px; }
+.gw-f-bar i { flex: 1; height: 4px; border-radius: 2px; background: var(--gw-f-track); }
+.gw-f-bar i.is-fixed { background: var(--gw-f-green); }
+.gw-f-bar i.is-skipped { background: var(--gw-f-skip); }
+.gw-f-bar i.is-current { background: var(--gw-f-purple); }
+
+.gw-f-msg { margin: 0 0 8px; font-size: 13.5px; outline: none; }
+.gw-f .gw-f-msg:focus-visible { outline: none; }
+.gw-f-flyer.is-covered { opacity: 0; }
+.gw-f-reason { margin: 0 0 10px; color: var(--gw-f-muted); font-size: 12px; }
+.gw-f-fixed { margin: 0 0 6px; color: var(--gw-f-green); font-weight: 600; font-size: 12px; }
+
+.gw-f-fixes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.gw-f-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--gw-f-surface-line);
+    background: var(--gw-f-surface);
+    color: var(--gw-f-ink);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+}
+.gw-f-btn:hover { border-color: var(--gw-f-muted); }
+.gw-f-btn.is-primary { background: var(--gw-f-purple); border-color: var(--gw-f-purple); color: #fff; }
+.gw-f-btn small { opacity: 0.75; font-size: 11px; }
+.gw-f-btn[disabled] { opacity: 0.6; cursor: progress; }
+.gw-f-btn-mark svg { width: 14px; height: 14px; display: block; }
+.gw-f-btn.is-primary .gw-f-body { stroke: none; }
+
+.gw-f-answer-wrap { flex: 1 1 100%; }
+.gw-f-answer {
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--gw-f-surface-line);
+    background: var(--gw-f-surface);
+    color: var(--gw-f-ink);
+    font: inherit;
+}
+.gw-f-answer:focus { outline: 2px solid var(--gw-f-purple); outline-offset: 1px; }
+
+.gw-f-foot { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--gw-f-track); }
+.gw-f-foot[hidden] { display: none; }
+.gw-f-foot button { border: 0; background: none; color: var(--gw-f-muted); font: inherit; font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+.gw-f-foot button:hover { color: var(--gw-f-ink); }
+.gw-f :focus-visible { outline: 2px solid var(--gw-f-purple); outline-offset: 2px; }
+
+/* -- The dock ------------------------------------------------------------ */
+
+.gw-f-dock {
+    position: fixed;
+    inset-inline-end: 24px;
+    bottom: 24px;
+    z-index: 30;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 1px solid var(--gw-f-surface-line);
+    background: var(--gw-f-surface);
+    box-shadow: var(--gw-f-shadow);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+.gw-f-dock[hidden] { display: none; }
+.gw-f-dock-mark { display: grid; place-items: center; animation: gw-f-peek 7s ease-in-out 1.5s infinite; }
+.gw-f-dock-mark svg { width: 30px; height: 30px; display: block; }
+.gw-f-dock:hover .gw-f-dock-mark svg { animation: gw-f-bob 1.2s ease-in-out infinite; }
+.gw-f-badge {
+    position: absolute;
+    top: -4px;
+    inset-inline-end: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--gw-f-amber-tag);
+    color: var(--gw-f-amber-tag-ink);
+    font-size: 11px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+}
+.gw-f-badge.is-ready { background: var(--gw-f-green); color: #fff; }
+.gw-f-badge.is-bump { animation: gw-f-pulse 0.6s ease-out; }
+.gw-f-tip {
+    position: absolute;
+    inset-inline-end: 66px;
+    white-space: nowrap;
+    background: var(--gw-f-paper);
+    color: #1b1b1f;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 999px;
+    padding: 3px 9px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+.gw-f-dock:hover .gw-f-tip,
+.gw-f-dock:focus-visible .gw-f-tip { opacity: 1; }
+
+/* -- The flying mark ----------------------------------------------------- */
+
+.gw-f-flyer {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 29;
+    width: 44px;
+    height: 44px;
+    pointer-events: none;
+    transition: transform 0.9s cubic-bezier(0.45, 0.05, 0.2, 1.15), opacity 0.2s;
+}
+.gw-f-flyer[hidden] { display: none; }
+.gw-f-flyer.is-following { transition: none; }
+.gw-f-flyer.is-home { opacity: 0; transition: transform 0.6s cubic-bezier(0.45, 0.05, 0.2, 1), opacity 0.2s 0.5s; }
+.gw-f-tilt { transition: transform 0.9s ease; }
+.gw-f-bob { animation: gw-f-bob 2.4s ease-in-out infinite; filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.3)); }
+.gw-f-bob svg { width: 44px; height: 44px; display: block; }
+.gw-f-trail { position: absolute; left: 10px; top: 30px; width: 24px; height: 8px; border-radius: 50%; background: rgb(120 110 90 / 0.18); filter: blur(3px); animation: gw-f-bob 2.4s ease-in-out infinite reverse; }
+.gw-f-say {
+    position: absolute;
+    right: 46px;
+    top: 2px;
+    white-space: nowrap;
+    background: var(--gw-f-paper);
+    color: #1b1b1f;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 999px;
+    padding: 2px 8px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.3s 0.1s, transform 0.3s 0.1s;
+}
+.gw-f-say:empty { display: none; }
+.gw-f-flyer.is-arrived .gw-f-say { opacity: 1; transform: none; }
+
+.gw-f-wisp { position: fixed; z-index: 31; width: 9px; height: 9px; border-radius: 50%; background: var(--gw-f-paper); box-shadow: 0 0 0 1px var(--gw-f-fold); pointer-events: none; animation: gw-f-wisp 0.6s ease-out forwards; }
+
+/* Minimise: the guide is sucked into the corner, the dock pops and waves. */
+.gw-f-guide.is-sucking { animation: gw-f-suck 0.5s cubic-bezier(0.55, 0, 0.75, 0.2) forwards; pointer-events: none; }
+.gw-f-guide.is-unfurling { animation: gw-f-unfurl 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.1) forwards; }
+.gw-f-dock.is-popping { animation: gw-f-pop 0.5s cubic-bezier(0.3, 1.4, 0.5, 1); }
+.gw-f-dock.is-waving .gw-f-dock-mark { animation: gw-f-wave 0.7s ease-in-out; }
+.gw-f-dock.is-leaping .gw-f-dock-mark { animation: gw-f-leap 0.55s cubic-bezier(0.3, 0.7, 0.4, 1); }
+
+@keyframes gw-f-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
+@keyframes gw-f-suck { 0% { opacity: 1; transform: none; border-radius: 14px; } 60% { opacity: 0.9; transform: translate(10px, 10px) scale(0.45, 0.3) skewX(-6deg); border-radius: 40px; } 100% { opacity: 0; transform: translate(150px, 90px) scale(0.05); border-radius: 50%; } }
+@keyframes gw-f-unfurl { 0% { opacity: 0; transform: translate(150px, 90px) scale(0.05); border-radius: 50%; } 55% { opacity: 1; transform: translate(-4px, -4px) scale(1.03); border-radius: 18px; } 100% { opacity: 1; transform: none; border-radius: 14px; } }
+@keyframes gw-f-pop { 0% { transform: scale(0.3); } 60% { transform: scale(1.18); } 80% { transform: scale(0.94); } 100% { transform: scale(1); } }
+@keyframes gw-f-wave { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-14deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-8deg); } 80% { transform: rotate(4deg); } }
+@keyframes gw-f-leap { 0% { transform: none; } 35% { transform: translateY(-16px) rotate(-12deg) scale(1.1); } 70% { transform: translateY(-6px) rotate(200deg) scale(0.9); } 100% { transform: translateY(0) rotate(360deg); } }
+@keyframes gw-f-peek { 0%, 88%, 100% { transform: none; } 91% { transform: translateX(-5px) rotate(-14deg); } 95% { transform: translateX(-5px) rotate(-14deg); } }
+@keyframes gw-f-wisp { 0% { opacity: 0.9; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); } }
+@keyframes gw-f-pulse { 0% { box-shadow: 0 0 0 0 rgb(245 180 69 / 0.7); } 100% { box-shadow: 0 0 0 10px rgb(245 180 69 / 0); } }
+
+/* RTL: the guide and dock sit bottom left, and the wisps go the other way. */
+[dir="rtl"] .gw-f-guide.is-sucking { animation-name: gw-f-suck-rtl; }
+[dir="rtl"] .gw-f-guide.is-unfurling { animation-name: gw-f-unfurl-rtl; }
+@keyframes gw-f-suck-rtl { 0% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translate(-150px, 90px) scale(0.05); } }
+@keyframes gw-f-unfurl-rtl { 0% { opacity: 0; transform: translate(-150px, 90px) scale(0.05); } 100% { opacity: 1; transform: none; } }
+
+/* -- Reduced motion: completely still ------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+    .gw-f-flyer { transition: opacity 0.15s; }
+    .gw-f-tilt { transition: none; }
+    .gw-f-bob,
+    .gw-f-trail,
+    .gw-f-dock-mark,
+    .gw-f-dock:hover .gw-f-dock-mark svg,
+    .gw-f-guide.is-sucking,
+    .gw-f-guide.is-unfurling,
+    .gw-f-dock.is-popping,
+    .gw-f-dock.is-waving .gw-f-dock-mark,
+    .gw-f-dock.is-leaping .gw-f-dock-mark { animation: none; }
+    .gw-f-badge.is-bump { animation: none; box-shadow: 0 0 0 3px rgb(245 180 69 / 0.6); }
+    .gw-f-wisp { display: none; }
+    [data-gw-gap] { transition: none; }
+}
+
+/* -- Phones: a bottom sheet, no flying mark ------------------------------ */
+
+@media (max-width: 639px) {
+    .gw-f-guide {
+        inset-inline: 0;
+        bottom: 0;
+        width: 100%;
+        max-width: none;
+        max-height: 70vh;
+        border-radius: 16px 16px 0 0;
+        padding: 6px 16px calc(14px + env(safe-area-inset-bottom));
+    }
+    .gw-f-handle { display: block; width: 44px; height: 5px; margin: 2px auto 10px; border: 0; border-radius: 3px; background: var(--gw-f-skip); cursor: pointer; }
+    .gw-f-guide.is-collapsed { padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+    .gw-f-guide.is-collapsed > :not(.gw-f-handle):not(.gw-f-summary) { display: none; }
+    .gw-f-guide.is-collapsed .gw-f-summary { display: block; width: 100%; min-height: 40px; border: 0; background: none; color: var(--gw-f-ink); font: inherit; font-weight: 500; text-align: start; cursor: pointer; }
+    .gw-f-flyer { display: none; }
+    .gw-f-dock { bottom: calc(76px + env(safe-area-inset-bottom)); inset-inline-end: 16px; }
+    .gw-f-tip { display: none; }
+    .gw-f-pill { padding: 0 10px; }
+    .gw-f-pill-text { display: none; }
+    .gw-f-pill-n { display: inline; }
+    [data-gw-gap] { box-shadow: 0 0 0 4px var(--gw-f-amber-fill), 0 0 0 5px var(--gw-f-amber-line); }
+    [data-gw-gap="current"] { box-shadow: 0 0 0 4px var(--gw-f-purple-fill), 0 0 0 6px var(--gw-f-purple); }
+    [data-gw-gap="fixed"] { box-shadow: 0 0 0 4px var(--gw-f-green-fill), 0 0 0 5px var(--gw-f-green-line); }
+}

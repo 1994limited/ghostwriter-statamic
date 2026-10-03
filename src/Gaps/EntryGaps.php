@@ -12,6 +12,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Gaps\Fix;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Gap;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapContext;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapFinder;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapKind;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapReport;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Message;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\PublishReadiness;
@@ -175,7 +176,9 @@ class EntryGaps
             $out['speech'] = $this->text(new Message($gap->kind->speech()));
             $out['fixes'] = array_map(fn (Fix $fix) => ['label' => $this->text($fix->label)] + $fix->toArray(), $gap->fixes);
             $out['tab'] = $tabs[$gap->path->handle()] ?? null;
-            $out['reason'] = ($gap->meta['reason'] ?? null) === SessionGaps::FROM_DRAFT ? $this->text(new Message('gaps.guide.reason.draft')) : null;
+            // Facts already say they weren't guessed; a link left for a
+            // person is the other place the reason helps.
+            $out['reason'] = ($gap->meta['reason'] ?? null) === SessionGaps::FROM_DRAFT && in_array($gap->kind, [GapKind::LinkToChoose, GapKind::LinkEmpty], true) ? $this->text(new Message('gaps.guide.reason.draft')) : null;
 
             if (is_string($gap->meta['library'] ?? null)) {
                 $out['meta']['libraryLabel'] = $this->libraries->shortLabel($gap->meta['library']);
