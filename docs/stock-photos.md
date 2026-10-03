@@ -17,7 +17,7 @@ Why a stand-in? The libraries' terms allow previews for "test or sample" use onl
 
 ## Setting up a paid library
 
-Add the keys from your account with the library to `.env`. They are read each time they're needed, and never stored or shown.
+Add the keys from your account with the library to `.env`. Your keys stay on your site. Ghostwriter sends them only to the provider you chose, never to us.
 
 | Library | Keys | Status |
 | --- | --- | --- |

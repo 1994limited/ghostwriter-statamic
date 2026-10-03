@@ -630,7 +630,7 @@ export default {
 
                 <div class="mb-8 space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700!">
                     <Heading :text="__('Quick brief')" />
-                    <Subheading :text="__('Give it a title and anything you already know. Ghostwriter fills in the questions below with its best guess, for you to check and change.')" />
+                    <Subheading :text="__('Give it a title and anything you already know. Ghostwriter fills in the questions below, for you to check and change.')" />
                     <Input v-model="quick.title" :placeholder="__('Working title')" :disabled="guessing" @keydown.enter.stop.prevent="quick.title.trim() && guess()" />
                     <Textarea v-model="quick.notes" elastic :rows="3" :disabled="guessing" :placeholder="__('Notes: the angle, who it is for, points to make, projects to mention…')" />
                     <div class="flex items-center justify-between gap-4">
@@ -638,7 +638,7 @@ export default {
                             {{ guessed ? __('Filled in below. Anything in [square brackets] needs you.') : __('Optional. You can also just answer the questions.') }}
                         </span>
                         <Button
-                            :text="guessed ? __('Guess again') : __('Fill in the brief')"
+                            :text="guessed ? __('Try again') : __('Fill in the brief')"
                             :loading="guessing"
                             :disabled="!info.configured || guessing || !quick.title.trim()"
                             @click="guess"

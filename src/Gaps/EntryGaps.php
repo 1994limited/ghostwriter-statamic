@@ -193,7 +193,7 @@ class EntryGaps
             $out['speech'] = $this->text(new Message($gap->kind->speech()));
             $out['fixes'] = array_map(fn (Fix $fix) => ['label' => $this->text($fix->label)] + $fix->toArray(), $gap->fixes);
             $out['tab'] = $tabs[$gap->path->handle()] ?? null;
-            // Facts already say they weren't guessed; a link left for a
+            // Facts already say only the editor knows them; a link left for a
             // person is the other place the reason helps.
             $out['reason'] = ($gap->meta['reason'] ?? null) === SessionGaps::FROM_DRAFT && in_array($gap->kind, [GapKind::LinkToChoose, GapKind::LinkEmpty], true) ? $this->text(new Message('gaps.guide.reason.draft')) : null;
 
@@ -214,7 +214,7 @@ class EntryGaps
      */
     public function text(Message $message): string
     {
-        $strings = Message::strings();
+        $strings = self::WORDING + Message::strings();
         $name = str_starts_with($message->key, 'gaps.') ? substr($message->key, 5) : $message->key;
         $params = $message->params;
 
@@ -232,6 +232,18 @@ class EntryGaps
 
         return (new Message($message->key, $params))->english();
     }
+
+    /**
+     * Core strings the addon words differently, until core's own wording
+     * catches up. Each is still the `__()` key, like core's.
+     *
+     * @var array<string, string>
+     */
+    private const WORDING = [
+        'ask' => 'I left a gap in :label: :hint. Only you know this. What should it say?',
+        'ask-value' => ':label is empty: :hint. This one needs you.',
+        'guide.reason.draft' => 'Only you know this.',
+    ];
 
     /**
      * A place named once: "Text: Text" (a set and its field both called
