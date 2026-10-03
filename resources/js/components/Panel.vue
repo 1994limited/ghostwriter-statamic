@@ -15,12 +15,11 @@ import { Alert, Button, Heading, Subheading, Textarea } from '@statamic/cms/ui';
 import BriefCard from './BriefCard.vue';
 import DraftPreview from './DraftPreview.vue';
 import PagePreview from './PagePreview.vue';
-import ImageSlots from './ImageSlots.vue';
 import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
 
 export default {
-    components: { Alert, BriefCard, Button, DraftPreview, ImageSlots, Heading, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
+    components: { Alert, BriefCard, Button, DraftPreview, Heading, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -443,58 +442,6 @@ export default {
                 item.started_by ? this.__('Started by :name', { name: item.started_by }) : null,
                 item.touched_by ? this.__('last changed by :name', { name: item.touched_by }) : null,
             ].filter(Boolean).join(', ');
-        },
-
-        async makeImage({ key, direction, source }) {
-            const form = new FormData();
-
-            form.append('key', key);
-            form.append('direction', direction ?? '');
-            if (source) form.append('source', source);
-
-            try {
-                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/images`), form);
-
-                this.receive(data);
-            } catch (error) {
-                this.fail(error);
-            }
-        },
-
-        async findPhotos(key, query) {
-            try {
-                const { data } = await this.$axios.get(this.url(`sessions/${this.session.id}/photos`), { params: { key, query } });
-
-                return { query: data.query, photos: data.options, judged: data.judged, none_fit: data.none_fit, with_references: data.with_references };
-            } catch (error) {
-                this.fail(error);
-
-                return { query, photos: [] };
-            }
-        },
-
-        async copyImage(key, from) {
-            try {
-                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/images/copy`), { key, from });
-
-                this.receive(data);
-            } catch (error) {
-                this.fail(error);
-            }
-        },
-
-        async usePhoto(key, photo) {
-            try {
-                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/photos`), { key, source: photo.source, id: photo.id, term: photo.term });
-
-                this.receive(data);
-
-                return true;
-            } catch (error) {
-                this.fail(error);
-
-                return false;
-            }
         },
 
         setView(view) {
@@ -923,17 +870,6 @@ export default {
                                     <DraftPreview :nodes="session.preview" :view="view" :editable="!working" @edit="editField" />
                                 </template>
                             </div>
-
-                            <ImageSlots
-                                v-if="session.images?.length && !session.draft_problem"
-                                :images="session.images"
-                                :tools="session.image_tools"
-                                :search="findPhotos"
-                                :choose="usePhoto"
-                                :copy="copyImage"
-                                class="mt-8"
-                                @make="makeImage"
-                            />
                         </template>
                     </div>
                 </div>

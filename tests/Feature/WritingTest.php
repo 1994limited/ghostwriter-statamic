@@ -1177,10 +1177,6 @@ class WritingTest extends TestCase
         $this->patchJson(cp_route('ghostwriter.sessions.field', $theirs->id), ['path' => 'title', 'value' => 'Mine now'])->assertForbidden();
         $this->patchJson(cp_route('ghostwriter.sessions.draft', $theirs->id), ['draft' => 'title: Mine'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.apply', $theirs->id))->assertForbidden();
-        $this->postJson(cp_route('ghostwriter.sessions.image', $theirs->id), ['key' => 'x'])->assertForbidden();
-        $this->getJson(cp_route('ghostwriter.sessions.photos', $theirs->id, ['key' => 'x']))->assertForbidden();
-        $this->postJson(cp_route('ghostwriter.sessions.photo', $theirs->id), ['key' => 'x', 'source' => 'unsplash', 'id' => '1'])->assertForbidden();
-        $this->postJson(cp_route('ghostwriter.sessions.image.copy', $theirs->id), ['key' => 'x'])->assertForbidden();
         $this->postJson(cp_route('ghostwriter.sessions.entry', $theirs->id))->assertForbidden();
         $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $theirs->id))->assertForbidden();
 

@@ -81,7 +81,7 @@ The draft sits on the right, under three tabs: **Preview**, **Blocks** and **Tex
 - **Click any writing (or Tab to it) to change it.** It's saved when you leave it; **Esc** puts back what was there. **Enter** finishes a one-line field; in longer text it starts a new line. Rich text stays rich: bold, links and lists are kept.
 - **Edit YAML** opens the whole draft as YAML, to add, move or remove blocks. Most people never need it.
 
-The word count is at the top. Below the draft, the **Images** section offers photos for the entry's image fields; see [Images with a draft](images.md#images-with-a-draft).
+The word count is at the top. Images are chosen on the entry's own fields once the draft is in the form; see [Images with a draft](images.md#images-with-a-draft).
 
 ![A page-builder draft in Blocks view, with one text block being edited](images/writing-draft.png)
 

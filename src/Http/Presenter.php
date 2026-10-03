@@ -182,7 +182,6 @@ class Presenter
             'words' => $words,
             'usage' => $session->usage,
             'images' => $this->images($session, $type),
-            'image_tools' => ['generate' => $this->images->configured(), 'search' => $this->stock->sources()],
         ];
     }
 
@@ -287,7 +286,9 @@ class Presenter
     }
 
     /**
-     * The draft's image fields, with the image chosen for each so far.
+     * The draft's image fields, with the image the writer found or made for
+     * each so far. The Preview tab re-renders when one changes, and the panel
+     * keeps checking while one is being made.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -304,14 +305,7 @@ class Presenter
                 'references' => count($slot['references']),
                 'status' => $session->images[$slot['key']]['status'] ?? 'empty',
                 'url' => $session->images[$slot['key']]['url'] ?? null,
-                'error' => $session->images[$slot['key']]['error'] ?? null,
-                'credit' => $session->images[$slot['key']]['credit'] ?? null,
-                'query' => $session->images[$slot['key']]['query'] ?? null,
-                'options' => $session->images[$slot['key']]['options'] ?? [],
-                'judged' => (bool) ($session->images[$slot['key']]['judged'] ?? false),
-                'none_fit' => (bool) ($session->images[$slot['key']]['none_fit'] ?? false),
-                'with_references' => (bool) ($session->images[$slot['key']]['with_references'] ?? false),
-                'direction' => $session->images[$slot['key']]['direction'] ?? '',
+                'path' => $session->images[$slot['key']]['path'] ?? null,
             ])
             ->values()
             ->all();
