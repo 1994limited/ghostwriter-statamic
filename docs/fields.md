@@ -44,7 +44,7 @@ A link from a page to itself, such as the last breadcrumb, is recognised as one.
 
 ### Links it can't decide
 
-If a block should have a link (the field is required, or that kind of block usually has one), but the examples don't agree on where it goes, Ghostwriter points it at `https://example.com` with the text "Link to choose" in a matching text field. The page still works, and the gap is easy to spot. The notes above the form, after **Use this draft**, list each one as "(links to example.com for now)". Set them before publishing.
+If a block should have a link (the field is required, or that kind of block usually has one), but the examples don't agree on where it goes, Ghostwriter marks it as a link to choose: `#gw-link:` and a hint from the field's name (`#gw-link:button-link`), with the text "Link to choose" in a matching text field. The notes above the form, after **Use this draft**, list each one as "(link still to choose)", and [Finish this page](finish-this-page.md) walks you to it; the page can't be published until it's set. Entries before 1.x's markers may still hold `https://example.com`, which is found the same way.
 
 This works for the `link` fieldtype. Entries fields can't take a web address, so they're simply listed as still to set.
 

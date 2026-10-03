@@ -25,6 +25,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionImages;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
@@ -32,6 +33,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
 use NineteenNinetyFour\Ghostwriter\Drafts\FormBaseline;
 use NineteenNinetyFour\Ghostwriter\Drafts\HouseFinish;
+use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
@@ -189,7 +191,7 @@ class SessionController
      * The draft as values for the publish form the panel is open on. Nothing
      * is saved: the person reviews the filled-in form and saves it themselves.
      */
-    public function apply(Request $request, string $session, SchemaReader $reader, EntryLayouts $layouts, ImageStudio $images, EntryMerger $merger, HouseFinish $finish, FormBaseline $baseline): JsonResponse
+    public function apply(Request $request, string $session, SchemaReader $reader, EntryLayouts $layouts, ImageStudio $images, EntryMerger $merger, HouseFinish $finish, FormBaseline $baseline, EntryGaps $gaps): JsonResponse
     {
         $session = $this->session($session);
         $type = $this->type($session->kind)->forSession($session);
@@ -218,6 +220,7 @@ class SessionController
             $built = $layouts->build($draft->data, $schema);
             $data = $merger->merge($built->data, $baseline->data($original, $request->input('values')), $specs);
             $notes = $built->notes;
+            $left = SessionGaps::fromDraft($built);
         } else {
             $pattern = $layouts->pattern($schema, $type->group, $type->variant, $type->where, $type->examples);
             $built = $layouts->build($draft->data, $schema, $pattern, $type->defaults);
@@ -240,6 +243,7 @@ class SessionController
             $finished = $finish->finish($data, $schema, $pattern, null, $draft->title());
             $data = $finished['data'];
             $notes = [...$built->notes, ...$finished['notes']];
+            $left = SessionGaps::fromDraft($built, $finished['places'], $finished['placeholders']);
         }
 
         $data = $images->place(['title' => $draft->title()] + $data, $session, $specs);
@@ -249,13 +253,23 @@ class SessionController
         $fields = $blueprint->fields()->addValues($data)->preProcess();
 
         // Noted so the session can be shown as handed over, not still in
-        // progress, on the session as it stands now.
-        $this->sessions->applied($session->id, $this->viewer());
+        // progress, on the session as it stands now, with what the draft
+        // left for a person (Finish this page's messages read it).
+        $viewer = $this->viewer();
+        $this->sessions->change($session->id, function (Session $stored) use ($viewer, $left): void {
+            $stored->markApplied($viewer->id, now()->toImmutable());
+            $stored->gaps = $left->toArray();
+        });
+
+        // What is still to finish in the entry as the form will hold it,
+        // for the count by Save and the guide, which opens now.
+        $report = $gaps->find($gaps->context($blueprint, ['title' => $draft->title()] + $data, $original ? null : $type->group, $original ? (string) $original->id() : null, $left));
 
         return response()->json([
             'values' => $fields->values()->only(array_keys($data))->all(),
             'meta' => $fields->meta()->only(array_keys($data))->all(),
             'notes' => $notes,
+            'gaps' => $gaps->present($report, $blueprint),
         ]);
     }
 

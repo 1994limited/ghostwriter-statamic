@@ -18,14 +18,15 @@ Ghostwriter learns how your site writes and what its pictures look like, then dr
 9. [Kinds of content](kinds.md): teaching Ghostwriter the things you write often.
 10. [Images](images.md): finding and making images, ranking, alt text and placeholders.
 11. [Stock photos](stock-photos.md): paid libraries, previews, License & replace, the publish rule and the Stock images screen.
-12. [The content plan](content-plan.md): ideas for what to write next.
-13. [The Overview and widget](dashboard.md): what is in progress, at a glance.
+12. [Finish this page](finish-this-page.md): facts to add, links to choose and images to pick, the guide, and the publish rule.
+13. [The content plan](content-plan.md): ideas for what to write next.
+14. [The Overview and widget](dashboard.md): what is in progress, at a glance.
 
 ## Reference
 
-14. [How Ghostwriter reads your fields](fields.md): fieldtypes, page builders and house style.
-15. [Privacy and data](privacy.md): what is sent where, and what is kept.
-16. [Troubleshooting](troubleshooting.md): common problems and fixes.
+15. [How Ghostwriter reads your fields](fields.md): fieldtypes, page builders and house style.
+16. [Privacy and data](privacy.md): what is sent where, and what is kept.
+17. [Troubleshooting](troubleshooting.md): common problems and fixes.
 
 ## Requirements
 

@@ -65,7 +65,7 @@ class StockPublishTest extends TestCase
             $entry->published(true)->save();
             $this->fail('Publishing should have been refused.');
         } catch (ValidationException $refused) {
-            $this->assertSame(['cover' => ['The hero image is a Demo preview, not licensed yet. License it, or choose another image, before publishing.']], $refused->errors());
+            $this->assertSame(['cover' => ['This is a Demo preview, not licensed yet. License it, or choose another image, before publishing.']], $refused->errors());
         }
 
         // Once licensed, it goes.
@@ -83,11 +83,12 @@ class StockPublishTest extends TestCase
 
         $this->patchJson($entry->updateUrl(), ['title' => 'One', 'cover' => [$preview['asset']], 'published' => true, 'blueprint' => 'story', '_localized' => []])
             ->assertStatus(422)
-            ->assertJsonPath('errors.cover.0', 'The hero image is a Demo preview, not licensed yet. License it, or choose another image, before publishing.');
+            ->assertJsonPath('errors.cover.0', 'This is a Demo preview, not licensed yet. License it, or choose another image, before publishing.');
     }
 
     public function test_set_to_warn_a_page_is_published_with_a_warning(): void
     {
+        // The stock photos setting this replaced still counts when it isn't set.
         config(['ghostwriter.stock.on_publish' => 'warn']);
         $this->signIn();
         $preview = $this->preview();

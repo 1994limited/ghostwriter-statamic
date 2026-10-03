@@ -120,12 +120,16 @@ tabs:
               instructions: 'Editorial images (news, events, well-known people) may not be used to sell or promote anything. Most pages are commercial use, so they are left out unless this is on or someone ticks "Include editorial images".'
               default: false
               width: 50
+      -
+        display: Finish this page
+        instructions: 'Ghostwriter marks what only a person can finish (a fact to add, a link to choose, an image to pick) and walks the editor through it on the entry''s form.'
+        fields:
           -
-            handle: stock_on_publish
+            handle: on_unfinished_publish
             field:
               type: button_group
-              display: When a page with an unlicensed preview is published
-              instructions: 'Block refuses to publish it, with a message on the image field; saving it unpublished still works. Warn publishes it and says so.'
+              display: When a page with something unfinished is published
+              instructions: 'Something unfinished is a fact still to add (`[[ask: …]]`), a link still to choose, an image placeholder or a stock preview not licensed yet. Block refuses to publish the page, with a message on each field; saving it unpublished still works. Warn publishes it and says so.'
               options:
                 block: Block
                 warn: Warn

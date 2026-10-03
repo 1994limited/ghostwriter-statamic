@@ -44,6 +44,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\FinishController;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\StockPreviewsInLivePreview;
 use NineteenNinetyFour\Ghostwriter\Stock\EncryptedLibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
@@ -189,7 +190,9 @@ class ServiceProvider extends AddonServiceProvider
 
         // Core's layout algorithms, as Statamic stores entries: Bard for rich
         // text, `entry::id` links, and new sets and rows with IDs of their own.
-        $this->app->singleton(Layouts::class, fn ($app) => new Layouts(LayoutOptions::statamic(), $app->make(BardDialect::class), new StatamicLinks));
+        // A link the house style can't settle points at `#gw-link:<hint>`,
+        // a link to choose that Finish this page finds, not example.com.
+        $this->app->singleton(Layouts::class, fn ($app) => new Layouts(LayoutOptions::statamic()->withLinkSentinels(), $app->make(BardDialect::class), new StatamicLinks));
     }
 
     /**
@@ -287,6 +290,12 @@ class ServiceProvider extends AddonServiceProvider
             // A draft put into a new (or unpublished) entry's form switches
             // its Published toggle off, for the editor to switch on.
             'drafts_unpublished' => (bool) config('ghostwriter.drafts_unpublished', true),
+            // Finish this page: how each person last left the guide (it
+            // starts minimised), and whether it opens after a draft.
+            'finish' => [
+                'guide' => User::current()?->getPreference(FinishController::PREFERENCE) === FinishController::OPEN ? FinishController::OPEN : FinishController::MINIMISED,
+                'open_after_draft' => app(Settings::class)->openGuideAfterDraft(),
+            ],
         ]]);
 
         Nav::extend(function ($nav): void {

@@ -170,14 +170,15 @@ class HouseStyleTest extends TestCase
         $style = $this->learn($pages);
         $this->assertArrayNotHasKey('button_link', $style->positions['page_builder/hero#0']);
 
-        // The hero still usually has a link, so a new page gets example.com and says so.
+        // The hero still usually has a link, so a new page gets a link to
+        // choose (Finish this page finds it) and says so.
         $house = app(EntryLayouts::class)->apply(['title' => 'New', 'page_builder' => [['type' => 'hero']]], $this->schema(), $style, null, '');
         $data = $house->data;
 
-        $this->assertSame(LinkDialect::PLACEHOLDER_URL, $data['page_builder'][0]['button_link']);
+        $this->assertSame('#gw-link:button-link', $data['page_builder'][0]['button_link']);
         // The button's words are agreed, so they stay; only the link is stood in for.
         $this->assertSame('Talk to us', $data['page_builder'][0]['button_text']);
-        $this->assertSame(['Hero (links to example.com for now)'], $house->toFill);
+        $this->assertSame(['Hero (link still to choose)'], $house->toFill);
     }
 
     public function test_striped_placeholders_go_where_an_image_belongs_and_nowhere_else(): void
@@ -204,6 +205,9 @@ class HouseStyleTest extends TestCase
     public function test_a_draft_put_into_a_new_entry_gets_the_house_style_and_placeholders_but_an_edited_entry_does_not(): void
     {
         $this->signIn();
+        // The pages link to entries this test doesn't make; the publish
+        // guard would refuse them as broken links.
+        config(['ghostwriter.publish.on_unfinished' => 'warn']);
 
         foreach (['p1' => 'Yacht Studio', 'p2' => 'Architecture Studio', 'p3' => 'Visualisation Studio'] as $slug => $title) {
             $entry = Entry::make()->collection('pages')->slug($slug)->published(true)->data($this->page($slug, $title));

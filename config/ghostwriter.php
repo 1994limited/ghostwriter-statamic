@@ -239,10 +239,8 @@ return [
         // on elsewhere too. It never runs in production.
         'demo' => env('GHOSTWRITER_STOCK_DEMO'),
 
-        // Settings-screen fields too: a value here wins. When a page holding
-        // an unlicensed preview is published: "block" (the default) refuses
-        // it with a message on the image field; "warn" lets it through with
-        // a warning.
+        // Replaced by publish.on_unfinished below, which covers unlicensed
+        // previews too; still read when that isn't set.
         'on_publish' => env('GHOSTWRITER_STOCK_ON_PUBLISH'),
         // Where "Search in" starts: "free", "everything" or a library's ID.
         'default_source' => env('GHOSTWRITER_STOCK_DEFAULT_SOURCE'),
@@ -256,6 +254,34 @@ return [
 
         // Previews no page uses any more are removed after this many days.
         'unused_preview_days' => (int) env('GHOSTWRITER_STOCK_UNUSED_PREVIEW_DAYS', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Finish this page
+    |--------------------------------------------------------------------------
+    |
+    | Ghostwriter marks what only a person can finish: a fact to add
+    | ([[ask: adult ticket price]]), a link to choose (#gw-link:contact-page),
+    | an image placeholder, a stock preview not licensed yet. The entry's
+    | form counts them by Save and a guide walks through them.
+    |
+    | publish.on_unfinished (a settings-screen field too: a value here wins):
+    | when a page with any of these is published, "block" (the default)
+    | refuses it with a message on each field; "warn" lets it through with
+    | a warning. Saving unpublished always works.
+    |
+    | finish.open_after_draft: the guide opens by itself when a draft is put
+    | into the form. Otherwise it stays as each person last left it.
+    |
+    */
+
+    'publish' => [
+        'on_unfinished' => env('GHOSTWRITER_ON_UNFINISHED_PUBLISH'),
+    ],
+
+    'finish' => [
+        'open_after_draft' => (bool) env('GHOSTWRITER_FINISH_OPEN_AFTER_DRAFT', true),
     ],
 
     /*

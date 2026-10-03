@@ -4,6 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter;
 
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\Credentials;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\OnPublish;
 use Statamic\Facades\Addon;
 use Statamic\Facades\User;
 
@@ -38,6 +39,7 @@ class Settings
         'placeholder_images' => 'ghostwriter.images.placeholders',
         'openverse' => 'ghostwriter.images.openverse',
         'stock_on_publish' => 'ghostwriter.stock.on_publish',
+        'on_unfinished_publish' => 'ghostwriter.publish.on_unfinished',
         'stock_default_source' => 'ghostwriter.stock.default_source',
         'stock_include_editorial' => 'ghostwriter.stock.include_editorial',
     ];
@@ -148,11 +150,32 @@ class Settings
 
     /**
      * When a page holding an unlicensed preview is published: block (the
-     * default), or warn and let it through.
+     * default), or warn and let it through. The same as
+     * onUnfinishedPublish(), which it was before Finish this page.
      */
     public function stockOnPublish(): string
     {
-        return $this->value('stock_on_publish') === self::WARN ? self::WARN : self::BLOCK;
+        return $this->onUnfinishedPublish() === OnPublish::Warn ? self::WARN : self::BLOCK;
+    }
+
+    /**
+     * When a page with something still to finish (a fact to add, a link to
+     * choose, an image placeholder, an unlicensed stock preview) is
+     * published: block (the default), or warn and let it through. The
+     * stock photos setting it replaced is read when it isn't set.
+     */
+    public function onUnfinishedPublish(): OnPublish
+    {
+        return OnPublish::fromConfig($this->value('on_unfinished_publish'), $this->value('stock_on_publish'));
+    }
+
+    /**
+     * Whether the Finish this page guide opens by itself once a draft is
+     * put into the form, whatever the person last left it as.
+     */
+    public function openGuideAfterDraft(): bool
+    {
+        return (bool) config('ghostwriter.finish.open_after_draft', true);
     }
 
     /**

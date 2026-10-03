@@ -135,8 +135,8 @@ class StockLibrariesTest extends TestCase
         $this->assertStringContainsString('localhost/cp/ghostwriter/libraries/shutterstock/callback', $html, 'The host and path to register, not the full address.');
         $this->assertStringNotContainsString('ss-secret-not-shown', $html);
         $this->assertSame(['free' => 'Free libraries', 'demo' => 'Demo stock (no charge)', 'everything' => 'Everything'], $fields['stock_default_source']->get('options'));
-        $this->assertSame('read_only', $fields['stock_on_publish']->get('visibility'), 'Config wins.');
-        $this->assertSame(Settings::WARN, app(Settings::class)->stockOnPublish());
+        $this->assertFalse($fields->has('stock_on_publish'), 'Replaced by the Finish this page setting, which covers previews too.');
+        $this->assertSame(Settings::WARN, app(Settings::class)->stockOnPublish(), 'The old config key still counts.');
     }
 
     public function test_check_connection_says_what_the_account_can_buy_to_managers_only(): void

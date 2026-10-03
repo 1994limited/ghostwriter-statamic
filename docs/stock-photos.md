@@ -46,7 +46,7 @@ Then open **Ghostwriter → Settings → Stock photos**:
 - **Use …** switches a library on or off in "Search in";
 - **Default source** is where "Search in" starts until someone chooses another; each person's last choice is remembered;
 - **Include editorial images by default** (off);
-- **When a page with an unlicensed preview is published**: **Block** (the default) or **Warn**.
+- What happens when a page with an unlicensed preview is published is set under **Finish this page** on the same screen: **When a page with something unfinished is published**, **Block** (the default) or **Warn**. See [Finish this page](finish-this-page.md).
 
 ### The demo library
 
@@ -89,9 +89,9 @@ Licensing spends from your account, so it is a permission of its own: **License 
 
 When an entry is saved as published (now, or on a future date), and it holds a preview that isn't licensed yet, the save is refused with a message on the image field:
 
-> The hero image is a Getty preview, not licensed yet. License it, or choose another image, before publishing.
+> This is a Getty preview, not licensed yet. License it, or choose another image, before publishing.
 
-Saving it unpublished always works. This covers publishing a working copy and scheduled entries too. Set **When a page with an unlicensed preview is published** to **Warn** (or `GHOSTWRITER_STOCK_ON_PUBLISH=warn`) to publish with a warning instead.
+Saving it unpublished always works. This covers publishing a working copy and scheduled entries too. It's the same guard, and the same message, as for everything else [Finish this page](finish-this-page.md) finds, so a page with a preview and a fact still to add gets one refusal naming both. Set **When a page with something unfinished is published** to **Warn** (or `GHOSTWRITER_ON_UNFINISHED_PUBLISH=warn`) to publish with a warning instead.
 
 Drafts that Ghostwriter writes start unpublished on new entries (see [Use this draft](writing.md#use-this-draft)), so a draft with a preview in it can be saved straight away.
 
@@ -123,7 +123,7 @@ Getty's and iStock's licences forbid using their photos, or their captions and k
 | `stock.keys.*` | from `.env` | `GETTY_API_KEY`, `GETTY_API_SECRET`, `SHUTTERSTOCK_API_KEY`, `SHUTTERSTOCK_API_SECRET` |
 | `stock.demo` | `null` (on when `APP_ENV=local`) | The demo library; never in production |
 | `stock.shutterstock_sandbox` | `null` (on when `APP_ENV=local`) | Shutterstock's sandbox |
-| `stock.on_publish` | `null` (the screen; **block** if that is blank) | `block` or `warn` |
+| `stock.on_publish` | `null` | Replaced by `publish.on_unfinished` ([Finish this page](finish-this-page.md)); still read when that isn't set. |
 | `stock.default_source` | `null` (the screen; free if that is blank) | `free`, `everything` or a library's ID |
 | `stock.include_editorial` | `null` (the screen; off if that is blank) | |
 | `stock.live_preview` | `true` | Show the preview in Live Preview |
