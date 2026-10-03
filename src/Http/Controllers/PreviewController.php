@@ -11,6 +11,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\NotFound;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
+use NineteenNinetyFour\Ghostwriter\Drafts\DraftLayouts;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
@@ -32,7 +33,7 @@ class PreviewController
         private TypeRepository $types,
     ) {}
 
-    public function store(Request $request, string $session, DraftValues $values, PagePreview $preview): JsonResponse
+    public function store(Request $request, string $session, DraftValues $values, PagePreview $preview, DraftLayouts $layouts): JsonResponse
     {
         abort_unless(config('ghostwriter.preview.enabled', true), 404);
 
@@ -43,17 +44,23 @@ class PreviewController
             'blueprint' => ['nullable', 'string', 'max:200'],
             'values' => ['nullable', 'array'],
             'site' => ['nullable', 'string', 'max:100'],
+            // A layout other than the chosen one, for its card's thumbnail.
+            'plan' => ['nullable', 'string', 'max:20'],
         ]);
 
         abort_if($session->draft === null, 422, 'There is no draft yet.');
 
         try {
-            $draft = Draft::parse($session->draft);
+            Draft::parse($session->draft);
         } catch (InvalidArgumentException $exception) {
             abort(422, $exception->getMessage());
         }
 
         $blueprint = SessionController::blueprintFor($type, $validated['blueprint'] ?? null);
+
+        // The chosen layout, as apply would use it; or the card's own.
+        $draft = $layouts->draft($session, $type, $blueprint, $validated['plan'] ?? null);
+        $arranged = $draft->raw !== Draft::parse($session->draft)->raw;
         $original = $session->source !== null ? Entry::find((string) $session->source) : null;
 
         // Seen only by someone who could save the entry by hand, as apply.
@@ -68,7 +75,7 @@ class PreviewController
         // used where the container has one: the preview saves nothing.
         $built = $values->build($session, $type, $draft, $blueprint, $form, $original, new ContainerAssetSink(create: false));
 
-        $render = $preview->render($session, $draft, $blueprint, $built, $original, $form, $site, $request->getSchemeAndHttpHost());
+        $render = $preview->render($session, $draft, $blueprint, $built, $original, $form, $site, $request->getSchemeAndHttpHost(), $arranged);
 
         return response()->json($render + ['ms' => (int) round((microtime(true) - $started) * 1000)]);
     }

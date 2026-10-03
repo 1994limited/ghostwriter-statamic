@@ -35,9 +35,10 @@ use Throwable;
  *   (`{{ live_preview:ghostwriter }}`) and the front-end middleware uses
  *   to know a Ghostwriter render (GhostwriterPreviewResponse).
  * - Renders are kept by what they show (PreviewData's hash, plus where the
- *   page goes), for ten minutes, a few per session: the same draft gets the
- *   same address back, with no new token and no new render. Tokens dropped
- *   from the list, and those that have expired, are deleted.
+ *   page goes), for ten minutes, a few per session (each layout card's
+ *   thumbnail is one): the same draft gets the same address back, with no
+ *   new token and no new render. Tokens dropped from the list, and those
+ *   that have expired, are deleted.
  */
 class PagePreview
 {
@@ -45,7 +46,7 @@ class PagePreview
     public const REUSE_SECONDS = 600;
 
     /** Renders kept per session; older ones lose their token. */
-    public const KEEP = 4;
+    public const KEEP = 8;
 
     public function __construct(private StandInComps $standIns) {}
 
@@ -53,7 +54,7 @@ class PagePreview
      * @param  array<string, mixed>  $form  The publish form's values (slug, parent, date).
      * @return array{available: bool, url?: string, map?: array<int, array<string, mixed>>, hash?: string, title_key?: ?string, expires?: string, cached?: bool, same_origin?: bool}
      */
-    public function render(Session $session, Draft $draft, Blueprint $blueprint, BuiltValues $built, ?Entry $original, array $form, string $site, string $origin): array
+    public function render(Session $session, Draft $draft, Blueprint $blueprint, BuiltValues $built, ?Entry $original, array $form, string $site, string $origin, bool $arranged = false): array
     {
         $collection = $original?->collection() ?? $blueprint->parent();
 
@@ -61,16 +62,17 @@ class PagePreview
             return ['available' => false];
         }
 
-        $preview = $this->mark($session, $draft, $built);
+        $preview = $this->mark($session, $draft, $built, $arranged);
         $slug = $this->slug($original, $form, $draft);
         $parent = self::parent($form);
 
-        $key = sha1(implode('|', [$preview->hash, $blueprint->handle(), $site, (string) $original?->id(), $slug, (string) $parent, json_encode($form['date'] ?? null)]));
+        $hash = self::stableHash($preview->hash, $built->data);
+        $key = sha1(implode('|', [$hash, $blueprint->handle(), $site, (string) $original?->id(), $slug, (string) $parent, json_encode($form['date'] ?? null)]));
         $map = $this->withStandIns($preview->map->toArray());
         $title = collect($map)->first(fn (array $block) => $block['kind'] === 'field' && $block['type'] === 'title')['key'] ?? null;
 
         if ($kept = $this->kept($session->id, $key)) {
-            return ['available' => true, 'url' => $kept['url'], 'map' => $map, 'hash' => $preview->hash, 'title_key' => $title, 'expires' => $kept['expires'], 'cached' => true, 'same_origin' => self::sameOrigin($kept['url'], $origin)];
+            return ['available' => true, 'url' => $kept['url'], 'map' => $map, 'hash' => $hash, 'title_key' => $title, 'expires' => $kept['expires'], 'cached' => true, 'same_origin' => self::sameOrigin($kept['url'], $origin)];
         }
 
         $entry = $original
@@ -92,23 +94,61 @@ class PagePreview
 
         $this->keep($session->id, $key, $token->token(), $url, $expires);
 
-        return ['available' => true, 'url' => $url, 'map' => $map, 'hash' => $preview->hash, 'title_key' => $title, 'expires' => $expires, 'cached' => false, 'same_origin' => self::sameOrigin($url, $origin)];
+        return ['available' => true, 'url' => $url, 'map' => $map, 'hash' => $hash, 'title_key' => $title, 'expires' => $expires, 'cached' => false, 'same_origin' => self::sameOrigin($url, $origin)];
     }
 
     /**
      * The preview's copy of the data, marked, with the draft's units, and
      * Bard's sets as blocks of their own.
      */
-    public function mark(Session $session, Draft $draft, BuiltValues $built): PreviewData
+    public function mark(Session $session, Draft $draft, BuiltValues $built, bool $arranged = false): PreviewData
     {
         $units = Units::fromDraft($draft, $built->schema);
 
-        if ($session->units !== []) {
+        // The session's unit ids are the writer's draft's; another layout's
+        // pieces are in other places, so they keep their own.
+        if ($session->units !== [] && ! $arranged) {
             $units = $units->restore($session->units);
         }
 
         // Core marks the text and sections; Bard's sets are mapped here.
         return (new BardSetMarkers)->mark((new PreviewMarkers)->mark($built->data, $built->schema, $units), $built->schema);
+    }
+
+    /**
+     * What a render shows, for reusing it: PreviewData's hash, except that
+     * the IDs a build gives new sets and rows (eight random hex characters
+     * each time) don't count, so the same draft, or the same layout card,
+     * gets the same render back.
+     *
+     * @param  array<string, mixed>  $data  The data as built, before markers.
+     */
+    public static function stableHash(string $hash, array $data): string
+    {
+        $generated = false;
+
+        $walk = function (mixed $value) use (&$walk, &$generated): mixed {
+            if (! is_array($value)) {
+                return $value;
+            }
+
+            foreach ($value as $key => $child) {
+                if ($key === 'id' && is_string($child) && preg_match('/\\A[0-9a-f]{8}\\z/', $child) === 1 && ! array_is_list($value)) {
+                    $generated = true;
+                    unset($value[$key]);
+
+                    continue;
+                }
+
+                $value[$key] = $walk($child);
+            }
+
+            return $value;
+        };
+
+        $stable = $walk($data);
+
+        return $generated ? sha1((string) json_encode($stable, JSON_INVALID_UTF8_SUBSTITUTE)) : $hash;
     }
 
     /**

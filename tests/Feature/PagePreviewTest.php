@@ -16,6 +16,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
 use NineteenNinetyFour\Ghostwriter\Preview\BardSetMarkers;
+use NineteenNinetyFour\Ghostwriter\Preview\PagePreview;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntry;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntryRepository;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewPolicy;
@@ -146,10 +147,10 @@ final class PagePreviewTest extends TestCase
         $this->assertTrue($again['cached']);
         $this->assertSame($first['url'], $again['url']);
 
-        // Four more versions of the draft: only the last few renders keep a token.
+        // More versions of the draft than are kept: only the last few renders keep a token.
         $tokens = [$this->token($first['url'])];
 
-        foreach (range(1, 4) as $n) {
+        foreach (range(1, PagePreview::KEEP) as $n) {
             $changed = $this->sessions()->find($session->id);
             $changed->draft = str_replace('Small Yards', 'Small Yards '.$n, self::DRAFT);
             $this->sessions()->save($changed);
@@ -161,11 +162,11 @@ final class PagePreviewTest extends TestCase
 
         $this->assertNull(Token::find($tokens[0]), 'The oldest render kept its token.');
         $this->assertNull(Cache::get('statamic.live-preview.'.$tokens[0]));
-        $this->assertNotNull(Token::find($tokens[4]));
+        $this->assertNotNull(Token::find(end($tokens)));
 
         // Deleting the piece deletes its renders' tokens.
         $this->deleteJson(cp_route('ghostwriter.sessions.destroy', $session->id))->assertOk();
-        $this->assertNull(Token::find($tokens[4]));
+        $this->assertNull(Token::find(end($tokens)));
     }
 
     public function test_a_template_that_fails_shows_a_page_the_panel_can_read(): void
