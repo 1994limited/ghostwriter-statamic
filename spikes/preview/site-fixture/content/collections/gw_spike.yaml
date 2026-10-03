@@ -1,0 +1,5 @@
+title: 'GW spike (temporary)'
+route: '/gw-spike/{slug}'
+template: gw_spike/show
+layout: layout
+revisions: false

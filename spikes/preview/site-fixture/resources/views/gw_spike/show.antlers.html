@@ -1,0 +1,23 @@
+{{# GW spike template (temporary): content blocks, then saved-entry assumptions #}}
+{{ if live_preview }}<p class="meta" id="gw-flag">live_preview={{ live_preview:ghostwriter ? 'ghostwriter' : 'cms' }}</p>{{ /if }}
+<article>
+  <section class="hero"><h1>{{ title }}</h1><p>{{ intro }}</p><p class="meta" id="mods">{{ intro | truncate:40 }} | {{ intro | upper }} | {{ intro | widont }} | {{ intro | smartypants }} | {{ intro | title }} | {{ intro | slugify }}</p></section>
+  <div class="body">
+  {{ body }}
+    {{ if type == 'text' }}{{ text }}
+    {{ elseif type == 'pull_quote' }}<blockquote class="set-pq">{{ quote }}<cite>{{ attribution }}</cite></blockquote>
+    {{ elseif type == 'photo' }}<figure class="set-photo">{{ image }}<img src="{{ glide:url width='800' }}" alt="">{{ /image }}</figure>
+    {{ elseif type == 'stats' }}<ul class="set-stats">{{ items }}<li><b>{{ value }}</b> {{ label }}</li>{{ /items }}</ul>
+    {{ /if }}
+  {{ /body }}
+  </div>
+  {{ partial src="default" }}
+</article>
+<aside id="assumptions">
+  <p>id=[{{ id }}] url=[{{ url }}] permalink=[{{ permalink }}] parent=[{{ parent:title }}] edit_url=[{{ edit_url }}]</p>
+  <p>related: {{ collection:journal limit="2" :not_in="id" }}<a href="{{ url }}">{{ title }}</a> {{ /collection:journal }}</p>
+  {{ if get:assume || intro == 'np' }}<p>next: {{ collection:next in="journal" as="n" }}{{ n }}{{ title }}{{ /n }}{{ /collection:next }} prev: {{ collection:previous in="journal" as="p" }}{{ p }}{{ title }}{{ /p }}{{ /collection:previous }}</p>{{ /if }}
+</aside>
+{{ if !live_preview }}<script id="analytics">/* would load analytics */</script>{{ /if }}
+<form method="post" action="/!/forms/contact" id="spike-form"><input name="x"><button>Send</button></form>
+<script src="https://analytics.example.invalid/gtm.js?id=GTM-TEST"></script>

@@ -1,0 +1,146 @@
+title: 'GW spike'
+tabs:
+  main:
+    display: Main
+    sections:
+      -
+        fields:
+          - { handle: title, field: { type: text, display: Title } }
+          - { handle: intro, field: { type: textarea, display: Intro } }
+          -
+            handle: body
+            field:
+              type: bard
+              display: Body
+              container: assets
+              save_html: false
+              buttons: [h2, h3, bold, italic, unorderedlist, orderedlist, quote, anchor]
+              sets:
+                main:
+                  display: Main
+                  sets:
+                    pull_quote: { display: 'Pull quote', fields: [ { handle: quote, field: { type: textarea } }, { handle: attribution, field: { type: text } } ] }
+                    photo: { display: Photo, fields: [ { handle: image, field: { type: assets, container: assets, max_files: 1 } } ] }
+                    stats: { display: Stats, fields: [ { handle: items, field: { type: grid, fields: [ { handle: value, field: { type: text } }, { handle: label, field: { type: text } } ] } } ] }
+          -
+            handle: page_builder
+            field:
+              type: replicator
+              display: 'Page builder'
+              collapse: false
+              previews: true
+              sets:
+                blocks:
+                  display: Blocks
+                  sets:
+                    hero:
+                      display: Hero
+                      fields:
+                        -
+                          handle: heading
+                          field:
+                            type: text
+                            display: Heading
+                        -
+                          handle: subheading
+                          field:
+                            type: textarea
+                            display: Subheading
+                        -
+                          handle: image
+                          field:
+                            type: assets
+                            display: Image
+                            container: assets
+                            folder: pages
+                            max_files: 1
+                        -
+                          handle: button_text
+                          field:
+                            type: text
+                            display: 'Button text'
+                            width: 50
+                        -
+                          handle: button_link
+                          field:
+                            type: link
+                            display: 'Button link'
+                            width: 50
+                    text:
+                      display: Text
+                      fields:
+                        -
+                          handle: text
+                          field:
+                            type: bard
+                            display: Text
+                            buttons:
+                              - h2
+                              - h3
+                              - bold
+                              - italic
+                              - unorderedlist
+                              - orderedlist
+                              - quote
+                              - anchor
+                            save_html: false
+                    image:
+                      display: Image
+                      fields:
+                        -
+                          handle: image
+                          field:
+                            type: assets
+                            display: Image
+                            container: assets
+                            folder: pages
+                            max_files: 1
+                        -
+                          handle: caption
+                          field:
+                            type: text
+                            display: Caption
+                    quote:
+                      display: Quote
+                      fields:
+                        -
+                          handle: quote
+                          field:
+                            type: textarea
+                            display: Quote
+                        -
+                          handle: attribution
+                          field:
+                            type: text
+                            display: Attribution
+                    cta:
+                      display: 'Call to action'
+                      fields:
+                        -
+                          handle: heading
+                          field:
+                            type: text
+                            display: Heading
+                        -
+                          handle: text
+                          field:
+                            type: textarea
+                            display: Text
+                        -
+                          handle: link_text
+                          field:
+                            type: text
+                            display: 'Link text'
+                            width: 50
+                        -
+                          handle: link
+                          field:
+                            type: link
+                            display: Link
+                            width: 50
+  sidebar:
+    display: Sidebar
+    sections:
+      -
+        fields:
+          - { handle: slug, field: { type: slug } }
