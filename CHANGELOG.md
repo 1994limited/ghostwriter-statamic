@@ -21,6 +21,9 @@ Requires `1994/ghostwriter-core` ^1.8 (layouts, extras and counts to check; and 
 - A new page in a collection whose kind is set to one blueprint previews again: reading the collection's entries no longer leaves the preview without its collection.
 - A preview is reused for the same draft even when the build gives new page-builder sets new IDs, so a page-builder draft (and each layout card) no longer renders afresh on every request. Up to eight renders are kept per piece.
 
+### Fixed
+- **Editing an entry in conversation keeps the sets in its Bard fields.** The draft only holds a Bard field's pull quotes, so applying an edit used to drop its other sets (images, stats and the like). Each now goes back after the words it followed, wherever a chosen layout put them; where those words were rewritten, back in its own field at about the same place, or at the end of a field the draft made shorter.
+
 ### Removed
 - **The Images section under a draft.** The writing panel no longer lists the draft's image fields with **Find a photo**, **Make the picture** and **Use the same image as**. It duplicated what happens on the form: **Use this draft** still puts the striped placeholder in each empty image field, and **Finish this page** turns each into a gap with **Find a photo** and **Choose from Assets** on the field, with stock libraries, previews and licensing. Asking in the conversation to add or make images still works, and those go into the form with the draft. The writer no longer searches for photos to offer with every first draft. Gone with it: `GET`/`POST sessions/{id}/photos`, `POST sessions/{id}/images` and `POST sessions/{id}/images/copy`, and `image_tools` and the photo options in a session's JSON. See [Images with a draft](docs/images.md#images-with-a-draft).
 

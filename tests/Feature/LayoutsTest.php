@@ -355,6 +355,61 @@ final class LayoutsTest extends TestCase
         $this->assertSame(['w'], array_column($this->sessions()->find($session->id)->plans, 'id'));
     }
 
+    public function test_editing_an_entry_under_another_layout_keeps_its_bard_sets_by_the_words_they_followed(): void
+    {
+        $this->signInWith(['access ghostwriter', 'view services entries', 'edit services entries', 'create services entries']);
+
+        // The text block's rich text can hold a photo, which no draft holds.
+        $blueprint = Blueprint::find('collections.services.service');
+        $fields = $blueprint->fields()->items()->all();
+        $fields[1]['field']['sets']['main']['sets']['text']['fields'][0]['field']['sets'] = ['main' => ['sets' => [
+            'photo' => ['display' => 'Photo', 'fields' => [['handle' => 'image', 'field' => ['type' => 'text']]]],
+        ]]];
+        $blueprint->setContents(['fields' => $fields])->save();
+
+        $paragraph = fn (string $text) => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
+        $heading = fn (string $text) => ['type' => 'heading', 'attrs' => ['level' => 2], 'content' => [['type' => 'text', 'text' => $text]]];
+
+        $entry = Entry::make()->collection('services')->slug('winter')->published(true)->data(['title' => 'Winter garden care', 'page_builder' => [
+            ['id' => 'hw', 'type' => 'hero', 'enabled' => true, 'heading' => 'Winter care for small gardens', 'intro' => 'Four visits, and the garden is ready for spring.'],
+            ['id' => 'tw', 'type' => 'text', 'enabled' => true, 'body' => [
+                $paragraph('We visit four times between November and February.'),
+                ['type' => 'set', 'attrs' => ['id' => 'ph', 'values' => ['type' => 'photo', 'image' => 'winter/borders.jpg']]],
+                $heading('What we do'),
+                $paragraph('Cut back, mulch and protect the borders.'),
+                $heading('Where we work'),
+                $paragraph('We cover Northumberland, Durham and the Tyne Valley.'),
+            ]],
+            ['id' => 'cw', 'type' => 'cta', 'enabled' => true, 'heading' => 'Book your winter visits', 'button' => 'Get in touch'],
+        ]]);
+        $entry->save();
+
+        $detail = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertOk()->json();
+        $this->assertStringNotContainsString('borders.jpg', $detail['draft']);
+
+        // An edit to the hero, then a layout with "Where we work" first: the
+        // first text block, the one matched to the entry's, no longer starts
+        // with the paragraph the photo followed.
+        $this->ai->respond('writer', "<reply>Done.</reply>\n<draft>\n".str_replace('Four visits, and the garden is ready for spring.', 'Four visits, and spring takes care of itself.', $detail['draft'])."\n</draft>");
+        $this->postJson(cp_route('ghostwriter.sessions.message', $detail['id']), ['message' => 'A warmer intro.'])->assertOk();
+        $this->runJob(new RunSessionTurn($detail['id']));
+
+        $this->ai->respond('layout-planner', "<plans>\n- name: Where first\n  description: Where we work, then the rest\n  page_builder:\n    - type: hero\n      place: { heading: u2, intro: u9 }\n    - type: text\n      place: { body: u6 }\n    - type: text\n      place: { body: [u4, u5] }\n    - type: cta\n      place: { heading: u7, button: u8 }\n</plans>");
+        $this->postJson(cp_route('ghostwriter.sessions.layouts.refresh', $detail['id']))->assertOk();
+        $this->patchJson(cp_route('ghostwriter.sessions.layout', $detail['id']), ['plan' => 'p1'])->assertOk();
+
+        $blocks = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']), ['values' => []])->assertOk()->json('values.page_builder');
+        $shape = fn (array $block) => array_map(fn (array $node) => $node['type'] === 'set' ? $node['attrs']['values']['type'] : $node['type'], $block['body']);
+
+        $this->assertSame(['hero', 'text', 'text', 'cta'], array_column($blocks, 'type'));
+        $this->assertSame('Four visits, and spring takes care of itself.', $blocks[0]['intro']);
+        $this->assertSame(['heading', 'paragraph'], $shape($blocks[1]));
+        $this->assertSame(['paragraph', 'photo', 'heading', 'paragraph'], $shape($blocks[2]), 'the photo follows its paragraph into the second text block');
+        $this->assertSame(['ph', 'winter/borders.jpg'], [$blocks[2]['body'][1]['attrs']['id'], $blocks[2]['body'][1]['attrs']['values']['image']]);
+        $this->assertSame('Book your winter visits', $blocks[3]['heading']);
+        $this->assertSame(1, substr_count(json_encode($blocks), 'borders.jpg'), 'kept once');
+    }
+
     /**
      * A first draft written through the turn job, with extras and the
      * planner's two layouts.
