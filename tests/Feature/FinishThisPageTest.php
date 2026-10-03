@@ -5,7 +5,9 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 use Illuminate\Support\Facades\Storage;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\Message;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Field;
+use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\FinishController;
 use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
@@ -114,6 +116,14 @@ class FinishThisPageTest extends TestCase
 
         $this->ai->assertNothingSent();
         $this->assertTrue(Entry::find('capacitor')->get('hero_image') === ContainerAssetSink::PATH, 'Nothing was saved.');
+    }
+
+    public function test_a_place_is_named_once(): void
+    {
+        $this->assertSame('Text', EntryGaps::place('Text: Text'));
+        $this->assertSame('Hero: Image', EntryGaps::place('Hero: Hero: Image'));
+        $this->assertSame('Image: Caption', EntryGaps::place('Image: Caption'));
+        $this->assertSame('I left a gap in Text: how long a visit lasts. I didn\'t want to guess. What should it say?', app(EntryGaps::class)->text(new Message('gaps.ask', ['label' => 'Text: Text', 'hint' => 'how long a visit lasts'])));
     }
 
     public function test_the_check_needs_the_entry_to_be_theirs_to_edit_and_ghostwriter_on_the_collection(): void

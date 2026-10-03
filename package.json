@@ -3,7 +3,8 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "test": "node --test resources/js/finish/*.test.js"
     },
     "devDependencies": {
         "@statamic/cms": "file:./vendor/statamic/cms/resources/dist-package",

@@ -118,9 +118,11 @@
     line-height: 18px;
     cursor: pointer;
 }
-[data-gw-gap="current"] > .gw-f-tag { background: var(--gw-f-purple); color: #fff; }
-[data-gw-gap="fixed"] > .gw-f-tag { background: var(--gw-f-green); color: #fff; }
-.dark [data-gw-gap="fixed"] > .gw-f-tag { color: #06301c; }
+/* Beside the field's name: clear of its border and of the CMS's buttons. */
+.gw-f-tag.is-inline { position: static; margin-inline-start: 8px; vertical-align: 1px; white-space: nowrap; }
+[data-gw-gap="current"] .gw-f-tag { background: var(--gw-f-purple); color: #fff; }
+[data-gw-gap="fixed"] .gw-f-tag { background: var(--gw-f-green); color: #fff; }
+.dark [data-gw-gap="fixed"] .gw-f-tag { color: #06301c; }
 .gw-f-tag:focus-visible { outline: 2px solid var(--gw-f-ink); outline-offset: 2px; }
 
 /* Inside Bard: a dashed underline on the marker, purple when current. */

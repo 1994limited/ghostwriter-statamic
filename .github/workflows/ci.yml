@@ -65,3 +65,19 @@ jobs:
 
       - name: Tests
         run: vendor/bin/phpunit
+
+  js:
+    name: Guide logic (Node)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The Finish this page guide's state and DOM helpers have no
+      # dependencies, so Node's own test runner is enough: no install.
+      - name: Tests
+        run: node --test resources/js/finish/*.test.js
