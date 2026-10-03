@@ -181,16 +181,18 @@ class StockLibraries
      * up but can't be searched, marked to connect in Settings.
      *
      * `label` is for the select ("Demo stock (no charge)"); `short` for running
-     * text ("Demo").
+     * text ("Demo"). `editorial` says whether the choice can return editorial
+     * images (core's Capabilities::$editorial), so the dialog offers
+     * "Include editorial images" only where it means something.
      *
-     * @return array<int, array{value: string, label: string, short?: string, paid: bool, disabled?: bool}>
+     * @return array<int, array{value: string, label: string, short?: string, paid: bool, editorial: bool, disabled?: bool}>
      */
     public function choices(bool $manager = false): array
     {
         $choices = [];
 
         if ($this->free->sources() !== []) {
-            $choices[] = ['value' => self::FREE, 'label' => __('Free libraries'), 'paid' => false];
+            $choices[] = ['value' => self::FREE, 'label' => __('Free libraries'), 'paid' => false, 'editorial' => false];
         }
 
         foreach ($this->configured() as $id => $library) {
@@ -199,14 +201,14 @@ class StockLibraries
             }
 
             if ($library->available()) {
-                $choices[] = ['value' => $id, 'label' => $library->label(), 'short' => $this->shortLabel($id), 'paid' => true];
+                $choices[] = ['value' => $id, 'label' => $library->label(), 'short' => $this->shortLabel($id), 'paid' => true, 'editorial' => $library->capabilities()->editorial];
             } elseif ($manager) {
-                $choices[] = ['value' => $id, 'label' => __(':library (connect in Settings)', ['library' => $library->label()]), 'short' => $this->shortLabel($id), 'paid' => true, 'disabled' => true];
+                $choices[] = ['value' => $id, 'label' => __(':library (connect in Settings)', ['library' => $library->label()]), 'short' => $this->shortLabel($id), 'paid' => true, 'editorial' => $library->capabilities()->editorial, 'disabled' => true];
             }
         }
 
         if ($this->paid() !== [] && $this->free->sources() !== []) {
-            $choices[] = ['value' => self::EVERYTHING, 'label' => __('Everything'), 'paid' => true];
+            $choices[] = ['value' => self::EVERYTHING, 'label' => __('Everything'), 'paid' => true, 'editorial' => array_filter($this->paid(), fn ($library) => $library->capabilities()->editorial) !== []];
         }
 
         return $choices;

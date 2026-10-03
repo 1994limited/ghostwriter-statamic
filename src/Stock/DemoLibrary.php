@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Stock;
 
+use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Capabilities;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Cost;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Offer;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Quote;
@@ -39,7 +40,9 @@ class DemoLibrary
 
     public static function make(): FakeLibrary
     {
-        $library = new FakeLibrary(self::ID);
+        // A creative-only library, like most plans: "Include editorial
+        // images" isn't offered for it.
+        $library = new FakeLibrary(self::ID, capabilities: Capabilities::paid(Capabilities::QUOTES_BALANCE, 30, termsCheckedAt: '2026-10-02'));
 
         foreach (self::PHOTOS as $id => [$title, $width, $height, $restrictions]) {
             $library->withPhotos(new Photo(
