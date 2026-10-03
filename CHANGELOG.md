@@ -4,7 +4,7 @@
 
 ### Added
 - **Stock image ledger.** Every photo Ghostwriter puts into the site from a photo library is recorded: the library and photo, the asset, its licence and credit, who added it and when, and where it is used. One YAML file per record in `content/ghostwriter/stock/` (`ghostwriter.stock_path`), so it is committed with the site. Records are never deleted.
-- **Stock photos settings.** A Stock photos section on the settings screen: a row for each paid library with whether its keys are set in `.env` (never the keys), **Check connection** (the account and what it can still buy), a switch for each library set up, the default source for "Search in", "Include editorial images by default", and what happens when a page with an unlicensed preview is published (Block or Warn; `stock.on_publish` in config wins). Getty Images, iStock and Shutterstock are listed as coming: their keys can be set now.
+- **Stock photos settings.** A Stock photos section on the settings screen: a row for each paid library with whether its keys are set in `.env` (never the keys), **Check connection** (the account and what it can still buy), a switch for each library set up, the default source for "Search in", "Include editorial images by default", and what happens when a page with an unlicensed preview is published (Block or Warn; `stock.on_publish` in config wins). Getty Images and iStock are listed as coming: their keys can be set now.
 - **Demo stock (no charge)**: a pretend paid library for trying the whole preview and licence flow. Only on a local site (or where `stock.demo` turns it on), never in production.
 - **Search in** in the image dialog's Find a photo tab: the free libraries, a paid library, or everything (each library's best taking turns). Each person's last choice is remembered. Result cards show the library and the cost ("Free", "1 download", "3 credits", or "Paid"), and an **Editorial** chip with its restrictions; editorial images are left out unless "Include editorial images" is ticked. Paid results are never judged by a model and come in the library's own order, which the dialog says.
 - **Insert preview** for a paid photo: the field gets a labelled stand-in image (with the photo's title, alt text and aspect ratio), the library's watermarked comp is kept privately for signed-in editors, and the ledger records it as a preview. "Preview added. Only signed-in editors see the photo; license it before publishing."
@@ -20,9 +20,11 @@
 - A **License stock images** permission, given to nobody by default (super users have it), since licensing spends from the site's account.
 - Where each ledger image is used is kept up to date as entries are saved (inside Replicator and Bard sets too), as assets are moved or renamed, and when an asset is deleted. `php please ghostwriter:stock-usages` rescans every entry.
 
+- **Shutterstock**, licensed from your own API plan: set `SHUTTERSTOCK_API_KEY` and `SHUTTERSTOCK_API_SECRET`, then **Connect account** on the settings screen (sign in with Shutterstock; **Disconnect** to forget it). The connection's tokens are kept encrypted with the app key. Shutterstock previews are never stored: editors see Shutterstock's own watermarked preview. On a local site it uses Shutterstock's sandbox (`stock.shutterstock_sandbox`). If the connection is lost, licensing says so, with **Connect again in Settings**.
+
 ### Changed
 - **Drafts start unpublished.** **Use this draft** on a new entry, or one that isn't published, switches the form's Published toggle off, so the entry can be saved straight away and goes live only when someone switches it on. An entry already published is left as it is. Config `drafts_unpublished` (default `true`).
-- Requires `1994/ghostwriter-core` 1.1.
+- Requires `1994/ghostwriter-core` 1.2.
 - Images from a paid library (and any file named or credited as Getty Images or iStock) are never sent to a model: not as references when finding or making a picture, nor as samples for the image style guide.
 
 ## 1.0.1 - 2026-10-02

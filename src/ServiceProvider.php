@@ -29,6 +29,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\ModelInputGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImages;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImageStore;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Ports\LibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\LayoutOptions;
@@ -44,6 +45,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\StockPreviewsInLivePreview;
+use NineteenNinetyFour\Ghostwriter\Stock\EncryptedLibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
 use NineteenNinetyFour\Ghostwriter\Storage\FileGuideStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileImageRequestStore;
@@ -171,6 +173,8 @@ class ServiceProvider extends AddonServiceProvider
         // The stock image ledger: one YAML file per record under content/,
         // read once per request while unchanged.
         $this->app->singletonIf(StockImageStore::class, FileStockImageStore::class);
+        // Paid libraries' connected-account tokens, encrypted with the app key.
+        $this->app->bindIf(LibraryTokens::class, EncryptedLibraryTokens::class);
         $this->app->bind(DomainOptions::class, fn ($app) => DomainOptions::statamic(
             shared: (bool) config('ghostwriter.shared_conversations', true),
             jobTimeout: $app->make(Settings::class)->timeout(),

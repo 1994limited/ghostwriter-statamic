@@ -27,6 +27,7 @@ export default {
             loading: false,
             busy: false,
             error: null,
+            connectUrl: null,
         };
     },
 
@@ -62,6 +63,7 @@ export default {
                 this.option = this.confirm.options[0]?.option ?? null;
             } catch (error) {
                 this.error = error.message;
+                this.connectUrl = error.response?.data?.connect_url ?? null;
             } finally {
                 this.loading = false;
             }
@@ -83,6 +85,7 @@ export default {
                 const data = error.response?.data ?? {};
 
                 this.error = data.message ?? error.message;
+                this.connectUrl = data.connect_url ?? null;
 
                 if (data.stock) this.$emit('changed', data.stock);
 
@@ -133,6 +136,7 @@ export default {
             </template>
 
             <Alert v-if="error" variant="error" :text="error" />
+            <p v-if="connectUrl" class="text-sm"><a :href="connectUrl" class="underline">{{ __('Connect again in Settings') }}</a></p>
 
             <div class="flex justify-end gap-2">
                 <Button :text="__('Cancel')" :disabled="busy" @click="$emit('update:open', false)" />
