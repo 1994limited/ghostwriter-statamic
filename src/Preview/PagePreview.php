@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\Units;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
-use NineteenNinetyFour\Ghostwriter\Core\Gaps\Markers;
 use NineteenNinetyFour\Ghostwriter\Core\Preview\PreviewData;
 use NineteenNinetyFour\Ghostwriter\Core\Preview\PreviewMarkers;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
@@ -115,27 +114,10 @@ class PagePreview
             $units = $units->restore($session->units);
         }
 
-        // Core marks the text and sections; Bard's sets are mapped here.
-        return (new BardSetMarkers)->mark((new PreviewMarkers)->mark(self::readable($built->data), $built->schema, $units), $built->schema);
-    }
-
-    /**
-     * A count still to check ("[[check: 3 areas | from: …]]") as the page
-     * will say it ("3 areas"), in the preview's copy only: apply keeps the
-     * marker for Finish this page, and the extras list says it needs review.
-     *
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    public static function readable(array $data): array
-    {
-        array_walk_recursive($data, function (mixed &$value) {
-            if (is_string($value) && str_contains($value, '[[')) {
-                $value = Markers::withoutChecks($value);
-            }
-        });
-
-        return $data;
+        // Core marks the text and sections; Bard's sets are mapped here. Gap
+        // markers stay as they are: the panel shows them as chips in the
+        // frame (core's markers.js), and apply keeps them for Finish this page.
+        return (new BardSetMarkers)->mark((new PreviewMarkers)->mark($built->data, $built->schema, $units), $built->schema);
     }
 
     /**

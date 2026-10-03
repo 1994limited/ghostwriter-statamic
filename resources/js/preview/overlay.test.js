@@ -1,7 +1,7 @@
 // The preview overlay's logic, in Node with no DOM: node --test resources/js/preview/*.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cancelLinks, debounce, depthOf, innermost, labelFor, pageTitle, previewError, tighten } from './overlay.js';
+import { cancelLinks, debounce, depthOf, gapLabels, innermost, labelFor, pageTitle, previewError, tighten } from './overlay.js';
 
 const map = {
     f3: { key: 'f3', label: 'Body', parent: null },
@@ -110,4 +110,16 @@ test('an image-only set is only the element showing its image, and a set found b
     tighten(result, [], byKey);
 
     assert.deepEqual(result.regions.map((region) => region.elements.map((e) => e.name)), [['figure'], ['ul']]);
+});
+
+test('the frame bar’s title shows a gap marker as its words', () => {
+    assert.equal(pageTitle({ title: 'Tickets from [[ask: adult ticket price]]\u{E0067}\u{E0077}\u{E0066}\u{E0031}\u{E007F}' }), 'Tickets from adult ticket price');
+});
+
+test('the chips’ words go through the panel’s translator', () => {
+    const labels = gapLabels((text) => `«${text}»`);
+
+    assert.equal(labels.ask, '«Only you know this: add it before publishing»');
+    assert.equal(labels.check, '«Counted from \':list\'. Check it before publishing»');
+    assert.deepEqual(Object.keys(labels).sort(), ['ask', 'askRow', 'askSpoken', 'check', 'checkRow', 'checkSpoken', 'link', 'linkRow', 'linkSpoken']);
 });

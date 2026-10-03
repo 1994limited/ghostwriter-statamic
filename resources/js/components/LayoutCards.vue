@@ -18,7 +18,8 @@
 -->
 <script>
 import { Button } from '@statamic/cms/ui';
-import { debounce } from '../preview/overlay.js';
+import { debounce, gapLabels } from '../preview/overlay.js';
+import { markGaps } from '../preview/markers.js';
 import { canRead, locate, measure } from '../preview/locator.js';
 import { THUMB_HEIGHT, THUMB_RENDER_WIDTH, cardName, cardsFor, moveTo, sharedStart, startBlock, thumbOrder, thumbScale } from '../preview/layouts.js';
 
@@ -153,16 +154,23 @@ export default {
         },
 
         // A thumbnail starts a little above the first block where the
-        // layouts differ. The frame runs no scripts; it's read from here.
+        // layouts differ, with its gap markers as chips, as on the Preview
+        // tab. The frame runs no scripts; it's read from here.
         focus(card, event) {
             const frame = event.target;
             const key = startBlock(this.thumbs[card.id]?.map, sharedStart(this.row.cards));
 
-            if (!key || !canRead(frame)) return;
+            if (!canRead(frame)) return;
 
             try {
                 const doc = frame.contentDocument;
-                const box = measure(locate(doc, this.thumbs[card.id].map).byKey[key], doc.defaultView);
+                const result = locate(doc, this.thumbs[card.id]?.map ?? []);
+
+                markGaps(doc, { labels: gapLabels((text) => this.__(text)) });
+
+                if (!key) return;
+
+                const box = measure(result.byKey[key], doc.defaultView);
 
                 if (box) doc.defaultView.scrollTo(0, Math.max(0, box.top - 48));
             } catch (error) {

@@ -15,10 +15,14 @@
       last version.
     - Hovering the page outlines each block with its name (overlay.js, over
       core's locator). Links in the frame do nothing.
+    - Gap markers show as chips, not raw text: an amber chip for a fact to
+      add, a dotted underline for a count to check, a dashed underline for
+      a link to choose, each with a tooltip (core's markers.js). They are
+      only shown: the draft keeps its markers.
 -->
 <script>
 import { Button } from '@statamic/cms/ui';
-import { attach, debounce, previewError } from '../preview/overlay.js';
+import { attach, debounce, gapLabels, previewError } from '../preview/overlay.js';
 
 const PHONE_WIDTH = 390;
 const DESKTOP_MIN = 1024;
@@ -232,7 +236,7 @@ export default {
             }
 
             const anchor = this.current ? this.overlays.get(this.current.id)?.nearestTop() : null;
-            const overlay = entry.sameOrigin ? attach(frame, entry.map, { titleKey: entry.titleKey, scale: this.frameBox.scale }) : null;
+            const overlay = entry.sameOrigin ? attach(frame, entry.map, { titleKey: entry.titleKey, scale: this.frameBox.scale, labels: gapLabels((text) => this.__(text)) }) : null;
 
             if (entry.sameOrigin && !overlay) {
                 this.next = null;

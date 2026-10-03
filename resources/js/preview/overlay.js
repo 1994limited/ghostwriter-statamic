@@ -19,8 +19,13 @@
 //   no allow-forms, and the preview's policy has `form-action 'none'`.
 // - The title's marker is usually only in <title>: it is read from there for
 //   the frame's bar, not listed as a block missing from the page.
+// - Gap markers the site's templates print as they are (`[[ask: …]]`,
+//   `[[check: …]]`, `#gw-link:` links) are shown as chips once the locator
+//   has placed the blocks (core's markers.js, copied as it is), so each chip
+//   is inside its block's region. Display only: nothing is saved.
 
 import { canRead, findMarkers, locate, measure, watch, words } from './locator.js';
+import { countByRegion, markGaps, toPlainText } from './markers.js';
 
 export const ERROR_META = 'ghostwriter-preview-error';
 
@@ -52,7 +57,25 @@ export function previewError(doc) {
 
 /** The page's title as the frame's bar shows it: the marker-free document title. */
 export function pageTitle(doc) {
-    return String(doc?.title ?? '').replace(/[\u{E0000}-\u{E007F}]/gu, '').trim();
+    return toPlainText(String(doc?.title ?? '').replace(/[\u{E0000}-\u{E007F}]/gu, '')).trim();
+}
+
+/**
+ * The chips' words in the panel's language, for core's markers.js. `t` is
+ * Statamic's __().
+ */
+export function gapLabels(t = (text) => text) {
+    return {
+        ask: t('Only you know this: add it before publishing'),
+        check: t('Counted from \':list\'. Check it before publishing'),
+        link: t('Link to choose'),
+        askSpoken: t('Fact to add:'),
+        checkSpoken: t('Count to check:'),
+        linkSpoken: t('(link to choose)'),
+        askRow: t('Add: :hint'),
+        checkRow: t('Check: :hint'),
+        linkRow: t('Choose a link: :hint'),
+    };
 }
 
 /**
@@ -192,10 +215,11 @@ export function debounce(callback, wait) {
  *
  * `scale` is how much the frame is shown scaled down, so labels stay
  * readable. Returns null when the frame can't be read (cross-origin, or
- * refused); otherwise {result, title, missing, partial, measureAll(),
- * setScale(), boxes(), hover(), nearestTop(), scrollToBlock(), stop()}.
+ * refused); otherwise {result, title, missing, partial, gaps(),
+ * gapCounts(), measureAll(), setScale(), boxes(), hover(), nearestTop(),
+ * scrollToBlock(), stop()}. `labels` are the gap chips' words (gapLabels()).
  */
-export function attach(frame, map, { titleKey = null, scale = 1, onChange = () => {} } = {}) {
+export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, onChange = () => {} } = {}) {
     if (!canRead(frame)) return null;
 
     const doc = frame.contentDocument;
@@ -206,6 +230,8 @@ export function attach(frame, map, { titleKey = null, scale = 1, onChange = () =
     let marks = findMarkers(doc).marks;
     const titleInHead = titleKey !== null && marks.some((mark) => mark.key === titleKey && !doc.body?.contains(mark.element));
     let result = tighten(locate(doc, map, { marks }), marks, byKey);
+    // Then the gap markers as chips, inside the regions just found.
+    let chips = markGaps(doc, { labels });
 
     const state = { hovered: null, boxes: [], stopped: false };
     const cleanups = [];
@@ -312,6 +338,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, onChange = () =
     const watcher = watch(doc, (found) => {
         marks = [...marks, ...found];
         result = tighten(locate(doc, map, { marks }), marks, byKey);
+        chips = markGaps(doc, { labels });
         later();
     });
     cleanups.push(() => watcher.stop());
@@ -328,6 +355,9 @@ export function attach(frame, map, { titleKey = null, scale = 1, onChange = () =
         titleInHead,
         missing,
         partial: () => result.partial,
+        // The gap chips on the page ({kind, hint, element}), and how many are in each block.
+        gaps: () => chips.slice(),
+        gapCounts: () => countByRegion(result.regions, chips),
         measureAll,
         setScale,
         boxes: () => state.boxes.slice(),

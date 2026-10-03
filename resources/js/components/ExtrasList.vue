@@ -7,9 +7,15 @@
     it on the form). Every part is editable in place, as the draft is, and
     ✕ deletes an item; neither calls a model. A layout uses an extra where
     it has room; one no layout uses never reaches the entry.
+
+    A fact to add or a count to check shows as a chip, not as its marker
+    (core's markers.js). Clicked to edit, the words are the item's own,
+    markers included, so nothing is saved with a chip in it.
 -->
 <script>
 import { changed, extraPayload, isStat, partLabel } from '../preview/layouts.js';
+import { gapLabels } from '../preview/overlay.js';
+import { has, injectStyles, toHtml } from '../preview/markers.js';
 
 export default {
     props: {
@@ -19,6 +25,11 @@ export default {
 
     // `edit` {id, payload, revert}; `remove` {id, label}.
     emits: ['edit', 'remove'],
+
+    created() {
+        this.labels = gapLabels((text) => this.__(text));
+        injectStyles(document);
+    },
 
     methods: {
         partLabel(part) {
@@ -39,7 +50,19 @@ export default {
             return field === 'text' ? item.text : item.parts?.[field] ?? '';
         },
 
-        enter(event) {
+        // The words with their markers as chips, escaped: for showing only.
+        shown(item, field) {
+            return toHtml(this.value(item, field), { labels: this.labels });
+        },
+
+        hasGaps(item, field) {
+            return has(this.value(item, field));
+        },
+
+        // Editing starts from the item's own words, markers and all.
+        enter(item, field, event) {
+            if (this.hasGaps(item, field)) event.target.innerText = this.value(item, field);
+
             event.target.dataset.was = event.target.innerText;
         },
 
@@ -50,9 +73,14 @@ export default {
 
             delete element.dataset.was;
 
-            if (was === undefined || !changed(item, field, value)) return;
+            if (was === undefined || !changed(item, field, value)) {
+                // Unchanged: back to the chips.
+                if (this.hasGaps(item, field)) element.innerHTML = this.shown(item, field);
 
-            this.$emit('edit', { id: item.id, payload: extraPayload(item, field, value.trim()), revert: () => (element.innerText = was) });
+                return;
+            }
+
+            this.$emit('edit', { id: item.id, payload: extraPayload(item, field, value.trim()), revert: () => (element.innerHTML = this.shown(item, field)) });
         },
 
         cancel(event) {
@@ -93,11 +121,11 @@ export default {
                                 :role="editable ? 'textbox' : null"
                                 :aria-label="editable ? `${extra.label}: ${field === 'text' ? __('Text') : partLabel(field)}` : null"
                                 spellcheck="true"
-                                @focus="enter"
+                                @focus="enter(item, field, $event)"
                                 @blur="leave(item, field, $event)"
                                 @keydown.esc.stop.prevent="cancel"
                                 @keydown.enter="finish"
-                                v-text="value(item, field)"
+                                v-html="shown(item, field)"
                             />
                         </div>
                         <p v-if="item.count_label" class="text-xs text-gray-500">{{ item.count_label }}</p>

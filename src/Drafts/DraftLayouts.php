@@ -379,8 +379,9 @@ class DraftLayouts
         return array_map(function (Extra $extra) use ($used, $text, $name) {
             $items = array_map(fn (ExtraItem $item) => [
                 'id' => $item->id,
-                'text' => Markers::withoutChecks($item->text),
-                'parts' => array_map(fn (string $part) => Markers::withoutChecks($part), $item->parts),
+                // Markers and all: the extras list shows asks and counts to check as chips.
+                'text' => $item->text,
+                'parts' => $item->parts,
                 'source' => $this->source($item->source),
                 'state' => $item->needsReview() ? 'needs-review' : ($item->needsAnswer() ? 'needs-answer' : null),
                 'state_label' => ($state = $item->state()) ? $text->text($state) : null,

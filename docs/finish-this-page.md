@@ -41,6 +41,10 @@ When an entry has something to finish, a count appears beside **Save** ("5 thing
 
 Each highlighted field has a numbered tag ("2 · Needs a link"); click it to go to that step. Inside Bard, the marker itself is underlined with a dashed line, so you can see exactly where the gap is.
 
+A plain text box (a text field, or a cell of a Grid or Table) can't underline part of its text, so one holding a gap gets a row of small chips under it, one per gap: "Add: years trading", "Check: 3", "Choose a link: contact page". The field keeps its highlight and tag. The chips follow your typing, and they're never part of the value.
+
+![A Grid's cells, each with a chip under it naming its gap](images/finish-grid-chips.png)
+
 ### The guide
 
 Click the count, or the Ghostwriter button in the bottom corner, to open the guide. It shows one gap at a time: what's missing, and what you can do about it. It opens the field's tab, expands a collapsed set and scrolls to it, and the Ghostwriter mark flies over to point at it.
