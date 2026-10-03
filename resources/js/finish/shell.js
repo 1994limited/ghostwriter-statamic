@@ -669,7 +669,7 @@ export class FinishGuide {
         const to = shown ? this.target(step) : null;
 
         this.flyer.hidden = false;
-        this.flyer.classList.remove('is-arrived', 'is-home');
+        this.flyer.classList.remove('is-arrived', 'is-home', 'is-away');
 
         if (!to) {
             this.flyHome();
@@ -681,7 +681,9 @@ export class FinishGuide {
 
         this.tilt.style.transform = this.still ? '' : `rotate(${tilt}deg)`;
         this.flyer.style.transform = `translate(${to.x}px, ${to.y}px)`;
-        this.say.textContent = step.gap.speech;
+        // The tag beside the field already says what it needs; the mark just
+        // says hello.
+        this.say.textContent = this.greeting(step);
         this.lastX = to.x;
         this.flying = step;
 
@@ -689,6 +691,12 @@ export class FinishGuide {
             this.flyer.classList.add('is-arrived');
             this.tilt.style.transform = '';
         }, this.still ? 0 : 900);
+    }
+
+    greeting(step) {
+        const lines = [this.t('Your turn'), this.t('Over here'), this.t('This one')];
+
+        return lines[Math.max(0, this.steps.indexOf(step)) % lines.length];
     }
 
     // Beside the guide: when done, when the field can't be shown, or on the
@@ -733,6 +741,9 @@ export class FinishGuide {
         if (this.flyer.hidden || !this.flying) return;
 
         const to = this.target(this.flying);
+
+        // Its field scrolled out of sight: the mark fades until it's back.
+        this.flyer.classList.toggle('is-away', !to);
 
         if (!to) return;
 

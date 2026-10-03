@@ -14,7 +14,7 @@
     --gw-f-amber-tag: #f5b445;
     --gw-f-amber-tag-ink: #3a2600;
     --gw-f-purple: #5b4cf0;
-    --gw-f-purple-fill: rgb(91 76 240 / 0.08);
+    --gw-f-purple-fill: rgb(91 76 240 / 0.04);
     --gw-f-purple-ink: #4334d6;
     --gw-f-green: #137a4b;
     --gw-f-green-fill: rgb(76 195 138 / 0.12);
@@ -33,13 +33,13 @@
 
 .dark {
     --gw-f-amber: #f5b445;
-    --gw-f-amber-fill: rgb(245 180 69 / 0.12);
-    --gw-f-amber-line: rgb(245 180 69 / 0.45);
+    --gw-f-amber-fill: rgb(245 180 69 / 0.06);
+    --gw-f-amber-line: rgb(245 180 69 / 0.55);
     --gw-f-purple: #7d70ff;
-    --gw-f-purple-fill: rgb(91 76 240 / 0.18);
+    --gw-f-purple-fill: rgb(125 112 255 / 0.06);
     --gw-f-purple-ink: #cfc9ff;
     --gw-f-green: #4cc38a;
-    --gw-f-green-fill: rgb(76 195 138 / 0.14);
+    --gw-f-green-fill: rgb(76 195 138 / 0.07);
     --gw-f-green-line: rgb(76 195 138 / 0.4);
     --gw-f-surface: #26262c;
     --gw-f-surface-line: #3d3d46;
@@ -93,13 +93,17 @@
 [data-gw-gap] {
     position: relative;
     scroll-margin-top: 96px;
-    border-radius: 10px;
-    box-shadow: 0 0 0 8px var(--gw-f-amber-fill), 0 0 0 9px var(--gw-f-amber-line);
+    border-radius: 8px;
+    /* A 1px line just outside the field, with a light tint inside it; the
+       current field's line is 2px. An outline, so it adds no width and the
+       set around the field never clips it. */
+    outline: 1px solid var(--gw-f-amber-line);
+    outline-offset: 4px;
     background: var(--gw-f-amber-fill);
-    transition: box-shadow 0.25s, background 0.25s;
+    transition: outline-color 0.25s, background 0.25s;
 }
-[data-gw-gap="current"] { box-shadow: 0 0 0 8px var(--gw-f-purple-fill), 0 0 0 10px var(--gw-f-purple); background: var(--gw-f-purple-fill); }
-[data-gw-gap="fixed"] { box-shadow: 0 0 0 8px var(--gw-f-green-fill), 0 0 0 9px var(--gw-f-green-line); background: var(--gw-f-green-fill); }
+[data-gw-gap="current"] { outline: 2px solid var(--gw-f-purple); background: var(--gw-f-purple-fill); }
+[data-gw-gap="fixed"] { outline-color: var(--gw-f-green-line); background: var(--gw-f-green-fill); }
 
 .gw-f-tag {
     position: absolute;
@@ -118,6 +122,7 @@
     line-height: 18px;
     cursor: pointer;
 }
+
 /* Beside the field's name: clear of its border and of the CMS's buttons. */
 .gw-f-tag.is-inline { position: static; margin-inline-start: 8px; vertical-align: 1px; white-space: nowrap; }
 [data-gw-gap="current"] .gw-f-tag { background: var(--gw-f-purple); color: #fff; }
@@ -137,8 +142,8 @@
 
 /* Windows high contrast: system colours, still not colour alone (the tag text says). */
 @media (forced-colors: active) {
-    [data-gw-gap] { outline: 2px solid Mark; box-shadow: none; }
-    [data-gw-gap="current"] { outline: 3px solid Highlight; }
+    [data-gw-gap] { outline: 1px solid Mark; }
+    [data-gw-gap="current"] { outline: 2px solid Highlight; }
     .gw-gap-mark { border-bottom: 2px dashed Mark; }
     .gw-gap-mark.is-current { border-bottom-color: Highlight; }
 }
@@ -185,7 +190,8 @@
 
 .gw-f-msg { margin: 0 0 8px; font-size: 13.5px; outline: none; }
 .gw-f .gw-f-msg:focus-visible { outline: none; }
-.gw-f-flyer.is-covered { opacity: 0; }
+.gw-f-flyer.is-covered,
+.gw-f-flyer.is-away { opacity: 0; }
 .gw-f-reason { margin: 0 0 10px; color: var(--gw-f-muted); font-size: 12px; }
 .gw-f-fixed { margin: 0 0 6px; color: var(--gw-f-green); font-weight: 600; font-size: 12px; }
 
@@ -387,7 +393,5 @@
     .gw-f-pill { padding: 0 10px; }
     .gw-f-pill-text { display: none; }
     .gw-f-pill-n { display: inline; }
-    [data-gw-gap] { box-shadow: 0 0 0 4px var(--gw-f-amber-fill), 0 0 0 5px var(--gw-f-amber-line); }
-    [data-gw-gap="current"] { box-shadow: 0 0 0 4px var(--gw-f-purple-fill), 0 0 0 6px var(--gw-f-purple); }
-    [data-gw-gap="fixed"] { box-shadow: 0 0 0 4px var(--gw-f-green-fill), 0 0 0 5px var(--gw-f-green-line); }
+    [data-gw-gap] { outline-offset: 3px; }
 }
