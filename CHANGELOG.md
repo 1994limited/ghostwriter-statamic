@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Requires `1994/ghostwriter-core` ^1.7 (the page preview's markers, block map and locator).
+
+### Added
+- **The page preview's rendering.** `POST sessions/{id}/preview` renders the unsaved draft through the site's own templates with Statamic's Live Preview: exactly the data **Use this draft** would put into the form, with invisible markers in the preview's copy only, so the panel can map the page back to its blocks. A new entry is an unsaved `PreviewEntry` with a preview-only id and the URI it will have (in a structured collection: its parent's plus its slug); an entry being edited is a copy with the draft over it. Nothing is saved: no entry, no placeholder image, and the session isn't marked as used. Renders are reused for an unchanged draft (by the preview data's hash), a few per piece for ten minutes; older tokens, and a deleted piece's, are deleted.
+- **Ghostwriter's preview responses** (only those) get a Content-Security-Policy that blocks third-party scripts and their beacons, added beside any policy already there (Statamic's multisite `frame-ancestors` included); `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`, `Cache-Control: private, no-store` and `X-Frame-Options: SAMEORIGIN`. Templates can test `{{ live_preview:ghostwriter }}`. Tags that load the current entry by id (`collection:next`, `previous`, `older`, `newer`) work for an entry never saved. A template that fails shows a short page the panel reads, rather than an error page. New config: `preview.enabled`, `preview.script_hosts`, `preview.timeout`.
+
+### Changed
+- Apply's mapping is now `Drafts\DraftValues`, shared with the preview; apply's results are unchanged.
+
 ## 1.2.0 - 2026-10-03
 
 Requires `1994/ghostwriter-core` ^1.6.1, which no longer brackets quoted titles or figures you gave in a filled-in brief.

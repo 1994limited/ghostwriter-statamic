@@ -14,6 +14,10 @@ use Throwable;
  * field's own asset container, at `ghostwriter/image-placeholder.png`,
  * titled and described as a placeholder. One file is made per container
  * and reused, so the asset library does not fill up with copies.
+ *
+ * The page preview saves nothing, so it uses one that only takes the
+ * placeholder already in the container (`new ContainerAssetSink(create:
+ * false)`): where there is none yet, the image is left empty.
  */
 class ContainerAssetSink implements AssetSink
 {
@@ -21,6 +25,8 @@ class ContainerAssetSink implements AssetSink
 
     /** @var array<string, string|null> The placeholder's path by container. */
     private array $assets = [];
+
+    public function __construct(private bool $create = true) {}
 
     public function placeholder(Field $field, callable $png): string|int|null
     {
@@ -61,6 +67,10 @@ class ContainerAssetSink implements AssetSink
         try {
             if ($container->asset(self::PATH)) {
                 return self::PATH;
+            }
+
+            if (! $this->create) {
+                return null;
             }
 
             $container->disk()->put(self::PATH, $png());

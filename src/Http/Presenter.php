@@ -176,11 +176,36 @@ class Presenter
             'draft' => $session->draft,
             'draft_problem' => $problem,
             'preview' => $preview,
+            // Whether the Preview tab can render the draft through the site's
+            // templates: the collection has a route, and the feature is on.
+            'page_preview' => $this->pagePreview($session, $type),
             'words' => $words,
             'usage' => $session->usage,
             'images' => $this->images($session, $type),
             'image_tools' => ['generate' => $this->images->configured(), 'search' => $this->stock->sources()],
         ];
+    }
+
+    /**
+     * The Preview tab's settings for this piece, or null when it can't
+     * preview (no route for its pages, or switched off).
+     *
+     * @return array{timeout: int}|null
+     */
+    private function pagePreview(Session $session, ?ContentType $type): ?array
+    {
+        if (! config('ghostwriter.preview.enabled', true) || ! $type) {
+            return null;
+        }
+
+        $collection = ($session->source !== null ? Entry::find((string) $session->source)?->collection() : null)
+            ?? TypeRepository::collectionOf($type->forSession($session));
+
+        if (! $collection || ! $collection->routes()->filter()->isNotEmpty()) {
+            return null;
+        }
+
+        return ['timeout' => max(2, (int) config('ghostwriter.preview.timeout', 8))];
     }
 
     /**

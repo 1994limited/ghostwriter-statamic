@@ -9,6 +9,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImageryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImagesController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\LibraryConnectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PlanController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\PreviewController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ProviderConnectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SessionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SetupController;
@@ -105,6 +106,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::patch('sessions/{session}/field', [SessionController::class, 'editField'])->name('sessions.field');
     Route::patch('sessions/{session}/draft', [SessionController::class, 'draft'])->name('sessions.draft');
     Route::post('sessions/{session}/apply', [SessionController::class, 'apply'])->name('sessions.apply');
+    Route::post('sessions/{session}/preview', [PreviewController::class, 'store'])->name('sessions.preview');
     Route::post('sessions/{session}/images', [SessionController::class, 'image'])->name('sessions.image');
     Route::get('sessions/{session}/photos', [SessionController::class, 'photos'])->name('sessions.photos');
     Route::post('sessions/{session}/photos', [SessionController::class, 'photo'])->name('sessions.photo');

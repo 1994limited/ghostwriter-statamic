@@ -1,0 +1,95 @@
+<?php
+
+namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
+
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use InvalidArgumentException;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\NotAllowed;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\NotFound;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
+use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
+use NineteenNinetyFour\Ghostwriter\Http\Presenter;
+use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
+use NineteenNinetyFour\Ghostwriter\Preview\PagePreview;
+use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
+use Statamic\Facades\Entry;
+use Statamic\Facades\Site;
+
+/**
+ * The Preview tab: the session's draft rendered through the site's own
+ * templates, as "Use this draft" would fill the form, and never saved
+ * (design §7). Answers where to load the page and the map the panel's
+ * locator reads it with.
+ */
+class PreviewController
+{
+    public function __construct(
+        private SessionGuard $sessions,
+        private TypeRepository $types,
+    ) {}
+
+    public function store(Request $request, string $session, DraftValues $values, PagePreview $preview): JsonResponse
+    {
+        abort_unless(config('ghostwriter.preview.enabled', true), 404);
+
+        $session = $this->session($session);
+        $type = $this->type($session->kind)->forSession($session);
+
+        $validated = $request->validate([
+            'blueprint' => ['nullable', 'string', 'max:200'],
+            'values' => ['nullable', 'array'],
+            'site' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        abort_if($session->draft === null, 422, 'There is no draft yet.');
+
+        try {
+            $draft = Draft::parse($session->draft);
+        } catch (InvalidArgumentException $exception) {
+            abort(422, $exception->getMessage());
+        }
+
+        $blueprint = SessionController::blueprintFor($type, $validated['blueprint'] ?? null);
+        $original = $session->source !== null ? Entry::find((string) $session->source) : null;
+
+        // Seen only by someone who could save the entry by hand, as apply.
+        SessionController::ensureCanSave($original, $blueprint);
+
+        $form = (array) ($validated['values'] ?? []);
+        $site = $original?->locale() ?? (Site::get((string) ($validated['site'] ?? '')) ?? Site::selected())->handle();
+
+        $started = microtime(true);
+
+        // Exactly apply's data, except that a placeholder image is only
+        // used where the container has one: the preview saves nothing.
+        $built = $values->build($session, $type, $draft, $blueprint, $form, $original, new ContainerAssetSink(create: false));
+
+        $render = $preview->render($session, $draft, $blueprint, $built, $original, $form, $site, $request->getSchemeAndHttpHost());
+
+        return response()->json($render + ['ms' => (int) round((microtime(true) - $started) * 1000)]);
+    }
+
+    private function type(string $handle): ContentType
+    {
+        $type = $this->types->find($handle);
+
+        abort_unless($type && $this->types->enabled($type->group), 404);
+
+        return $type;
+    }
+
+    private function session(string $id): Session
+    {
+        try {
+            return $this->sessions->find($id, Presenter::viewer());
+        } catch (NotFound) {
+            abort(404);
+        } catch (NotAllowed) {
+            abort(403);
+        }
+    }
+}

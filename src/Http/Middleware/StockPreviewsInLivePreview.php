@@ -4,9 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImage;
-use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImageQuery;
-use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImageStore;
+use NineteenNinetyFour\Ghostwriter\Stock\StandInComps;
 use Statamic\Facades\User;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -23,7 +21,7 @@ use Throwable;
  */
 class StockPreviewsInLivePreview
 {
-    public function __construct(private StockImageStore $store) {}
+    public function __construct(private StandInComps $standIns) {}
 
     public function handle(Request $request, Closure $next): Response
     {
@@ -82,14 +80,6 @@ class StockPreviewsInLivePreview
      */
     private function comps(): array
     {
-        $comps = [];
-
-        foreach ($this->store->query(new StockImageQuery([StockImage::PREVIEW, StockImage::LICENSING, StockImage::FAILED], perPage: 500))->images as $image) {
-            if ($image->comp() !== null) {
-                $comps[basename($image->asset->path)] = cp_route('ghostwriter.stock.comp', $image->id);
-            }
-        }
-
-        return $comps;
+        return array_map(fn (array $comp) => $comp['url'], $this->standIns->all());
     }
 }

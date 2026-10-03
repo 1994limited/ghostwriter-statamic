@@ -50,7 +50,9 @@ use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\SchemaEntryWriter;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\FinishController;
+use NineteenNinetyFour\Ghostwriter\Http\Middleware\GhostwriterPreviewResponse;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\StockPreviewsInLivePreview;
+use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntry;
 use NineteenNinetyFour\Ghostwriter\Stock\EncryptedLibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
 use NineteenNinetyFour\Ghostwriter\Storage\FileGuideStore;
@@ -95,6 +97,11 @@ class ServiceProvider extends AddonServiceProvider
         parent::register();
 
         $this->mergeConfigFrom(__DIR__.'/../config/ghostwriter.php', 'ghostwriter');
+
+        // Live Preview keeps the page preview's entry in the cache, which
+        // (on Laravel 13) unserialises only the classes it is told about.
+        // Early, before any cache store reads the list.
+        $this->registerPreviewEntry();
         $this->publishes([__DIR__.'/../config/ghostwriter.php' => config_path('ghostwriter.php')], 'ghostwriter-config');
 
         // A field the config locks shows the config's value on the settings screen.
@@ -212,6 +219,25 @@ class ServiceProvider extends AddonServiceProvider
     }
 
     /**
+     * Adds PreviewEntry to the cache's allow-list, as Statamic does for its
+     * own classes (`registerSerializableClasses()`, where Statamic has it).
+     */
+    private function registerPreviewEntry(): void
+    {
+        if (method_exists($this, 'registerSerializableClasses')) {
+            $this->registerSerializableClasses([PreviewEntry::class]);
+
+            return;
+        }
+
+        $existing = config('cache.serializable_classes');
+
+        if (is_array($existing)) {
+            config(['cache.serializable_classes' => [...$existing, PreviewEntry::class]]);
+        }
+    }
+
+    /**
      * The settings screen, with each field that config/ghostwriter.php (or
      * .env) sets locked and labelled, since the config wins.
      */
@@ -299,6 +325,11 @@ class ServiceProvider extends AddonServiceProvider
 
         // Live Preview shows a stock preview's comp, to signed-in editors only.
         $this->app['router']->pushMiddlewareToGroup('statamic.web', StockPreviewsInLivePreview::class);
+
+        // The page preview's own front-end requests: its headers, its error
+        // page, and Entry::find() for an entry never saved. First in the
+        // group, so it wraps Statamic's token handling.
+        $this->app['router']->prependMiddlewareToGroup('statamic.web', GhostwriterPreviewResponse::class);
 
         Statamic::provideToScript(['ghostwriter' => fn () => [
             'enabled' => (bool) User::current()?->can('access ghostwriter'),

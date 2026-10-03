@@ -3,6 +3,7 @@
 namespace NineteenNinetyFour\Ghostwriter\Drafts;
 
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
+use NineteenNinetyFour\Ghostwriter\Core\Images\AssetSink;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Placeholders;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Pattern;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
@@ -24,9 +25,10 @@ class HouseFinish
      *                                      `places` are the links the house style left for a person, and
      *                                      `placeholders` the image fields given the striped placeholder, by
      *                                      label: what Finish this page's session list keeps.
+     * @param  AssetSink|null  $sink  Where the placeholder comes from: the field's container (made there once) by default.
      * @return array{data: array<string, mixed>, notes: array<int, string>, places: array<int, string>, placeholders: array<int, string>}
      */
-    public function finish(array $data, Schema $schema, Pattern $pattern, ?string $id, string $title): array
+    public function finish(array $data, Schema $schema, Pattern $pattern, ?string $id, string $title, ?AssetSink $sink = null): array
     {
         $notes = [];
         $filled = [];
@@ -39,7 +41,7 @@ class HouseFinish
         }
 
         if ($this->settings->placeholderImages()) {
-            $placeholders = new Placeholders(new ContainerAssetSink, $pattern->filled);
+            $placeholders = new Placeholders($sink ?? new ContainerAssetSink, $pattern->filled);
             $data = $placeholders->fill($data, $schema);
 
             if ($note = $placeholders->note()) {

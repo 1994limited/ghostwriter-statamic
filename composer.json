@@ -39,7 +39,7 @@
     "require": {
         "php": "^8.3",
         "ext-gd": "*",
-        "1994/ghostwriter-core": "^1.6.1",
+        "1994/ghostwriter-core": "^1.7",
         "guzzlehttp/guzzle": "^7.8|^8.0",
         "guzzlehttp/psr7": "^2.6|^3.0",
         "league/commonmark": "^2.4",
