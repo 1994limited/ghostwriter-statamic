@@ -43,6 +43,10 @@ Read the notice above the form after **Use this draft**. It lists:
 - fields and blocks the draft used that this blueprint doesn't have, and options that don't exist (left out);
 - blocks that are the same on every entry, where the usual content was used in place of what was drafted.
 
+## "The page template couldn't render this draft"
+
+The Preview tab rendered the draft through the entry's template and the template failed. The message gives the error's first line; super users also see the exception, the template and where it was thrown, and the error is in `storage/logs/laravel.log` as usual. Usually the template expects something the draft doesn't have yet (an image, a related entry). The draft is fine: use **Show blocks instead**, or **Use this draft** and save. To keep a template from tripping on a draft, test `{{ live_preview:ghostwriter }}` (see [The preview, for site developers](writing.md#the-preview-for-site-developers)).
+
 ## No Find a photo button on an assets field
 
 The button only appears:
