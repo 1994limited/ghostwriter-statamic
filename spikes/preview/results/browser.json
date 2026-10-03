@@ -1,0 +1,125 @@
+{
+    "signedIn": "/cp/collections/gw_spike",
+    "sameOrigin": true,
+    "loadMs": 700,
+    "url": "/gw-spike/a-courtyard-garden-for-a-gp-surgery-in-morpeth",
+    "title": "(marked; stripped by the locator)",
+    "flag": "live_preview=ghostwriter",
+    "analyticsTag": false,
+    "parentReach": true,
+    "locator": {
+        "sameWidth": [
+            {
+                "font": "Georgia, serif",
+                "plain": 176.6875,
+                "marked": 176.6875,
+                "markedStart": 176.6875
+            },
+            {
+                "font": "system-ui, sans-serif",
+                "plain": 176.78125,
+                "marked": 176.78125,
+                "markedStart": 176.78125
+            }
+        ],
+        "markerWidths": {
+            "count": 27,
+            "max": 4.953125,
+            "wide": [
+                [
+                    "P",
+                    "system-ui, sans-serif",
+                    "normal",
+                    4.9375,
+                    "SHADE, YEAR-ROU"
+                ],
+                [
+                    "P",
+                    "system-ui, sans-serif",
+                    "normal",
+                    4.953125,
+                    "Shade, year-rou"
+                ],
+                [
+                    "P",
+                    "system-ui, sans-serif",
+                    "normal",
+                    4.953125,
+                    "shade, Year-rou"
+                ],
+                [
+                    "LI",
+                    "Georgia, \"Times New Roman\", se",
+                    "normal",
+                    4.34375,
+                    "of sun in June"
+                ],
+                [
+                    "LI",
+                    "Georgia, \"Times New Roman\", se",
+                    "normal",
+                    4.34375,
+                    "benches"
+                ]
+            ]
+        },
+        "textNodes": 79,
+        "stripped": 28,
+        "leftover": 0,
+        "found": [
+            "f:title",
+            "f:intro",
+            "f:bodys0",
+            "f:bodys1",
+            "f:bodys2",
+            "f:bodys3",
+            "f:bodys4",
+            "f:bodys6",
+            "b0",
+            "b1s0",
+            "b1s1",
+            "b2",
+            "b3",
+            "b4",
+            "f:bodys5"
+        ],
+        "missing": [],
+        "assets": {
+            "f:bodys5": "/img/asset/YXNzZXRzL2pvdXJuYWwvcmFpbi1nYXJkZW4uanBn/rain-garden.jpg?w=800&s=d8452508dd43c83e1a4637edc51b15e3"
+        },
+        "regions": {
+            "f:title": "h1 180,168 920x101",
+            "f:intro": "section.hero 180,120 920x438",
+            "f:bodys0": "p 180,576 920x29",
+            "f:bodys1": "h2 180,627 920x43",
+            "f:bodys2": "p 180,693 920x29",
+            "f:bodys3": "blockquote.set-pq 180,754 920x48",
+            "f:bodys4": "ul 180,833 920x122",
+            "f:bodys5": "figure.set-photo 180,988 920x500",
+            "f:bodys6": "ul.set-stats 180,1520 920x58",
+            "b0": "section.hero 180,1595 920x849",
+            "b1": "section.text 180,2467 920x94",
+            "b1s0": "h2 180,2467 920x43",
+            "b1s1": "p 180,2532 920x29",
+            "b2": "figure 180,2593 920x605",
+            "b3": "blockquote 180,3230 920x72",
+            "b4": "section.cta 180,3342 920x267"
+        },
+        "ms": 3.3
+    },
+    "after": {
+        "frameUrl": "/gw-spike/a-courtyard-garden-for-a-gp-surgery-in-morpeth",
+        "parentUrl": "/cp/collections/gw_spike"
+    },
+    "blocked": [
+        "csp"
+    ],
+    "console": [
+        "[security] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.",
+        "[security] Loading the script 'https://analytics.example.invalid/gtm.js?id=GTM-TEST' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' 'unsafe-eval'\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked.",
+        "[security] Blocked form submission to '/!/forms/contact' because the form's frame is sandboxed and the 'allow-forms' permission is not set."
+    ],
+    "thirdParty": [
+        "https://analytics.example.invalid/gtm.js?id=GTM-TEST"
+    ]
+}

@@ -1,0 +1,67 @@
+{
+    "case": "page-existing",
+    "status": 200,
+    "headers": {
+        "x-statamic-live-preview": [
+            "1"
+        ]
+    },
+    "url": "https://gw-test-statamic.test/about?live-preview=gmgV3KW8dX1eeDPW&token=…",
+    "id": "f98bb856-15a9-4274-b95b-abd38b305309",
+    "uri": "/about",
+    "ms": {
+        "map": 18,
+        "tokenize": 10,
+        "render_http": 306
+    },
+    "markers": {
+        "expected": 7,
+        "found": 6,
+        "missing": [
+            "b1"
+        ]
+    },
+    "map": {
+        "f:title": {
+            "path": "title",
+            "label": "title"
+        },
+        "b0": {
+            "path": "page_builder/0",
+            "label": "hero",
+            "assets": []
+        },
+        "b1": {
+            "path": "page_builder/1",
+            "label": "text",
+            "assets": []
+        },
+        "b1s0": {
+            "path": "page_builder/1/text/0",
+            "label": "heading",
+            "parent": "b1"
+        },
+        "b1s1": {
+            "path": "page_builder/1/text/1",
+            "label": "paragraph",
+            "parent": "b1"
+        },
+        "b2": {
+            "path": "page_builder/2",
+            "label": "image",
+            "assets": []
+        },
+        "b3": {
+            "path": "page_builder/3",
+            "label": "cta",
+            "assets": []
+        }
+    },
+    "saved_nothing": true,
+    "entries": [
+        20,
+        20
+    ],
+    "title": "Garden visits (spike) · Northfold",
+    "error": null
+}

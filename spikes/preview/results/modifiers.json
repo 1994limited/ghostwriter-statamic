@@ -1,0 +1,58 @@
+{
+    "upper": {
+        "prefix": "kept  SHADE, YEAR-ROUND INTEREST AND SOMEWHE",
+        "suffix": "kept  SHADE, YEAR-ROUND INTEREST AND SOMEWHE"
+    },
+    "title": {
+        "prefix": "kept  shade, Year-round Interest and Somewhe",
+        "suffix": "kept  Shade, Year-round Interest and Somewhe"
+    },
+    "ucfirst": {
+        "prefix": "kept  Shade, year-round interest and somewhe",
+        "suffix": "kept  Shade, year-round interest and somewhe"
+    },
+    "truncate:30": {
+        "prefix": "kept  Shade, year-round inter",
+        "suffix": "lost  Shade, year-round interest and"
+    },
+    "safe_truncate:30": {
+        "prefix": "kept  Shade, year-round",
+        "suffix": "lost  Shade, year-round interest and"
+    },
+    "widont": {
+        "prefix": "kept  Shade, year-round interest and somewhe",
+        "suffix": "kept  Shade, year-round interest and somewhe"
+    },
+    "smartypants": {
+        "prefix": "kept  Shade, year-round interest and somewhe",
+        "suffix": "kept  Shade, year-round interest and somewhe"
+    },
+    "slugify": {
+        "prefix": "lost  shade-year-round-interest-and-somewher",
+        "suffix": "lost  shade-year-round-interest-and-somewher"
+    },
+    "markdown": {
+        "prefix": "kept  <p>Shade, year-round interest and some",
+        "suffix": "kept  <p>Shade, year-round interest and some"
+    },
+    "strip_tags": {
+        "prefix": "kept  Shade, year-round interest and somewhe",
+        "suffix": "kept  Shade, year-round interest and somewhe"
+    },
+    "sentence_list": {
+        "prefix": "kept  Shade, year-round interest and somewhe",
+        "suffix": "kept  Shade, year-round interest and somewhe"
+    },
+    "word_count": {
+        "prefix": "lost  8",
+        "suffix": "lost  8"
+    },
+    "length": {
+        "prefix": "lost  56",
+        "suffix": "lost  56"
+    },
+    "entities": {
+        "prefix": "kept  Shade, year-round interest and somewhe",
+        "suffix": "kept  Shade, year-round interest and somewhe"
+    }
+}

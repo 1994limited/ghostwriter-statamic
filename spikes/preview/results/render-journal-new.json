@@ -1,0 +1,59 @@
+{
+    "case": "journal-new",
+    "status": 200,
+    "headers": {
+        "x-statamic-live-preview": [
+            "1"
+        ]
+    },
+    "url": "https://gw-test-statamic.test/journal/rain-gardens-for-small-yards?live-preview=NzZXwYrXyiH8FgTt&token=…",
+    "id": "gw-preview-rjournal-new",
+    "uri": "/journal/rain-gardens-for-small-yards",
+    "ms": {
+        "map": 41,
+        "tokenize": 9,
+        "render_http": 553
+    },
+    "markers": {
+        "expected": 6,
+        "found": 6,
+        "missing": []
+    },
+    "map": {
+        "f:title": {
+            "path": "title",
+            "label": "title"
+        },
+        "f:excerpt": {
+            "path": "excerpt",
+            "label": "excerpt"
+        },
+        "f:bodys0": {
+            "path": "body/0",
+            "label": "paragraph",
+            "parent": "f:body"
+        },
+        "f:bodys1": {
+            "path": "body/1",
+            "label": "heading",
+            "parent": "f:body"
+        },
+        "f:bodys2": {
+            "path": "body/2",
+            "label": "paragraph",
+            "parent": "f:body"
+        },
+        "f:bodys3": {
+            "path": "body/3",
+            "label": "blockquote",
+            "parent": "f:body"
+        }
+    },
+    "saved_nothing": true,
+    "entries": [
+        20,
+        20
+    ],
+    "title": "Rain gardens for small yards · Northfold",
+    "error": null
+}

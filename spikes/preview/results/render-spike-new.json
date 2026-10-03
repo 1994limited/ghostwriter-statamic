@@ -1,0 +1,121 @@
+{
+    "case": "spike-new",
+    "status": 200,
+    "headers": {
+        "x-statamic-live-preview": [
+            "1"
+        ]
+    },
+    "url": "https://gw-test-statamic.test/gw-spike/a-courtyard-garden-for-a-gp-surgery-in-morpeth?live-preview=rwOFbj8IMxowpqNV&token=…",
+    "id": "gw-preview-rspike-new",
+    "uri": "/gw-spike/a-courtyard-garden-for-a-gp-surgery-in-morpeth",
+    "ms": {
+        "map": 41,
+        "tokenize": 24,
+        "render_http": 523
+    },
+    "markers": {
+        "expected": 16,
+        "found": 14,
+        "missing": [
+            "f:bodys5",
+            "b1"
+        ]
+    },
+    "map": {
+        "f:title": {
+            "path": "title",
+            "label": "title"
+        },
+        "f:intro": {
+            "path": "intro",
+            "label": "intro"
+        },
+        "f:bodys0": {
+            "path": "body/0",
+            "label": "paragraph",
+            "parent": "f:body"
+        },
+        "f:bodys1": {
+            "path": "body/1",
+            "label": "heading",
+            "parent": "f:body"
+        },
+        "f:bodys2": {
+            "path": "body/2",
+            "label": "paragraph",
+            "parent": "f:body"
+        },
+        "f:bodys3": {
+            "path": "body/3",
+            "label": "set:pull_quote",
+            "parent": "f:body",
+            "assets": []
+        },
+        "f:bodys4": {
+            "path": "body/4",
+            "label": "bulletList",
+            "parent": "f:body"
+        },
+        "f:bodys5": {
+            "path": "body/5",
+            "label": "set:photo",
+            "parent": "f:body",
+            "assets": [
+                "rain-garden.jpg"
+            ]
+        },
+        "f:bodys6": {
+            "path": "body/6",
+            "label": "set:stats",
+            "parent": "f:body",
+            "assets": []
+        },
+        "b0": {
+            "path": "page_builder/0",
+            "label": "hero",
+            "assets": [
+                "hero-evening.jpg"
+            ]
+        },
+        "b1": {
+            "path": "page_builder/1",
+            "label": "text",
+            "assets": []
+        },
+        "b1s0": {
+            "path": "page_builder/1/text/0",
+            "label": "heading",
+            "parent": "b1"
+        },
+        "b1s1": {
+            "path": "page_builder/1/text/1",
+            "label": "paragraph",
+            "parent": "b1"
+        },
+        "b2": {
+            "path": "page_builder/2",
+            "label": "image",
+            "assets": [
+                "materials.jpg"
+            ]
+        },
+        "b3": {
+            "path": "page_builder/3",
+            "label": "quote",
+            "assets": []
+        },
+        "b4": {
+            "path": "page_builder/4",
+            "label": "cta",
+            "assets": []
+        }
+    },
+    "saved_nothing": true,
+    "entries": [
+        20,
+        20
+    ],
+    "title": "A courtyard garden for a GP surgery in Morpeth · Northfold",
+    "error": null
+}

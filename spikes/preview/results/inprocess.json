@@ -1,0 +1,60 @@
+{
+    "fixes": false,
+    "pages_no_uri": {
+        "uri": "/",
+        "status": 200,
+        "ms": 137,
+        "title": "Home \u00b7 Northfold",
+        "exception": null,
+        "next_rendered": false,
+        "aside": null
+    },
+    "pages_preview_uri": {
+        "uri": "/garden-visits-spike",
+        "status": 200,
+        "ms": 25,
+        "title": "Garden visits (spike) \u00b7 Northfold",
+        "exception": null,
+        "next_rendered": false,
+        "aside": null
+    },
+    "next_previous": {
+        "uri": "/journal/np-spike",
+        "status": 500,
+        "ms": 271,
+        "title": "Northfold",
+        "exception": "Error: Call to a member function collection() on null @ vendor/statamic/cms/src/Tags/Collection/Collection.php:54",
+        "next_rendered": false,
+        "aside": null
+    }
+}
+{
+    "fixes": true,
+    "pages_no_uri": {
+        "uri": "/",
+        "status": 200,
+        "ms": 88,
+        "title": "Home \u00b7 Northfold",
+        "exception": null,
+        "next_rendered": false,
+        "aside": null
+    },
+    "pages_preview_uri": {
+        "uri": "/garden-visits-spike",
+        "status": 200,
+        "ms": 11,
+        "title": "Garden visits (spike) \u00b7 Northfold",
+        "exception": null,
+        "next_rendered": false,
+        "aside": null
+    },
+    "next_previous": {
+        "uri": "/journal/np-spike",
+        "status": 200,
+        "ms": 31,
+        "title": "Next/prev spike \u00b7 Northfold",
+        "exception": null,
+        "next_rendered": true,
+        "aside": "id=[gw-preview-drr8jgquvj] url=[/journal/np-spike] permalink=[https://gw-test-statamic.test/journal/np-spike] parent=[Home] edit_url=[https://gw-test-statamic.test/cp/collections/journal/entries/gw-preview-drr8jgquvj] related: Planting tulips and alliums in October Replanting a community orchard in..."
+    }
+}

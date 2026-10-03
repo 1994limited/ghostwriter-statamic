@@ -1,0 +1,77 @@
+{
+    "case": "page-new",
+    "status": 200,
+    "headers": {
+        "x-statamic-live-preview": [
+            "1"
+        ]
+    },
+    "url": "https://gw-test-statamic.test?live-preview=7m5N6hIGTE3tcmtm&token=…",
+    "id": "gw-preview-rpage-new",
+    "uri": null,
+    "ms": {
+        "map": 51,
+        "tokenize": 9,
+        "render_http": 298
+    },
+    "markers": {
+        "expected": 7,
+        "found": 0,
+        "missing": [
+            "f:title",
+            "b0",
+            "b1",
+            "b1s0",
+            "b1s1",
+            "b2",
+            "b3"
+        ]
+    },
+    "map": {
+        "f:title": {
+            "path": "title",
+            "label": "title"
+        },
+        "b0": {
+            "path": "page_builder/0",
+            "label": "hero",
+            "assets": [
+                "image-placeholder.png"
+            ]
+        },
+        "b1": {
+            "path": "page_builder/1",
+            "label": "text",
+            "assets": []
+        },
+        "b1s0": {
+            "path": "page_builder/1/text/0",
+            "label": "heading",
+            "parent": "b1"
+        },
+        "b1s1": {
+            "path": "page_builder/1/text/1",
+            "label": "paragraph",
+            "parent": "b1"
+        },
+        "b2": {
+            "path": "page_builder/2",
+            "label": "image",
+            "assets": [
+                "image-placeholder.png"
+            ]
+        },
+        "b3": {
+            "path": "page_builder/3",
+            "label": "cta",
+            "assets": []
+        }
+    },
+    "saved_nothing": true,
+    "entries": [
+        20,
+        20
+    ],
+    "title": "Home · Northfold",
+    "error": null
+}
