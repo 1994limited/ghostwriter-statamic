@@ -44,19 +44,40 @@ class EntryLayouts
      */
     public function pattern(Schema $schema, string $collection, ?string $blueprint = null, array $where = [], array $examples = []): Pattern
     {
+        return $this->patternOf($schema, $this->studied($collection, $blueprint, $where, $examples));
+    }
+
+    /**
+     * The pattern of entries already read (studied()).
+     *
+     * @param  array<int, EntryData>  $entries
+     */
+    public function patternOf(Schema $schema, array $entries): Pattern
+    {
+        $pattern = $this->layouts->patterns()->find($schema, $entries);
+        LayoutLog::record('pattern', $pattern);
+
+        return $pattern;
+    }
+
+    /**
+     * The entries a pattern is found from (see pattern()), newest first:
+     * what layouts compare a draft's layouts against for "Suggested".
+     *
+     * @param  array<string, mixed>  $where
+     * @param  array<int, string>  $examples
+     * @return array<int, EntryData>
+     */
+    public function studied(string $collection, ?string $blueprint = null, array $where = [], array $examples = []): array
+    {
         $picked = collect($examples)->map(fn (string $id) => Entries::find($id))->filter()->values();
 
         // Where an entry sits is only for naming kinds, so is not looked up.
         $read = fn (Entry $entry) => self::entryData($entry, parent: false);
 
-        $entries = $picked->isNotEmpty()
+        return array_values($picked->isNotEmpty()
             ? $picked->map($read)->all()
-            : PatternFinder::choose($this->published($collection, $blueprint)->map($read)->all(), $where);
-
-        $pattern = $this->layouts->patterns()->find($schema, $entries);
-        LayoutLog::record('pattern', $pattern);
-
-        return $pattern;
+            : PatternFinder::choose($this->published($collection, $blueprint)->map($read)->all(), $where));
     }
 
     /**

@@ -28,6 +28,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Brief;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
+use NineteenNinetyFour\Ghostwriter\Drafts\DraftLayouts;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
@@ -239,14 +240,18 @@ class SessionController
         return response()->json($this->presenter->detail($session));
     }
 
-    public function draft(Request $request, string $session): JsonResponse
+    public function draft(Request $request, string $session, DraftLayouts $layouts): JsonResponse
     {
         $session = $this->session($session);
 
-        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($request) {
+        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($request, $layouts) {
             $validated = $request->validate(['draft' => ['required', 'string', 'max:120000']]);
 
+            $before = $session->draft;
             $session->draft = $validated['draft'];
+
+            // The layouts follow the words; none is asked for again.
+            $layouts->afterEdit($session, $before, $this->types->find($session->kind));
         }, self::BUSY_DRAFT));
 
         return response()->json($this->presenter->detail($session));
@@ -256,15 +261,19 @@ class SessionController
      * The draft as values for the publish form the panel is open on. Nothing
      * is saved: the person reviews the filled-in form and saves it themselves.
      */
-    public function apply(Request $request, string $session, DraftValues $values, EntryGaps $gaps): JsonResponse
+    public function apply(Request $request, string $session, DraftValues $values, EntryGaps $gaps, DraftLayouts $layouts): JsonResponse
     {
         $session = $this->session($session);
         $type = $this->type($session->kind)->forSession($session);
-        $draft = $this->parsedDraft($session);
+        $this->parsedDraft($session);
 
         // The form being filled decides the blueprint; the type's own is the
         // fallback for a collection with only one.
         $blueprint = self::blueprintFor($type, $request->input('blueprint'));
+
+        // The chosen layout of the draft's words (the writer's own unless
+        // another was chosen), through the same build as ever.
+        $draft = $layouts->draft($session, $type, $blueprint);
 
         $original = $session->source !== null ? Entry::find((string) $session->source) : null;
 
@@ -307,11 +316,11 @@ class SessionController
      * opening the YAML. Rich text comes back as HTML and is turned into the
      * markdown the draft is written in.
      */
-    public function editField(Request $request, string $session, HtmlToMarkdown $html): JsonResponse
+    public function editField(Request $request, string $session, HtmlToMarkdown $html, DraftLayouts $layouts): JsonResponse
     {
         $session = $this->session($session);
 
-        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($request, $html) {
+        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($request, $html, $layouts) {
             $draft = $this->parsedDraft($session);
 
             $validated = $request->validate([
@@ -342,7 +351,10 @@ class SessionController
             $node = $value;
             unset($node);
 
+            $before = $session->draft;
             $session->draft = trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK));
+
+            $layouts->afterEdit($session, $before, $this->types->find($session->kind));
         }, self::BUSY_DRAFT));
 
         return response()->json($this->presenter->detail($session));

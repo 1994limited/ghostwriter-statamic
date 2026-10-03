@@ -18,6 +18,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Ai\Http\GuzzleHttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\ProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
+use NineteenNinetyFour\Ghostwriter\Core\Arrange\SessionLayouts;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Format;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
@@ -216,6 +217,11 @@ class ServiceProvider extends AddonServiceProvider
         // A link the house style can't settle points at `#gw-link:<hint>`,
         // a link to choose that Finish this page finds, not example.com.
         $this->app->singleton(Layouts::class, fn ($app) => new Layouts(LayoutOptions::statamic()->withLinkSentinels(), $app->make(BardDialect::class), new StatamicLinks));
+
+        // Layouts and extras on a session (core's Arrange): the writer's
+        // draft and up to two other layouts of the same words, from one
+        // planner call on the first draft. Always on; there is no setting.
+        $this->app->singleton(SessionLayouts::class, fn ($app) => new SessionLayouts($app->make(CoreStudio::class), $app->make(Layouts::class), Log::channel(config('ghostwriter.log_channel'))));
     }
 
     /**

@@ -18,6 +18,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
+use NineteenNinetyFour\Ghostwriter\Drafts\DraftLayouts;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
@@ -38,6 +39,7 @@ class Presenter
         private DraftPreview $preview,
         private ImageStudio $images,
         private StockSearch $stock,
+        private DraftLayouts $layouts,
     ) {}
 
     /**
@@ -121,7 +123,13 @@ class Presenter
                 $words = $draft->wordCount();
 
                 if ($type && ($blueprint = TypeRepository::blueprintOf($type->forSession($session)))) {
-                    $preview = $this->preview->render($draft->data, $this->reader->read($blueprint));
+                    // Blocks and Text show the chosen layout of the words.
+                    $shown = $this->layouts->draft($session, $type, $blueprint);
+                    $preview = $this->preview->render($shown->data, $this->reader->read($blueprint));
+
+                    if ($shown->data !== $draft->data) {
+                        $preview = DraftLayouts::editablePaths($preview, $shown->data, $draft->data);
+                    }
                 }
             } catch (InvalidArgumentException $exception) {
                 $problem = $exception->getMessage();
@@ -180,6 +188,9 @@ class Presenter
             // templates: the collection has a route, and the feature is on.
             'page_preview' => $this->pagePreview($session, $type),
             'words' => $words,
+            // The layout cards (the writer's draft and up to two others) and
+            // the extras prepared with the draft, for the Text tab.
+            ...($session->draft !== null && $problem === null ? $this->layouts->present($session) : ['layouts' => null, 'extras' => []]),
             'usage' => $session->usage,
             'images' => $this->images($session, $type),
         ];

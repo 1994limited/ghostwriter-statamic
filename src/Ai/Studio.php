@@ -11,6 +11,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Brief;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Conversation;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Result;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\SuggestedIdea;
@@ -164,7 +165,24 @@ class Studio
      */
     public function write(Session $session, ContentType $type, string $voice): TaggedResponse
     {
-        return $this->studio->write($this->inputs->conversation($session), $this->writerContext($type, $voice));
+        return $this->turn($session, $type, $voice)[0];
+    }
+
+    /**
+     * A writer's turn with what it was given: the conversation and the
+     * writer's context, which reading its extras and laying out the draft
+     * (DraftLayouts) need as they were.
+     *
+     * @return array{0: TaggedResponse, 1: Conversation, 2: WriterContext}
+     *
+     * @throws ProviderException|Truncated
+     */
+    public function turn(Session $session, ContentType $type, string $voice): array
+    {
+        $conversation = $this->inputs->conversation($session);
+        $context = $this->writerContext($type, $voice);
+
+        return [$this->studio->write($conversation, $context), $conversation, $context];
     }
 
     /**

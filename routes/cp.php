@@ -7,6 +7,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\EntryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\FinishController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImageryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImagesController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\LayoutsController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\LibraryConnectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PlanController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PreviewController;
@@ -107,6 +108,10 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::patch('sessions/{session}/draft', [SessionController::class, 'draft'])->name('sessions.draft');
     Route::post('sessions/{session}/apply', [SessionController::class, 'apply'])->name('sessions.apply');
     Route::post('sessions/{session}/preview', [PreviewController::class, 'store'])->name('sessions.preview');
+    Route::patch('sessions/{session}/layout', [LayoutsController::class, 'choose'])->name('sessions.layout');
+    Route::post('sessions/{session}/layouts/refresh', [LayoutsController::class, 'refresh'])->name('sessions.layouts.refresh');
+    Route::patch('sessions/{session}/extras/{item}', [LayoutsController::class, 'editExtra'])->name('sessions.extras.update');
+    Route::delete('sessions/{session}/extras/{item}', [LayoutsController::class, 'deleteExtra'])->name('sessions.extras.destroy');
     Route::post('sessions/{session}/entry', [SessionController::class, 'entry'])->name('sessions.entry');
     Route::delete('sessions/{session}', [SessionController::class, 'destroy'])->name('sessions.destroy');
 });
