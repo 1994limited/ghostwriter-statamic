@@ -35,6 +35,7 @@ class DraftValues
         private EntryMerger $merger,
         private HouseFinish $finish,
         private FormBaseline $baseline,
+        private KeptBardSets $sets,
     ) {}
 
     /**
@@ -50,9 +51,11 @@ class DraftValues
         if ($original) {
             // Editing an entry: only the writing changes. Its images, links,
             // settings and block IDs come from the form as it stands, unsaved
-            // changes included, not from what this kind of entry usually has.
+            // changes included, not from what this kind of entry usually has;
+            // so do the sets in its Bard fields that the draft never held.
             $built = $this->layouts->build($draft->data, $schema);
-            $data = $this->merger->merge($built->data, $this->baseline->data($original, $values), $specs);
+            $form = $this->baseline->data($original, $values);
+            $data = $this->sets->keep($this->merger->merge($built->data, $form, $specs), $form, $specs);
             $notes = $built->notes;
             $left = SessionGaps::fromDraft($built);
         } else {
