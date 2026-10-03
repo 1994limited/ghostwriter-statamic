@@ -32,7 +32,7 @@ Choose what this entry is:
 
 Answer the questions. Short answers are fine; Ghostwriter asks for anything it still needs before it writes.
 
-**Quick brief.** Rather than answer every question, give a **Working title** and a few notes, then **Fill in the brief**. Ghostwriter fills in the questions from them, for you to check and change; **Guess again** tries once more. Anything in `[square brackets]` needs you: it never guesses facts about your organisation, its projects or its figures.
+**Quick brief.** Rather than answer every question, give a **Working title** and a few notes, then **Fill in the brief**. Ghostwriter fills in the questions from them, for you to check and change; **Try again** tries once more. Anything in `[square brackets]` needs you: it never guesses facts about your organisation, its projects or its figures.
 
 **Model it on.** Tick up to six entries and the draft follows how they are built. With none ticked, Ghostwriter goes by the brief and how this collection is usually written. A learned kind starts with its own examples ticked.
 

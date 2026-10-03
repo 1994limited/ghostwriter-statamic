@@ -93,7 +93,7 @@ class FinishThisPageTest extends TestCase
 
         // In the editor's words, with the tab to open and the fixes to offer.
         $ask = $gaps['body:ask'];
-        $this->assertSame('I left a gap in Body: how long a typical project takes. I didn\'t want to guess. What should it say?', $ask['message']);
+        $this->assertSame('I left a gap in Body: how long a typical project takes. Only you know this. What should it say?', $ask['message']);
         $this->assertSame('Fill this in', $ask['speech']);
         $this->assertSame('main', $ask['tab']);
         $this->assertSame(['answer', 'write-around'], array_column($ask['fixes'], 'action'));
@@ -124,7 +124,7 @@ class FinishThisPageTest extends TestCase
         $this->assertSame('Text', EntryGaps::place('Text: Text'));
         $this->assertSame('Hero: Image', EntryGaps::place('Hero: Hero: Image'));
         $this->assertSame('Image: Caption', EntryGaps::place('Image: Caption'));
-        $this->assertSame('I left a gap in Text: how long a visit lasts. I didn\'t want to guess. What should it say?', app(EntryGaps::class)->text(new Message('gaps.ask', ['label' => 'Text: Text', 'hint' => 'how long a visit lasts'])));
+        $this->assertSame('I left a gap in Text: how long a visit lasts. Only you know this. What should it say?', app(EntryGaps::class)->text(new Message('gaps.ask', ['label' => 'Text: Text', 'hint' => 'how long a visit lasts'])));
     }
 
     public function test_a_fact_asked_for_in_a_set_and_field_of_the_same_name_names_the_place_once(): void
@@ -146,7 +146,7 @@ class FinishThisPageTest extends TestCase
         $ask = collect($this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'visits', 'entry' => 'visit', 'values' => $values])->assertOk()->json('gaps'))->firstWhere('kind', 'ask');
 
         $this->assertSame('Text', $ask['label']);
-        $this->assertSame('I left a gap in Text: how long a typical visit lasts. I didn\'t want to guess. What should it say?', $ask['message']);
+        $this->assertSame('I left a gap in Text: how long a typical visit lasts. Only you know this. What should it say?', $ask['message']);
 
         // And in the publish guard's message on the field and for the page.
         try {
