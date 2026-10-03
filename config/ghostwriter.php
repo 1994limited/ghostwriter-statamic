@@ -213,8 +213,10 @@ return [
     | set (and Ghostwriter has its adapter); each can be switched off on
     | the settings screen.
     |
-    | Getty Images, iStock and Shutterstock are coming: their keys can be
-    | set now, and they switch on once Ghostwriter ships their adapters.
+    | Shutterstock licenses for your connected account: set its keys, then
+    | Connect account on the settings screen. Getty Images and iStock are
+    | coming: their keys can be set now, and they switch on once
+    | Ghostwriter ships their adapter.
     |
     */
 
@@ -225,6 +227,11 @@ return [
             'shutterstock' => env('SHUTTERSTOCK_API_KEY'),
             'shutterstock_secret' => env('SHUTTERSTOCK_API_SECRET'),
         ],
+
+        // Shutterstock's sandbox: searching works as normal, and licensing
+        // charges nothing and returns a watermarked file. Null uses the
+        // sandbox only when APP_ENV is local.
+        'shutterstock_sandbox' => env('GHOSTWRITER_SHUTTERSTOCK_SANDBOX'),
 
         // "Demo stock (no charge)": a pretend paid library that charges
         // nothing and calls nobody, to try the whole preview and licence

@@ -2,7 +2,7 @@
 
 Ghostwriter can put photos from paid stock libraries into your pages, licensed from **your own account** with the library, with your own key. It never licenses on your behalf, never holds a key of its own, and never sends your calls through anyone else's servers.
 
-**Which libraries.** Getty Images and iStock, and Shutterstock, are **coming**: their keys can be set now (see below), and they switch on once a Ghostwriter update adds them. To try the whole flow today, use the **demo library** on a local site.
+**Which libraries.** **Shutterstock**, for customers with a Shutterstock API plan. Getty Images and iStock are **coming**: their keys can be set now, and they switch on once a Ghostwriter update adds them. To try the whole flow without an account, use the **demo library** on a local site.
 
 Free photos (Openverse, Unsplash, Pexels, Pixabay) work as before: see [Images](images.md). Every photo Ghostwriter puts into the site, free or paid, is recorded in the [stock image ledger](#the-stock-images-screen).
 
@@ -21,10 +21,24 @@ Add the keys from your account with the library to `.env`. They are read each ti
 
 | Library | Keys | Status |
 | --- | --- | --- |
+| Shutterstock | `SHUTTERSTOCK_API_KEY`, `SHUTTERSTOCK_API_SECRET` (your app's consumer key and secret) | Available; licensing needs **Connect account** |
 | Getty Images and iStock | `GETTY_API_KEY`, `GETTY_API_SECRET` (an iStock key works here too) | Coming |
-| Shutterstock | `SHUTTERSTOCK_API_KEY`, `SHUTTERSTOCK_API_SECRET` | Coming |
 
-Getty and iStock keys come from your Getty Images or iStock account representative, under your own agreement. Shutterstock licenses only through an API plan, which is separate from a shutterstock.com website plan.
+Getty and iStock keys come from your Getty Images or iStock account representative, under your own agreement.
+
+### Shutterstock
+
+Shutterstock licenses only through an **API plan**, which is separate from a shutterstock.com website plan.
+
+1. Create an app at shutterstock.com/account/developers/apps. Its consumer key and secret go in `.env` as above. Searching works with those alone.
+2. In the app's **Callback URL** field, add the host name and path the settings row shows, such as `cms.example.com/cp/ghostwriter/libraries/shutterstock/callback` (a host name and path, not a full address). It must match your site's `APP_URL`.
+3. On the settings screen, press **Connect account** and sign in with the Shutterstock account that holds the API plan. Licences come from that account, for the whole site. **Disconnect** forgets the connection here; to revoke it at Shutterstock, delete the app.
+
+The connection's tokens are kept encrypted with your app key in `storage/ghostwriter/library-tokens.json`, never in `content/`. If the connection is lost (the password changed, or the app was deleted), licensing says so, with **Connect again in Settings**.
+
+Shutterstock's licence gives no preview licence for still images, so Ghostwriter never stores a Shutterstock preview: the Control Panel shows Shutterstock's own watermarked preview address, to signed-in editors only.
+
+**Sandbox.** On a local site (`APP_ENV=local`), Shutterstock calls go to its sandbox, where licensing charges nothing and the "licensed" file is the watermarked preview. Set `GHOSTWRITER_SHUTTERSTOCK_SANDBOX=false` to use the live API there, or `true` to use the sandbox elsewhere. Sign-in always goes to shutterstock.com.
 
 Then open **Ghostwriter → Settings → Stock photos**:
 
@@ -108,6 +122,7 @@ Getty's and iStock's licences forbid using their photos, or their captions and k
 | `stock_path` | `content/ghostwriter/stock` | The ledger |
 | `stock.keys.*` | from `.env` | `GETTY_API_KEY`, `GETTY_API_SECRET`, `SHUTTERSTOCK_API_KEY`, `SHUTTERSTOCK_API_SECRET` |
 | `stock.demo` | `null` (on when `APP_ENV=local`) | The demo library; never in production |
+| `stock.shutterstock_sandbox` | `null` (on when `APP_ENV=local`) | Shutterstock's sandbox |
 | `stock.on_publish` | `null` (the screen; **block** if that is blank) | `block` or `warn` |
 | `stock.default_source` | `null` (the screen; free if that is blank) | `free`, `everything` or a library's ID |
 | `stock.include_editorial` | `null` (the screen; off if that is blank) | |

@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
+use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Paid\Shutterstock;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Testing\FakeLibrary;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Stock\DemoLibrary;
@@ -47,17 +48,25 @@ class StockLibrariesTest extends TestCase
         $libraries = app(StockLibraries::class);
         $this->assertSame([], $libraries->configured(), 'No demo, and no paid library has an adapter and keys.');
 
-        // Shutterstock's keys alone don't make it: core has no adapter for it yet.
-        config(['ghostwriter.stock.keys.shutterstock' => 'sk-key', 'ghostwriter.stock.keys.shutterstock_secret' => 'sk-secret', 'ghostwriter.stock.demo' => true]);
+        // Shutterstock's key alone doesn't make it; both do. Getty has no adapter yet.
+        config(['ghostwriter.stock.keys.shutterstock' => 'sk-key', 'ghostwriter.stock.demo' => true, 'ghostwriter.stock.keys.getty' => 'g', 'ghostwriter.stock.keys.getty_secret' => 'g']);
+        $this->assertSame(['demo'], array_keys(app(StockLibraries::class)->configured()));
+
+        config(['ghostwriter.stock.keys.shutterstock_secret' => 'sk-secret']);
         $libraries = app(StockLibraries::class);
 
-        $this->assertSame(['demo'], array_keys($libraries->configured()));
+        $this->assertSame(['demo', 'shutterstock'], array_keys($libraries->configured()));
+        $this->assertInstanceOf(Shutterstock::class, $libraries->licensable('shutterstock'));
+        $this->assertSame('Shutterstock', $libraries->label('shutterstock'), 'Not the sandbox on a testing site.');
+        Addon::get(Settings::ADDON)->settings()->set(['stock_shutterstock' => false])->save();
+        $libraries = app(StockLibraries::class);
+
         $this->assertInstanceOf(FakeLibrary::class, $libraries->licensable('demo'));
         $this->assertSame('Demo stock (no charge)', $libraries->label('demo'));
         $this->assertSame('Demo', $libraries->shortLabel('demo'));
         $this->assertSame(['free', 'demo', 'everything'], array_column($libraries->choices(), 'value'));
 
-        Addon::get(Settings::ADDON)->settings()->set(['stock_demo' => false])->save();
+        Addon::get(Settings::ADDON)->settings()->set(['stock_demo' => false, 'stock_shutterstock' => false])->save();
         $libraries = app(StockLibraries::class);
 
         $this->assertNull($libraries->licensable('demo'), 'Switched off on the settings screen.');
@@ -110,12 +119,21 @@ class StockLibrariesTest extends TestCase
         $this->assertStringContainsString('GETTY_API_KEY', $html);
         $this->assertStringContainsString('SHUTTERSTOCK_API_KEY</code> <span', $html);
         $this->assertStringContainsString('SHUTTERSTOCK_API_SECRET', $html);
-        $this->assertStringContainsString('Coming: a later version of Ghostwriter adds this library.', $html);
+        $this->assertStringContainsString('Coming: a later version of Ghostwriter adds this library.', $html, 'Getty, still.');
         $this->assertStringNotContainsString('sk-live-not-shown', $html);
-        $this->assertStringNotContainsString('data-ghostwriter-check-connection="shutterstock"', $html, 'Inert until core has its adapter.');
+        $this->assertStringNotContainsString('data-ghostwriter-check-connection="shutterstock"', $html, 'Not until its secret is set too.');
 
         $this->assertTrue($fields->has('stock_demo'), 'A switch for the demo library.');
         $this->assertFalse($fields->has('stock_shutterstock'));
+
+        config(['ghostwriter.stock.keys.shutterstock_secret' => 'ss-secret-not-shown']);
+        $section = ['tabs' => ['main' => ['sections' => [['display' => 'Stock photos', 'fields' => []]]]]];
+        $html = app(Settings::class)->withStock($section, app(StockLibraries::class))['tabs']['main']['sections'][0]['fields'][0]['field']['html'];
+        $this->assertStringContainsString('data-ghostwriter-check-connection="shutterstock"', $html);
+        $this->assertStringContainsString('Account not connected', $html);
+        $this->assertStringContainsString('Connect account', $html);
+        $this->assertStringContainsString('localhost/cp/ghostwriter/libraries/shutterstock/callback', $html, 'The host and path to register, not the full address.');
+        $this->assertStringNotContainsString('ss-secret-not-shown', $html);
         $this->assertSame(['free' => 'Free libraries', 'demo' => 'Demo stock (no charge)', 'everything' => 'Everything'], $fields['stock_default_source']->get('options'));
         $this->assertSame('read_only', $fields['stock_on_publish']->get('visibility'), 'Config wins.');
         $this->assertSame(Settings::WARN, app(Settings::class)->stockOnPublish());

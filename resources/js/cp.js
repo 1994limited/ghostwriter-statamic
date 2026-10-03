@@ -105,6 +105,29 @@ Statamic.booting(() => {
         },
     });
 
+    // "Disconnect" on a connected library's settings row.
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest?.('[data-ghostwriter-disconnect]');
+
+        if (!button) return;
+
+        event.preventDefault();
+
+        if (!window.confirm(__('Disconnect :library? Licensing from it stops until someone connects again.', { library: button.dataset.ghostwriterLibrary }))) return;
+
+        button.disabled = true;
+
+        try {
+            const result = await request(button.dataset.ghostwriterDisconnect, { method: 'POST' });
+
+            Statamic.$toast.success(result.message);
+            window.location.reload();
+        } catch (error) {
+            Statamic.$toast.error(error.message);
+            button.disabled = false;
+        }
+    });
+
     // "Check connection" on the settings screen's Stock photos rows. The
     // rows are plain HTML in the blueprint, so the button is handled here.
     document.addEventListener('click', async (event) => {

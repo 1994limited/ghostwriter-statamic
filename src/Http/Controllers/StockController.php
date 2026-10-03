@@ -8,6 +8,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Conflict;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\AssetRef;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImage;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImages;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Exceptions\NotConnected;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoUnavailable;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Stock\CompStore;
@@ -93,6 +94,8 @@ class StockController
 
         try {
             return response()->json($this->licensing->confirm($this->record($id)));
+        } catch (NotConnected $lost) {
+            return response()->json(['message' => $lost->getMessage(), 'connect_url' => $this->settings->urlForCurrentUser()], 422);
         } catch (PhotoUnavailable $exception) {
             abort(422, $exception->getMessage());
         }
@@ -117,6 +120,8 @@ class StockController
             'message' => $result['message'],
             'notice' => $result['notice'] ?? null,
             'quote' => $result['quote'] ?? null,
+            // The connection was lost: "Connect again" goes to the settings, for those who may.
+            'connect_url' => ($result['connect'] ?? false) ? $this->settings->urlForCurrentUser() : null,
             'stock' => $this->presenter->summary($result['record']),
         ], $result['ok'] ? 200 : 422);
     }

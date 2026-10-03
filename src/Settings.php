@@ -178,9 +178,26 @@ class Settings
                 ? '<button type="button" data-ghostwriter-check-connection="'.e($row['id']).'" style="font-size:.8rem;padding:.15rem .6rem;border:1px solid currentColor;border-radius:.375rem;opacity:.85">'.e(__('Check connection')).'</button>'
                 : '';
 
+            // Connect account / Disconnect, for a library that licenses for a
+            // person's signed-in account.
+            $connect = '';
+
+            if ($row['connect'] !== null) {
+                $c = $row['connect'];
+                $button = 'font-size:.8rem;padding:.15rem .6rem;border:1px solid currentColor;border-radius:.375rem;opacity:.85';
+                $connect = '<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;font-size:.8rem">'
+                    .self::pill($c['connected'] ? __('Account connected') : __('Account not connected'), $c['connected'])
+                    .($c['connected']
+                        ? '<button type="button" data-ghostwriter-disconnect="'.e($c['disconnect_url']).'" data-ghostwriter-library="'.e($row['label']).'" style="'.$button.'">'.e(__('Disconnect')).'</button>'
+                        : '<a href="'.e($c['connect_url']).'" style="'.$button.';text-decoration:none">'.e(__('Connect account')).'</a>')
+                    .'</div>'
+                    .($row['demo'] ? '' : '<div style="font-size:.8rem;opacity:.75">'.e(__('Licensing needs your account connected. In your app\'s settings with the library, add this callback:')).' <code>'.e($c['callback']).'</code></div>');
+            }
+
             return '<li style="margin:.6rem 0;display:flex;flex-direction:column;gap:.3rem">'
                 .'<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center"><strong>'.e($row['label']).'</strong>'.$keys.' '.$check.'</div>'
                 .($status ? '<div style="font-size:.8rem;opacity:.75">'.e($status).'</div>' : '')
+                .$connect
                 .'<div data-ghostwriter-connection="'.e($row['id']).'" style="font-size:.8rem" role="status"></div>'
                 .'</li>';
         })->implode('');

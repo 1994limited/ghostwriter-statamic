@@ -6,8 +6,11 @@ use Illuminate\Support\Facades\Log;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Account;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\ConnectsAccount;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\LicensableLibrary;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Paid\Shutterstock;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\PhotoLibrary;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Ports\LibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use Statamic\Contracts\Auth\User as UserContract;
@@ -104,14 +107,12 @@ class StockLibraries
                 continue;
             }
 
-            // CONNECT ACCOUNT (OAuth): libraries that need a person to sign
-            // in to the customer's account (Shutterstock, Adobe user auth)
-            // will implement core's ConnectsAccount port once it ships. They
-            // are built here as now; "Connect account" / "Disconnect" go on
-            // their settings row (rows() below, `connect`), with the tokens
-            // kept encrypted by EncryptedLibraryTokens.
+            // Libraries that license for a person's signed-in account
+            // (Shutterstock) implement core's ConnectsAccount: "Connect
+            // account" on their settings row, tokens kept encrypted by
+            // EncryptedLibraryTokens (docs: core's connecting-accounts.md).
             try {
-                $made = app()->make($library['adapter']);
+                $made = $this->make($id, $library['adapter']);
 
                 if ($made instanceof LicensableLibrary) {
                     $paid[$made->id()] = $made;
@@ -333,14 +334,14 @@ class StockLibraries
      * blueprint is built from it, and reading them would ask for that
      * blueprint again.
      *
-     * @return array<int, array{id: string, label: string, keys: array<string, bool>, ready: bool, demo: bool, connect: null}>
+     * @return array<int, array{id: string, label: string, keys: array<string, bool>, ready: bool, demo: bool, connect: ?array<string, mixed>}>
      */
     public function rows(): array
     {
         $rows = [];
 
         if (self::demoAllowed()) {
-            $rows[] = ['id' => DemoLibrary::ID, 'label' => 'Demo stock (no charge)', 'keys' => [], 'ready' => true, 'demo' => true, 'connect' => null];
+            $rows[] = ['id' => DemoLibrary::ID, 'label' => 'Demo stock (no charge)', 'keys' => [], 'ready' => true, 'demo' => true, 'connect' => $this->connection(DemoLibrary::ID)];
         }
 
         $credentials = new ConfigCredentials;
@@ -352,12 +353,80 @@ class StockLibraries
                 'keys' => array_combine(array_values($library['keys']), array_map(fn (string $service) => $credentials->key($service) !== null, array_keys($library['keys']))),
                 'ready' => class_exists($library['adapter']),
                 'demo' => false,
-                // CONNECT ACCOUNT (OAuth): filled in once core's ConnectsAccount ships.
-                'connect' => null,
+                'connect' => $this->connection($id),
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * For a library that licenses for a signed-in account: whether it is
+     * connected, where Connect account and Disconnect go, and the callback
+     * to register with the provider (Shutterstock wants the host name and
+     * path, not the full address).
+     *
+     * @return array{connected: bool, connect_url: string, disconnect_url: string, callback: string}|null
+     */
+    private function connection(string $id): ?array
+    {
+        $library = $this->configured()[$id] ?? null;
+
+        if (! $library instanceof ConnectsAccount || ! $library->capabilities()->needsOAuth) {
+            return null;
+        }
+
+        $callback = self::callbackUrl($id);
+
+        return [
+            'connected' => $library->connected(),
+            'connect_url' => cp_route('ghostwriter.libraries.connect', $id),
+            'disconnect_url' => cp_route('ghostwriter.libraries.disconnect', $id),
+            'callback' => (string) preg_replace('#^https?://#', '', $callback),
+        ];
+    }
+
+    /**
+     * One paid library's adapter, with the site's keys and token store.
+     */
+    private function make(string $id, string $adapter): object
+    {
+        $credentials = new ConfigCredentials;
+
+        return match ($id) {
+            'shutterstock' => new Shutterstock(
+                $this->http,
+                (string) $credentials->key('shutterstock'),
+                (string) $credentials->key('shutterstock_secret'),
+                app(LibraryTokens::class),
+                sandbox: self::shutterstockSandbox(),
+                // Editorial results come back, and "Search in" leaves them
+                // out unless "Include editorial images" is ticked.
+                editorial: true,
+            ),
+            default => app()->make($adapter),
+        };
+    }
+
+    /**
+     * Whether Shutterstock calls go to its sandbox (licensing charges
+     * nothing there): config, else on a local site.
+     */
+    public static function shutterstockSandbox(): bool
+    {
+        $configured = config('ghostwriter.stock.shutterstock_sandbox');
+
+        return $configured === null || $configured === '' ? app()->environment('local') : filter_var($configured, FILTER_VALIDATE_BOOL);
+    }
+
+    /**
+     * The address a library sends the person back to after signing in:
+     * absolute, from the site's own URL (never the request's Host header),
+     * and the same in both halves of the sign-in.
+     */
+    public static function callbackUrl(string $id): string
+    {
+        return rtrim((string) config('app.url'), '/').route('statamic.cp.ghostwriter.libraries.callback', ['library' => $id], false);
     }
 
     private function keysSet(string $id): bool

@@ -9,6 +9,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\HistoryEvent;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImage;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImageStore;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Exceptions\LicensingUncertain;
+use NineteenNinetyFour\Ghostwriter\Core\Images\Exceptions\NotConnected;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Exceptions\QuoteChanged;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Account;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Capabilities;
@@ -69,13 +70,13 @@ class Licensing
     public function license(StockImage $image, string $option): array
     {
         $library = $this->library($image);
-        $quote = collect($library->quotes($image->externalId))->first(fn (Quote $quote) => $quote->option === $option)
-            ?? throw new PhotoUnavailable(__('That licence option isn\'t offered any more. Choose again.'));
-
         $replacer = new StatamicAssetReplacer($library->label());
         $comp = $image->comp();
 
         try {
+            $quote = collect($library->quotes($image->externalId))->first(fn (Quote $quote) => $quote->option === $option)
+                ?? throw new PhotoUnavailable(__('That licence option isn\'t offered any more. Choose again.'));
+
             $this->ledger->images()->quoted($image->id, $quote, Ledger::person());
             $record = $this->ledger->images()->license($image->id, $library, $quote, $replacer, Ledger::person());
         } catch (LicensingUncertain) {
@@ -83,6 +84,8 @@ class Licensing
         } catch (QuoteChanged $changed) {
             return ['ok' => false, 'message' => $changed->getMessage(), 'record' => $this->ledger->images()->get($image->id)]
                 + ($changed->quote ? ['quote' => $this->option($library, $changed->quote, null)] : []);
+        } catch (NotConnected $lost) {
+            return ['ok' => false, 'message' => $lost->getMessage(), 'record' => $this->ledger->images()->get($image->id), 'connect' => true];
         } catch (Conflict|PhotoUnavailable $refused) {
             return ['ok' => false, 'message' => $refused->getMessage(), 'record' => $this->ledger->images()->get($image->id)];
         }
