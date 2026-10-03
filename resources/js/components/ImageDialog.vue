@@ -8,9 +8,11 @@
 <script>
 import ghost from '../icon.js';
 import { Alert, Button, Input, Modal, Subheading, Textarea } from '@statamic/cms/ui';
+import StockCard from './StockCard.vue';
+import { previewIn } from '../stock/store.js';
 
 export default {
-    components: { Alert, Button, Input, Modal, Subheading, Textarea },
+    components: { Alert, Button, Input, Modal, StockCard, Subheading, Textarea },
 
     props: {
         baseUrl: { type: String, required: true },
@@ -65,6 +67,35 @@ export default {
         // Whether "Search in" offers any paid library.
         offersPaid() {
             return (this.tools?.sources ?? []).some((choice) => choice.paid);
+        },
+
+        // The "Search in" choice, with its short name for running text.
+        chosen() {
+            return (this.tools?.sources ?? []).find((choice) => choice.value === this.searchIn) ?? null;
+        },
+
+        // What the Find tab says it does: it depends on where it searches.
+        intro() {
+            const blank = this.tools?.suggests ? this.__('Leave the words blank and Ghostwriter chooses what to search for from the page.') + ' ' : this.__('Type what to search for. Separate several searches with semicolons.') + ' ';
+
+            if (this.searchIn === 'everything') {
+                const paid = (this.tools?.sources ?? []).filter((choice) => choice.paid && choice.short && !choice.disabled).map((choice) => choice.short).join(', ');
+
+                return blank + this.__('Searches the free libraries and :libraries. Free photos that suit the page come first; paid results follow in each library’s order.', { libraries: paid });
+            }
+
+            if (this.chosen?.paid) {
+                return blank + this.__('Searches :library for this part of the page. Results are in :library’s order.', { library: this.chosen.short });
+            }
+
+            return this.tools?.suggests
+                ? this.__('Leave the words blank and Ghostwriter chooses what to search for from the page. The photos that best suit the page’s words, and the images already in this place on other entries when there are any, come first.')
+                : this.__('Type what to search for. Separate several searches with semicolons.');
+        },
+
+        // The stock preview already in this field, waiting for a licence.
+        currentPreview() {
+            return this.field ? previewIn(this.field.value) : null;
         },
 
         // Every result is from a paid library, so nothing was judged.
@@ -253,6 +284,12 @@ export default {
 <template>
     <Modal v-model:open="open" class="max-w-3xl!" :title="field ? __('Image for :label', { label: field.label }) : __('Ghostwriter')" :icon="ghost">
         <div v-if="field" class="p-1">
+            <!-- The preview this field holds now, to license before publishing -->
+            <section v-if="currentPreview" class="mb-4 rounded-lg border border-amber-300 bg-amber-50/60 p-3 dark:border-amber-800! dark:bg-amber-950/30!" data-ghostwriter-current>
+                <h3 class="mb-2 text-sm font-medium">{{ __('In this field now') }}</h3>
+                <StockCard :record="currentPreview" />
+            </section>
+
             <div v-if="tabs.length > 1" class="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-700!">
                 <button
                     v-for="item in tabs"
@@ -268,7 +305,7 @@ export default {
 
             <!-- Find a photograph -->
             <div v-if="tab === 'find' && tools?.find" class="space-y-3">
-                <Subheading :text="tools.suggests ? __('Leave the words blank and Ghostwriter chooses what to search for from the page. The photos that best suit the page’s words, and the images already in this place on other entries when there are any, come first.') : __('Type what to search for. Separate several searches with semicolons.')" />
+                <Subheading :text="intro" />
                 <div class="flex flex-wrap gap-2">
                     <Input v-model="words" class="min-w-48 flex-1" :placeholder="__('e.g. mended pottery gold; restored classic car')" :disabled="working" @keydown.enter.stop.prevent="start('find')" />
                     <label v-if="tools.sources?.length" class="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300!">
@@ -293,7 +330,7 @@ export default {
                     <p v-else-if="request.none_fit" class="text-sm text-gray-500">{{ __('None of these fitted the page, even after a second round of searches. These are the top results; try other words for a better match.') }}</p>
                     <p v-else-if="judged && !request.with_references" class="text-sm text-gray-500">{{ __('Compared with the page; there are no other images here to match.') }}</p>
                     <p v-else-if="!judged && !allPaid" class="text-sm text-gray-500">{{ __('These are the top results of each search. They weren’t compared with the page.') }}</p>
-                    <p v-for="library in request.paid_libraries ?? []" :key="library" class="text-sm text-gray-500">{{ __(':library results are in :library\'s order; Ghostwriter doesn\'t judge paid libraries.', { library }) }}</p>
+                    <p v-for="library in request.paid_libraries ?? []" :key="library" class="text-sm text-gray-500">{{ __('Shown in :library\'s order. Ghostwriter doesn\'t rank paid libraries.', { library }) }}</p>
                     <div class="grid grid-cols-3 items-start gap-3 max-sm:grid-cols-2!">
                         <div
                             v-for="photo in shown"

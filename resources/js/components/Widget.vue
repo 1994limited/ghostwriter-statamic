@@ -16,6 +16,7 @@ export default {
         planOpen: { type: Number, default: 0 },
         setup: { type: Object, required: true },
         configured: { type: Boolean, required: true },
+        stock: { type: Object, default: () => ({ previews: 0 }) },
         collections: { type: Array, required: true },
         urls: { type: Object, required: true },
     },
@@ -47,6 +48,7 @@ export default {
 <template>
     <Panel :heading="title" :icon="ghost">
         <div class="divide-y divide-gray-200 dark:divide-gray-700!">
+            <p v-if="stock.previews > 0" class="px-4 py-2 text-sm text-amber-700 dark:text-amber-400!" data-ghostwriter-stock-notice>{{ __n(':count stock preview to license.|:count stock previews to license.', stock.previews, { count: stock.previews }) }} <a :href="stock.url" class="underline">{{ __('Open Stock images') }}</a></p>
             <p v-if="!configured" class="px-4 py-2 text-sm text-amber-700 dark:text-amber-400!">{{ __('Ghostwriter has no API key yet.') }} <a :href="urls.setup + '#step-1'" class="underline">{{ __('Add one') }}</a></p>
 
             <a v-if="!setup.hidden && !setup.complete" :href="urls.setup" class="block px-4 py-3 hover:bg-gray-50! dark:hover:bg-gray-800!">

@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
@@ -204,6 +205,16 @@ class ServiceProvider extends AddonServiceProvider
         return $this;
     }
 
+    /**
+     * Stock previews kept to the libraries' terms: expired comps deleted,
+     * unused previews removed, unknown licence outcomes settled. Hourly, so
+     * a licence in doubt is settled soon after its ten minutes are up.
+     */
+    protected function schedule(Schedule $schedule)
+    {
+        $schedule->command('ghostwriter:stock-cleanup')->hourly()->withoutOverlapping();
+    }
+
     public function bootAddon(): void
     {
         $this->publishes([
@@ -285,6 +296,7 @@ class ServiceProvider extends AddonServiceProvider
                     $nav->item('Content plan')->route('ghostwriter.plan.show')->can('access ghostwriter'),
                     $nav->item('Voice guide')->route('ghostwriter.voice.show')->can('access ghostwriter'),
                     $nav->item('Image style')->route('ghostwriter.imagery.show')->can('access ghostwriter'),
+                    $nav->item('Stock images')->route('ghostwriter.stock.index')->can('access ghostwriter'),
                     ($settings = app(Settings::class)->url())
                         ? $nav->item('Settings')->url($settings)->can('edit '.Settings::ADDON.' settings')
                         : null,
