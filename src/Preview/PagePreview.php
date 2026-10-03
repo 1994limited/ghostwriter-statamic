@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\Units;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\Markers;
 use NineteenNinetyFour\Ghostwriter\Core\Preview\PreviewData;
 use NineteenNinetyFour\Ghostwriter\Core\Preview\PreviewMarkers;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
@@ -56,7 +57,10 @@ class PagePreview
      */
     public function render(Session $session, Draft $draft, Blueprint $blueprint, BuiltValues $built, ?Entry $original, array $form, string $site, string $origin, bool $arranged = false): array
     {
-        $collection = $original?->collection() ?? $blueprint->parent();
+        // Reading the collection's entries (for its pattern) leaves a shared
+        // blueprint's parent on the last entry read: its collection is ours.
+        $parent = $blueprint->parent();
+        $collection = $original?->collection() ?? ($parent instanceof Entry ? $parent->collection() : $parent);
 
         if (! $collection instanceof Collection || ! $collection->route($site)) {
             return ['available' => false];
@@ -112,7 +116,26 @@ class PagePreview
         }
 
         // Core marks the text and sections; Bard's sets are mapped here.
-        return (new BardSetMarkers)->mark((new PreviewMarkers)->mark($built->data, $built->schema, $units), $built->schema);
+        return (new BardSetMarkers)->mark((new PreviewMarkers)->mark(self::readable($built->data), $built->schema, $units), $built->schema);
+    }
+
+    /**
+     * A count still to check ("[[check: 3 areas | from: …]]") as the page
+     * will say it ("3 areas"), in the preview's copy only: apply keeps the
+     * marker for Finish this page, and the extras list says it needs review.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function readable(array $data): array
+    {
+        array_walk_recursive($data, function (mixed &$value) {
+            if (is_string($value) && str_contains($value, '[[')) {
+                $value = Markers::withoutChecks($value);
+            }
+        });
+
+        return $data;
     }
 
     /**

@@ -4,8 +4,9 @@
     Nothing is saved.
 
     - It renders once the draft is ready, and again 800 ms after the draft
-      changes (click-to-edit, Edit YAML, a new turn, an image chosen), only
-      while it's showing. The server reuses a render for an unchanged draft.
+      changes (click-to-edit, Edit YAML, a new turn, an image chosen, a
+      layout chosen, an extra changed), only while it's showing. It shows
+      the chosen layout, as Use this draft would put it into the form. The server reuses a render for an unchanged draft.
     - The next render loads in a hidden frame and swaps in when it has
       loaded, at the same block, so nothing flashes. Meanwhile the old one
       stays, dimmed, with a spinner in the frame's bar.
@@ -68,9 +69,10 @@ export default {
             return (this.session.page_preview?.timeout ?? 8) * 1000;
         },
 
-        // What a render depends on: the draft and the images chosen in the panel.
+        // What a render depends on: the draft, the chosen layout and the
+        // extras it may use, and the images chosen in the panel.
         renderKey() {
-            return JSON.stringify([this.session.id, this.session.draft, (this.session.images ?? []).map((image) => [image.key, image.path ?? null, image.status])]);
+            return JSON.stringify([this.session.id, this.session.draft, this.session.layouts?.chosen ?? null, (this.session.layouts?.plans ?? []).map((plan) => [plan.id, plan.stale]), this.session.extras ?? [], (this.session.images ?? []).map((image) => [image.key, image.path ?? null, image.status])]);
         },
 
         // The frame's width and scale: Phone is a phone's width; Desktop fills
