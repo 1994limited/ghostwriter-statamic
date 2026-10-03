@@ -190,6 +190,9 @@
 
 .gw-f-msg { margin: 0 0 8px; font-size: 13.5px; outline: none; }
 .gw-f .gw-f-msg:focus-visible { outline: none; }
+.gw-f.is-covered .gw-f-guide,
+.gw-f.is-covered .gw-f-dock,
+.gw-f.is-covered .gw-f-flyer { visibility: hidden; }
 .gw-f-flyer.is-covered,
 .gw-f-flyer.is-away { opacity: 0; }
 .gw-f-reason { margin: 0 0 10px; color: var(--gw-f-muted); font-size: 12px; }

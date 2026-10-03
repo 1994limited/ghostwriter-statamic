@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Finish this page: **Link to …** on a Link field (in URL mode, holding `#gw-link:`) set the form's value but the field kept showing the old address. It now switches the field to Entry with the entry showing, through the field's own meta, and the value is `entry::<id>`.
+- **Choose an entry** on such a Link field only focused it. It now switches the field to Entry and opens its entry selector; cancelling puts the field back to URL and the link to choose. On a link inside Bard it opens Bard's own link editor on the link's words.
+- A fix counts as done only when the field's value really changed, read back from the form; the guide no longer moves on otherwise.
+- The guide and the flying mark step out of the way while a selector or dialog (entry picker, asset browser, License & replace) is open.
+- **Remove it** leaves no stray space where the text was.
+
 ## 1.1.0 - 2026-10-03
 
 Stock photos from paid libraries, licensed from your own account; **Finish this page**, which marks what only a person can finish and walks you through it; and drafts that start unpublished. Requires `1994/ghostwriter-core` 1.4. Statamic 6.30 or later and PHP 8.3 or later, as before.
