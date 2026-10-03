@@ -4,6 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\View;
+use Illuminate\Validation\ValidationException;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
@@ -244,6 +245,51 @@ final class LayoutsTest extends TestCase
         $this->deleteJson(cp_route('ghostwriter.sessions.extras.destroy', [$session->id, 'x1.2']))->assertStatus(422);
 
         $this->assertSame(['hero', 'text', 'cta'], array_column($this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->json('values.page_builder'), 'type'));
+        $this->ai->assertNothingSent();
+    }
+
+    public function test_a_count_to_check_is_a_step_in_finish_this_page_and_blocks_publishing(): void
+    {
+        $session = $this->firstDraft();
+        $this->patchJson(cp_route('ghostwriter.sessions.layout', $session->id), ['plan' => 'p1'])->assertOk();
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->json('values');
+        $this->ai->reset();
+
+        $check = fn () => collect($this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'services', 'blueprint' => 'service', 'session' => $session->id, 'values' => $values])->assertOk()->json('gaps'))->firstWhere('kind', 'check');
+
+        $gap = $check();
+        $this->assertSame('page_builder.1.items.0.value', $gap['dotted']);
+        $this->assertSame('blocks', $gap['severity']);
+        $this->assertSame('I counted 3 from “Northumberland, Durham and the Tyne Valley”. Is that right?', $gap['message']);
+        $this->assertSame([['confirm', 'Looks right', '3'], ['change', 'Change it', '3'], ['remove', 'Remove it', null]], array_map(fn (array $fix) => [$fix['action'], $fix['label'], $fix['value'] ?? null], $gap['fixes']));
+        $this->assertSame('[[check: 3 | from: Northumberland, Durham and the Tyne Valley]]', $gap['meta']['match']);
+
+        // The list given has changed since: the step says so, and offers the new count.
+        $stored = $this->sessions()->find($session->id);
+        $stored->answers = ['what' => 'Winter care. We cover Northumberland, Durham, Cumbria and the Tyne Valley.'];
+        $stored->draft = str_replace('Durham and', 'Durham, Cumbria and', $stored->draft);
+        $stored->messages = array_map(fn (array $message) => $message['role'] === 'user' ? ['content' => str_replace('Durham and', 'Durham, Cumbria and', $message['content'])] + $message : $message, $stored->messages);
+        $this->sessions()->save($stored);
+
+        $gap = $check();
+        $this->assertSame('changed', $gap['meta']['stale']);
+        $this->assertStringContainsString('It now has 4. Use “4” instead?', $gap['message']);
+        $this->assertSame(['confirm', 'Use “4”', '4'], [$gap['fixes'][0]['action'], $gap['fixes'][0]['label'], $gap['fixes'][0]['value']]);
+
+        // Published with the count still to check: refused, by its field.
+        $entry = Entry::make()->collection('services')->blueprint('service')->slug('winter')->published(true)->data(['title' => 'Winter', 'page_builder' => [
+            ['id' => 'st', 'type' => 'stats', 'enabled' => true, 'items' => [['id' => 'r', 'value' => '[[check: 3 | from: Northumberland, Durham and the Tyne Valley]]', 'label' => 'areas']]],
+        ]]);
+
+        try {
+            $entry->save();
+            $this->fail('A count to check was published.');
+        } catch (ValidationException $refused) {
+            $this->assertSame(['page_builder.0.items.0.value' => ['Check “3” before publishing.']], $refused->errors());
+        }
+
+        $entry->set('page_builder', [['id' => 'st', 'type' => 'stats', 'enabled' => true, 'items' => [['id' => 'r', 'value' => '3', 'label' => 'areas']]]])->save();
+        $this->assertNotNull(Entry::find($entry->id()));
         $this->ai->assertNothingSent();
     }
 

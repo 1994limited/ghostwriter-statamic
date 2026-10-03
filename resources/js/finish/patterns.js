@@ -10,6 +10,11 @@ export function asks(text) {
     return [...text.matchAll(make(patterns.ask))].map((m) => ({ index: m.index, length: m[0].length, match: m[0], hint: m[1].trim() }));
 }
 
+// Counts to check: `[[check: 3 areas | from: …]]`. `hint` is the value, as core's gap has it.
+export function checks(text) {
+    return [...text.matchAll(make(patterns.check))].map((m) => ({ index: m.index, length: m[0].length, match: m[0], hint: m[1].trim(), list: m[2].trim() }));
+}
+
 export function leftovers(text) {
     return [...text.matchAll(make(patterns.leftover))].map((m) => ({ index: m.index, length: m[0].length, match: m[0], hint: m[1] }));
 }

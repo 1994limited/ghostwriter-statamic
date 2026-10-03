@@ -1,10 +1,11 @@
 // Ghostwriter's marks inside Bard: a ProseMirror plugin that decorates every
-// `[[ask: …]]`, leftover `[[token]]` and link to `#gw-link:` with a dashed
+// `[[ask: …]]`, `[[check: …]]`, leftover `[[token]]` and link to `#gw-link:` with a dashed
 // underline, the current gap's in purple. Decorations are the editor's own
 // mechanism, so they survive every re-render, and edits go through
 // transactions, so undo works. Each editor is registered by its field path,
 // so the guide can select and replace inside it.
-import { asks, leftovers, isLinkSentinel, linkHint, normaliseHint, sentenceAround } from './patterns.js';
+import { asks, checks, leftovers, isLinkSentinel, linkHint, normaliseHint, sentenceAround } from './patterns.js';
+import { pickCheck } from './check.js';
 
 // Each live editor with a function giving its field path now: a set moved
 // up or down changes the path, so it is asked each time.
@@ -66,6 +67,7 @@ export function markersIn(doc) {
 
     blocks(doc).forEach(({ text, start }) => {
         asks(text).forEach((m) => found.push({ kind: 'ask', from: start + m.index, to: start + m.index + m.length, match: m.match, hint: m.hint, block: { text, start } }));
+        checks(text).forEach((m) => found.push({ kind: 'check', from: start + m.index, to: start + m.index + m.length, match: m.match, hint: m.hint, block: { text, start } }));
         leftovers(text).forEach((m) => found.push({ kind: 'leftover-token', from: start + m.index, to: start + m.index + m.length, match: m.match, hint: m.hint, block: { text, start } }));
     });
 
@@ -100,7 +102,11 @@ export function markersIn(doc) {
 // The marker in this document a gap names: the nth of its kind with its hint.
 export function findGap(doc, gap) {
     const kind = gap.kind === 'link' ? 'link' : gap.kind;
-    const same = markersIn(doc).filter((m) => m.kind === kind && (gap.meta?.match && kind === 'ask' ? m.match === gap.meta.match || normaliseHint(m.hint) === normaliseHint(gap.hint) : normaliseHint(m.hint) === normaliseHint(gap.hint)));
+    const all = markersIn(doc).filter((m) => m.kind === kind);
+
+    if (kind === 'check') return pickCheck(all, gap);
+
+    const same = all.filter((m) => (gap.meta?.match && kind === 'ask' ? m.match === gap.meta.match || normaliseHint(m.hint) === normaliseHint(gap.hint) : normaliseHint(m.hint) === normaliseHint(gap.hint)));
 
     return same[gap.occurrence ?? 0] ?? same[0] ?? null;
 }

@@ -301,7 +301,7 @@ class SessionController
 
         // What is still to finish in the entry as the form will hold it,
         // for the count by Save and the guide, which opens now.
-        $report = $gaps->find($gaps->context($blueprint, $data, $original ? null : $type->group, $original ? (string) $original->id() : null, $left));
+        $report = $gaps->find($gaps->context($blueprint, $data, $original ? null : $type->group, $original ? (string) $original->id() : null, $left, sources: EntryGaps::sources($session)));
 
         return response()->json([
             'values' => $fields->values()->only(array_keys($data))->all(),

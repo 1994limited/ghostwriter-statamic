@@ -7,11 +7,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\ProviderException;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\FixAction;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Gap;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapKind;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapRefused;
-use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Walk;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Kind;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\GapRequest;
@@ -163,8 +163,8 @@ class FinishController
         return [$blueprint, $entry, is_array($values) ? $values : [], $collection->handle()];
     }
 
-    private function session(Request $request, ?EntryContract $entry): ?SessionGaps
+    private function session(Request $request, ?EntryContract $entry): ?Session
     {
-        return $this->gaps->sessionById($request->input('session')) ?? ($entry ? $this->gaps->sessionFor($entry) : null);
+        return $this->gaps->sessionById($request->input('session')) ?? ($entry ? $this->gaps->sessionOf($entry) : null);
     }
 }

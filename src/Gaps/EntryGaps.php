@@ -5,6 +5,7 @@ namespace NineteenNinetyFour\Ghostwriter\Gaps;
 use Illuminate\Support\Facades\Cache;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Arrange\Extras\ExtraSources;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImages;
@@ -58,7 +59,10 @@ class EntryGaps
      *
      * @param  array<string, mixed>  $data  As the entry stores it.
      */
-    public function context(Blueprint $blueprint, array $data, ?string $collection = null, ?string $id = null, ?SessionGaps $session = null, ?string $site = null): GapContext
+    /**
+     * @param  list<string>|null  $sources  What a count to check may have been counted from (ExtraSources::fromSession()->all()): with them, a count whose list has changed since says so.
+     */
+    public function context(Blueprint $blueprint, array $data, ?string $collection = null, ?string $id = null, ?SessionGaps $session = null, ?string $site = null, ?array $sources = null): GapContext
     {
         $schema = $this->reader->schemaWithoutFolders($blueprint);
 
@@ -73,6 +77,7 @@ class EntryGaps
             stock: $this->stock,
             pattern: $collection !== null ? $this->pattern($schema, $collection, $blueprint->handle()) : null,
             session: $session ?? new SessionGaps,
+            sources: $sources ?? [],
         );
     }
 
@@ -91,11 +96,23 @@ class EntryGaps
      *
      * @param  array<string, mixed>  $values  As the publish form holds them.
      */
-    public function forForm(Blueprint $blueprint, array $values, ?Entry $entry, string $collection, ?SessionGaps $session = null, ?string $site = null): GapReport
+    public function forForm(Blueprint $blueprint, array $values, ?Entry $entry, string $collection, ?Session $session = null, ?string $site = null): GapReport
     {
         $data = $this->data($blueprint, $values, $entry);
+        $session ??= $entry ? $this->sessionOf($entry) : null;
 
-        return GapFinder::standard()->find($this->context($blueprint, $data, $collection, $entry?->id(), $session ?? ($entry ? $this->sessionFor($entry) : null), $site ?? $entry?->locale()));
+        return GapFinder::standard()->find($this->context($blueprint, $data, $collection, $entry?->id(), $session ? SessionGaps::fromSession($session) : null, $site ?? $entry?->locale(), self::sources($session)));
+    }
+
+    /**
+     * What a session's counts to check were counted from, as they stand
+     * now: the person's messages and answers, and the draft.
+     *
+     * @return list<string>|null
+     */
+    public static function sources(?Session $session): ?array
+    {
+        return $session ? ExtraSources::fromSession($session)->all() : null;
     }
 
     /**
@@ -135,7 +152,7 @@ class EntryGaps
         $data = $entry->values()->all();
 
         return PublishReadiness::standard($this->settings->onUnfinishedPublish())
-            ->check($this->context($blueprint, $data, null, $entry->id() ? (string) $entry->id() : null, site: $entry->locale()));
+            ->check($this->context($blueprint, $data, null, $entry->id() ? (string) $entry->id() : null, site: $entry->locale(), sources: $entry->id() ? self::sources($this->sessionOf($entry)) : null));
     }
 
     /**
@@ -143,6 +160,17 @@ class EntryGaps
      * written or last edited in, where the person may see it.
      */
     public function sessionFor(Entry $entry): ?SessionGaps
+    {
+        $session = $this->sessionOf($entry);
+
+        return $session ? SessionGaps::fromSession($session) : null;
+    }
+
+    /**
+     * The conversation this entry was written or last edited in, where the
+     * person may see it: its gap list, and what its counts were counted from.
+     */
+    public function sessionOf(Entry $entry): ?Session
     {
         try {
             $sessions = app(SessionGuard::class)->visible(Presenter::viewer());
@@ -155,20 +183,20 @@ class EntryGaps
 
         usort($mine, fn (Session $a, Session $b) => strcmp((string) $b->appliedAt, (string) $a->appliedAt));
 
-        return $mine === [] ? null : SessionGaps::fromSession($mine[0]);
+        return $mine === [] ? null : $mine[0];
     }
 
     /**
      * A session's gap list, when the person may see it.
      */
-    public function sessionById(?string $id): ?SessionGaps
+    public function sessionById(?string $id): ?Session
     {
         if ($id === null || $id === '') {
             return null;
         }
 
         try {
-            return SessionGaps::fromSession(app(SessionGuard::class)->find($id, Presenter::viewer()));
+            return app(SessionGuard::class)->find($id, Presenter::viewer());
         } catch (Throwable) {
             return null;
         }
