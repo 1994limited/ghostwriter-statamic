@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixed
+- Finish this page keeps one live list of gaps, straight from the latest check, for the count by Save, the guide's "n of total" and its progress bar, which could disagree (fixed gaps stayed in the guide's total and the bar). Suggestions are numbered on their own.
+- A field shows "Fixed ✓" only when every gap in it has gone, and a fix that leaves a new gap (a placeholder swapped for a stock preview) shows the new one as open; field states come from the next check, never from the step clicked.
+- The flying mark's label and place follow the step when its gap changes kind, and are measured again when the page shifts (a banner appearing, a set opening).
+- A field's tag names the step the guide is on, or the range of its steps ("2–4 · 3 to do"), and sits beside the field's name instead of over its border and buttons.
+- A place is named once: "Text" rather than "Text: Text" when a set and its field share a name, in the guide and in the publish messages.
+- "Choose from Assets" uses the field's visible Browse button.
 - Finish this page highlighted a new, empty entry's required fields (with tags) although the guide and count stayed hidden. Fields are now highlighted only once the guide has something to show.
 
 ### Added

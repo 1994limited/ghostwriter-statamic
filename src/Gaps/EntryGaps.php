@@ -172,6 +172,7 @@ class EntryGaps
 
         $array['gaps'] = array_map(function (Gap $gap) use ($tabs) {
             $out = $gap->toArray();
+            $out['label'] = self::place($gap->label);
             $out['message'] = $this->text($gap->message());
             $out['speech'] = $this->text(new Message($gap->kind->speech()));
             $out['fixes'] = array_map(fn (Fix $fix) => ['label' => $this->text($fix->label)] + $fix->toArray(), $gap->fixes);
@@ -201,6 +202,10 @@ class EntryGaps
         $name = str_starts_with($message->key, 'gaps.') ? substr($message->key, 5) : $message->key;
         $params = $message->params;
 
+        if (is_string($params['label'] ?? null)) {
+            $params['label'] = self::place($params['label']);
+        }
+
         if (is_string($params['library'] ?? null)) {
             $params['library'] = $this->libraries->shortLabel($params['library']);
         }
@@ -210,6 +215,23 @@ class EntryGaps
         }
 
         return (new Message($message->key, $params))->english();
+    }
+
+    /**
+     * A place named once: "Text: Text" (a set and its field both called
+     * Text) is "Text", and "Hero: Hero: Image" is "Hero: Image".
+     */
+    public static function place(string $label): string
+    {
+        $parts = [];
+
+        foreach (explode(': ', $label) as $part) {
+            if ($parts === [] || mb_strtolower(trim(end($parts))) !== mb_strtolower(trim($part))) {
+                $parts[] = $part;
+            }
+        }
+
+        return implode(': ', $parts);
     }
 
     /**

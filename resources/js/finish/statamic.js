@@ -8,6 +8,7 @@ import { asks, leftovers, normaliseHint, sentenceAround, LINK_PREFIX } from './p
 import { bardEditor, editorAt, setCurrent } from './bard.js';
 import { ensure, stock } from '../stock/store.js';
 import { request } from '../stock/request.js';
+import { browseButton } from './fields.js';
 
 const idOf = (dotted) => `field_${String(dotted).replace(/\./g, '_')}`;
 const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -220,11 +221,21 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
                     if (press(field, 'button:has(svg[data-ghostwriter-field-action])')) return {};
                     break;
 
-                case 'choose-asset':
+                case 'choose-asset': {
                     await reveal(gap);
 
-                    if ([...(field?.querySelectorAll('button') ?? [])].some((button) => /browse/i.test(button.textContent) && (button.click(), true))) return {};
+                    // The field's own selector, which replaces what a
+                    // one-image field holds (the placeholder) when chosen.
+                    const browse = browseButton(locate(gap));
+
+                    if (browse) {
+                        browse.click();
+
+                        return {};
+                    }
+
                     break;
+                }
 
                 case 'license':
                 case 'request-licence':
@@ -269,5 +280,11 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
         run,
         recheck,
         highlight: (gap) => setCurrent(gap),
+        // Tags go beside the field's name, not over its border or buttons.
+        tagHost: (field) => {
+            const label = field.querySelector('label[data-ui-label]');
+
+            return label?.querySelector(':scope > div') ?? label ?? field;
+        },
     };
 }

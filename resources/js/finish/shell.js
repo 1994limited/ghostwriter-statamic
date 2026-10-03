@@ -31,6 +31,8 @@ function el(tag, attrs = {}, children = []) {
     return node;
 }
 
+import { counts, currentAfter, fieldStates, firstOpen, nextOpen, stepsFrom, tagText } from './state.js';
+
 const isTyping = (target) => target instanceof Element && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
 export class FinishGuide {
@@ -59,6 +61,8 @@ export class FinishGuide {
         this.phone = window.matchMedia(PHONE).matches;
         this.sheetOpen = true;
         this.skipped = new Set(this.load('skipped'));
+        // Every field that had a gap in this view, so it can turn green.
+        this.touched = new Set();
         this.dismissed = new Set(this.load('dismissed'));
     }
 
@@ -137,6 +141,9 @@ export class FinishGuide {
         });
         this.observer.observe(document.querySelector('[data-ghostwriter-form]') ?? document.body, { childList: true, subtree: true });
         this.resizes = new ResizeObserver(() => this.soon());
+        // Anything that moves the page (a banner, a set opening) moves the
+        // fields: measure again.
+        this.resizes.observe(document.documentElement);
 
         return this;
     }
@@ -155,79 +162,66 @@ export class FinishGuide {
         this.pill?.remove();
     }
 
-    // A new check: gaps still there keep their place and state, gaps gone
-    // since they were shown turn green, new ones join in form order.
+    // A new check. The steps are the live gaps and nothing else (state.js):
+    // a gap gone since it was shown leaves the list and its field turns green
+    // once nothing else is left in it; a gap a fix made is a new open step.
     update(report, { open = false } = {}) {
         this.report = report;
-        const live = (report.gaps ?? []).filter((gap) => !this.dismissed.has(gap.id));
-        const byId = new Map(live.map((gap) => [gap.id, gap]));
-        const currentId = this.steps[this.index]?.gap.id;
-        // Before anything was shown, there is nothing to have been fixed.
-        const previous = this.shown ? this.steps : this.steps.filter((step) => byId.has(step.gap.id));
-        const steps = previous.map((step) => (byId.has(step.gap.id) ? { gap: byId.get(step.gap.id), status: step.status === 'fixed' ? 'open' : step.status } : { gap: step.gap, status: 'fixed' }));
-        const known = new Set(steps.map((step) => step.gap.id));
 
-        live.forEach((gap, position) => {
-            if (known.has(gap.id)) return;
+        const previous = this.steps[this.index];
+        const previousSpeech = previous?.gap.speech;
 
-            const later = live.slice(position + 1).map((g) => g.id);
-            const at = steps.findIndex((step) => later.includes(step.gap.id));
-            const step = { gap, status: this.skipped.has(gap.id) ? 'skipped' : 'open' };
+        this.steps = stepsFrom(report, { skipped: this.skipped, dismissed: this.dismissed });
+        this.index = currentAfter(this.steps, previous?.gap.id, this.index);
 
-            if (at < 0) steps.push(step);
-            else steps.splice(at, 0, step);
-        });
-
-        // What counts first, suggestions after.
-        const counts = (step) => (step.gap.severity === 'suggestion' ? 1 : 0);
-        this.steps = steps.map((step, i) => [step, i]).sort((a, b) => counts(a[0]) - counts(b[0]) || a[1] - b[1]).map(([step]) => step);
-
-        const keep = this.steps.findIndex((step) => step.gap.id === currentId && step.status !== 'fixed');
-
-        if (keep >= 0) this.index = keep;
-        else if (this.steps[this.index]?.status === 'fixed' || this.index >= this.steps.length) this.index = this.nextOpen(this.index);
+        if (this.steps[this.index]?.status === 'skipped' && previous?.gap.id !== this.steps[this.index].gap.id) {
+            this.index = nextOpen(this.steps, this.index);
+        }
 
         // Only something that blocks publishing brings the guide out on its
         // own: a new, empty form isn't nagged about its required title.
-        if (open || live.some((gap) => gap.severity === 'blocks')) this.shown = true;
+        if (open || this.steps.some((step) => step.gap.severity === 'blocks')) this.shown = true;
 
-        if (open && live.length) {
-            this.index = this.firstOpen();
+        if (this.shown) this.steps.forEach((step) => this.touched.add(step.gap.dotted));
+
+        if (open && this.steps.length) {
+            this.index = firstOpen(this.steps);
             this.restore(true);
 
             return;
         }
 
-        // The step on screen was fixed: the mark moves on to the next one.
-        const moved = currentId !== undefined && this.steps[this.index]?.gap.id !== currentId;
+        // A different gap (or the same field's gap of another kind) is on
+        // screen now: the mark flies to it and says what it is.
+        const now = this.steps[this.index];
+        const moved = previous !== undefined && (now?.gap.id !== previous.gap.id || now?.gap.speech !== previousSpeech);
+        const fixed = this.afterFix && !this.steps.some((step) => step.gap.id === this.afterFix);
 
-        this.paint({ fly: moved && !this.minimised });
+        // A fix from the guide: say so, and focus moves on to the next step.
+        if (this.afterFix) {
+            const left = counts(this.steps, this.index).count;
+
+            if (fixed) this.announce(left === 1 ? this.t('Fixed. 1 left.') : this.t('Fixed. :count left.', { count: left }));
+            this.afterFix = null;
+        }
+
+        this.paint({ fly: moved && !this.minimised, focus: fixed && !this.minimised });
     }
 
     // -- Moving through the steps ------------------------------------------
 
     firstOpen() {
-        const i = this.steps.findIndex((step) => step.status === 'open');
-
-        return i < 0 ? Math.max(0, this.steps.findIndex((step) => step.status !== 'fixed')) : i;
+        return firstOpen(this.steps);
     }
 
     // The next step still to do from here, coming round to the start for
     // any passed by; past the end only when none is left but skipped ones.
     nextOpen(from) {
-        for (let i = from; i < this.steps.length; i++) {
-            if (this.steps[i].status === 'open') return i;
-        }
-
-        for (let i = 0; i < Math.min(from, this.steps.length); i++) {
-            if (this.steps[i].status === 'open') return i;
-        }
-
-        return this.steps.length;
+        return nextOpen(this.steps, from);
     }
 
     done() {
-        return this.index >= this.steps.length || this.steps.every((step) => step.status === 'fixed');
+        return this.index >= this.steps.length;
     }
 
     go(i) {
@@ -348,7 +342,10 @@ export class FinishGuide {
     // -- Drawing -----------------------------------------------------------
 
     paint({ focus = false, fly = false } = {}) {
-        const count = this.report.count ?? 0;
+        // One live list for every number shown: the pill, the dock, "n of
+        // total" and the bar all come from the same steps.
+        const numbers = counts(this.steps, this.index);
+        const count = numbers.count;
         const visible = this.shown && (this.steps.length > 0 || count > 0);
         const label = count ? (count === 1 ? this.t('1 thing to finish') : this.t(':count things to finish', { count })) : this.t('Ready to publish');
 
@@ -400,12 +397,12 @@ export class FinishGuide {
             return;
         }
 
-        this.drawStep(this.steps[this.index]);
-        this.summary.textContent = [`${this.index + 1} ${this.t('of')} ${this.steps.length}`, this.steps[this.index].gap.speech, `${this.t('Next')} →`].join(' · ');
+        this.drawStep(this.steps[this.index], numbers);
+        this.summary.textContent = [this.stepText.textContent, this.steps[this.index].gap.speech, `${this.t('Next')} →`].join(' · ');
 
         if (focus) {
             this.message.focus({ preventScroll: true });
-            this.announce(`${this.t('Step :n of :total.', { n: this.index + 1, total: this.steps.length })} ${this.steps[this.index].gap.message}`);
+            this.announce(`${numbers.suggestion ? this.t('Suggestion :n of :total.', { n: numbers.number, total: numbers.suggestions }) : this.t('Step :n of :total.', { n: numbers.number, total: numbers.total })} ${this.steps[this.index].gap.message}`);
         }
 
         if (fly) this.reveal(this.steps[this.index]);
@@ -413,12 +410,14 @@ export class FinishGuide {
     }
 
     drawBar() {
-        this.bar.replaceChildren(...this.steps.map((step, i) => el('i', { class: step.status === 'fixed' ? 'is-fixed' : step.status === 'skipped' ? 'is-skipped' : i === this.index ? 'is-current' : '' })));
+        // A segment for each gap still to finish: the same list as the count.
+        const counted = this.steps.filter((step) => step.gap.severity !== 'suggestion');
+
+        this.bar.replaceChildren(...counted.map((step) => el('i', { class: step === this.steps[this.index] ? 'is-current' : step.status === 'skipped' ? 'is-skipped' : '' })));
     }
 
     drawEnd() {
-        const skipped = this.steps.filter((step) => step.status === 'skipped').length;
-        const still = this.report.count ?? 0;
+        const { skipped, count: still } = counts(this.steps, this.index);
 
         this.stepText.textContent = '';
         this.message = el('p', { class: 'gw-f-msg', tabindex: '-1', text: skipped || still
@@ -432,12 +431,14 @@ export class FinishGuide {
         this.adapter.highlight?.(null);
     }
 
-    drawStep(step) {
+    drawStep(step, numbers) {
         const { gap } = step;
-        const suggestions = this.report.suggestions ?? 0;
+        const suggestions = numbers.suggestions;
 
         this.foot.hidden = false;
-        this.stepText.textContent = `${this.index + 1} ${this.t('of')} ${this.steps.length}`;
+        this.stepText.textContent = numbers.suggestion
+            ? this.t('Suggestion :n of :total', { n: numbers.number, total: numbers.suggestions })
+            : `${numbers.number} ${this.t('of')} ${numbers.total}`;
         this.message = el('p', { class: 'gw-f-msg', tabindex: '-1', text: gap.message });
 
         const parts = [this.message];
@@ -449,11 +450,9 @@ export class FinishGuide {
 
         parts.push(this.fixes(step));
 
-        if (this.index === 0 && suggestions && (this.report.count ?? 0)) {
-            parts.push(el('p', { class: 'gw-f-reason', text: `${this.report.count === 1 ? this.t('1 thing to finish') : this.t(':count things to finish', { count: this.report.count })}, ${suggestions === 1 ? this.t('and 1 suggestion') : this.t('and :count suggestions', { count: suggestions })}.` }));
+        if (this.index === 0 && suggestions && numbers.count) {
+            parts.push(el('p', { class: 'gw-f-reason', text: `${numbers.count === 1 ? this.t('1 thing to finish') : this.t(':count things to finish', { count: numbers.count })}, ${suggestions === 1 ? this.t('and 1 suggestion') : this.t('and :count suggestions', { count: suggestions })}.` }));
         }
-
-        if (step.status === 'fixed') parts.unshift(el('p', { class: 'gw-f-fixed', text: this.t('Fixed ✓') }));
 
         this.body.replaceChildren(...parts);
         this.adapter.highlight?.(gap);
@@ -525,63 +524,73 @@ export class FinishGuide {
             const result = await this.adapter.run(gap, fix, value);
 
             if (result?.message) this.announce(result.message);
+
+            // Whether it is fixed, and what the fix left (a placeholder
+            // swapped for a stock preview is a new gap), is the next check's
+            // to say: the steps and the fields' states come only from it.
             if (result?.fixed) {
-                const step = this.steps.find((s) => s.gap.id === gap.id);
+                this.busy = null;
+                this.afterFix = gap.id;
+                this.adapter.recheck?.(true);
 
-                if (step) step.status = 'fixed';
-
-                const left = this.steps.filter((s) => s.status !== 'fixed').length;
-                this.announce(left === 1 ? this.t('Fixed. 1 left.') : this.t('Fixed. :count left.', { count: left }));
-                this.index = this.nextOpen(this.index);
+                return;
             }
         } finally {
             this.busy = null;
-            this.adapter.recheck?.();
-            this.paint({ focus: true, fly: true });
         }
+
+        this.adapter.recheck?.();
+        this.paint({ focus: true, fly: true });
     }
 
     // -- Highlights and tags on the fields ----------------------------------
 
     highlight() {
+        const current = !this.minimised && !this.done() ? this.index : -1;
+        const fields = fieldStates(this.steps, current, this.touched);
         const seen = new Set();
-        const counted = this.steps;
 
-        counted.forEach((step, i) => {
-            const field = this.adapter.locate(step.gap);
+        fields.forEach((state, dotted) => {
+            const field = this.adapter.locate(state.step?.gap ?? { dotted });
 
-            if (!field) return;
-
-            const state = step.status === 'fixed' ? 'fixed' : !this.minimised && i === this.index && !this.done() ? 'current' : 'open';
-            const prior = field.getAttribute('data-gw-gap');
-
-            // Several gaps in one field: the current one wins, then open.
-            if (seen.has(field) && (prior === 'current' || state !== 'current') && !(prior === 'fixed' && state !== 'fixed')) return;
+            if (!field || seen.has(field)) return;
 
             seen.add(field);
-            field.setAttribute('data-gw-gap', state);
+
+            if (field.getAttribute('data-gw-gap') !== state.state) field.setAttribute('data-gw-gap', state.state);
 
             if (!field.dataset.gwNote) {
                 field.dataset.gwNote = `gw-f-note-${Math.random().toString(36).slice(2, 8)}`;
             }
 
-            let tag = field.querySelector(':scope > .gw-f-tag');
+            // The tag sits beside the field's name, clear of its border and
+            // of the CMS's own buttons.
+            const host = this.adapter.tagHost?.(field) ?? field;
+            let tag = field.querySelector('.gw-f-tag');
+
+            if (tag && tag.parentElement !== host) {
+                tag.remove();
+                tag = null;
+            }
 
             if (!tag) {
                 tag = el('button', { type: 'button', class: 'gw-f-tag', onclick: (event) => {
                     event.preventDefault();
-                    this.openAt(Number(tag.dataset.step));
+                    event.stopPropagation();
+                    if (tag.dataset.step !== '') this.openAt(Number(tag.dataset.step));
                 } });
-                field.append(tag);
+                tag.classList.toggle('is-inline', host !== field);
+                host.append(tag);
                 this.resizes.observe(field);
             }
 
-            const text = state === 'fixed' ? this.t('Fixed ✓') : `${i + 1} · ${step.gap.speech}`;
+            const text = tagText(state, this.steps, this.t);
+            const target = state.state === 'current' ? current : (state.steps[0] ?? '');
 
-            if (tag.dataset.step !== String(i) || tag.textContent !== text) {
-                tag.dataset.step = String(i);
+            if (tag.dataset.step !== String(target) || tag.textContent !== text) {
+                tag.dataset.step = String(target);
                 tag.textContent = text;
-                tag.setAttribute('aria-label', this.t('Gap :n of :total: :label', { n: i + 1, total: counted.length, label: step.gap.speech }));
+                tag.setAttribute('aria-label', state.state === 'fixed' ? this.t('Fixed') : this.t('Gap :n of :total: :label', { n: Number(target) + 1, total: this.steps.length, label: state.step?.gap.speech ?? '' }));
             }
 
             let note = document.getElementById(field.dataset.gwNote);
@@ -591,7 +600,7 @@ export class FinishGuide {
                 field.append(note);
             }
 
-            const said = `Ghostwriter: ${step.gap.speech}`;
+            const said = state.state === 'fixed' ? `Ghostwriter: ${this.t('Fixed')}` : `Ghostwriter: ${state.step.gap.speech}`;
 
             if (note.textContent !== said) note.textContent = said;
 
@@ -614,7 +623,7 @@ export class FinishGuide {
 
     clearField(field) {
         field.removeAttribute('data-gw-gap');
-        field.querySelector(':scope > .gw-f-tag')?.remove();
+        field.querySelector('.gw-f-tag')?.remove();
         if (field.dataset.gwNote) document.getElementById(field.dataset.gwNote)?.remove();
     }
 
@@ -635,13 +644,14 @@ export class FinishGuide {
 
         if (!field || !field.offsetParent) return null;
 
-        const tag = field.querySelector(':scope > .gw-f-tag');
+        const tag = field.querySelector('.gw-f-tag');
         const r = field.getBoundingClientRect();
         const t = tag?.getBoundingClientRect();
 
         if (r.bottom < 0 || r.top > window.innerHeight) return null;
 
-        return { x: (t?.width ? t.left : r.right - 120) - 50, y: Math.max(8, r.top - 46) };
+        // Just past the tag beside the field's name, above the field.
+        return { x: t?.width ? Math.min(t.right + 8, window.innerWidth - 60) : r.right - 170, y: Math.max(8, r.top - 46) };
     }
 
     // A CMS dialog or stack is on top: the mark keeps out of its way.
