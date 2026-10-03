@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 - 2026-10-03
 
 ### Fixed
 - Finish this page: **Link to …** on a Link field (in URL mode, holding `#gw-link:`) set the form's value but the field kept showing the old address. It now switches the field to Entry with the entry showing, through the field's own meta, and the value is `entry::<id>`.
