@@ -34,14 +34,58 @@ export function inlineSpot(line, { top = 0, width, height, size = 44, mirror = f
 
 // Which side of the mark its words go: `prefer` when they fit in the window,
 // the other side when not, else under it, leaning away from the nearer edge.
-export function saySide(x, label, width, { size = 44, prefer = 'left' } = {}) {
+// With `covers` (side → whether the words there would sit on the page's
+// text), a side that fits and covers nothing wins: either side, then above,
+// then below; when every side covers something, the first that fits.
+export function saySide(x, label, width, { size = 44, prefer = 'left', covers = null, y = null, height = 20 } = {}) {
     const room = { right: width - (x + size + 2) - 8, left: x - 2 - 8 };
     const other = prefer === 'left' ? 'right' : 'left';
+    const lean = x + size / 2 > width / 2 ? ['left', 'right'] : ['right', 'left'];
+    const fits = [prefer, other].filter((side) => label <= room[side]);
 
-    if (label <= room[prefer]) return prefer;
-    if (label <= room[other]) return other;
+    if (covers) {
+        const vertical = (where) => lean.map((side) => `${where}-${side}`).filter((side) => (side.endsWith('left') ? x + size : width - x) >= label + 4);
+        const above = y === null || y - height - 4 >= 4 ? vertical('above') : [];
+        const clear = [...fits, ...above, ...vertical('below')].find((side) => !covers(side));
 
-    return x + size / 2 > width / 2 ? 'below-left' : 'below-right';
+        if (clear) return clear;
+    }
+
+    return fits[0] ?? `below-${lean[0]}`;
+}
+
+// Where the mark's words would sit on screen for a side (saySide), the mark
+// at (x, y): beside it at its top, or above or below it.
+export function sayRect(side, x, y, label, height, size = 44) {
+    const left = side === 'right' ? x + size + 2 : side === 'left' ? x - 2 - label : side.endsWith('-left') ? x + size - label : x;
+    const top = side.startsWith('above') ? y - height - 4 : side.startsWith('below') ? y + size + 2 : y + 2;
+
+    return { left, top, right: left + label, bottom: top + height };
+}
+
+// Whether a box on screen sits on the page's text: a few points in it, each
+// over the words of the topmost element there that isn't `skip` (the mark's
+// own), or over a text box.
+export function coversText(rect, { skip = '', doc = document, win = window } = {}) {
+    const points = [[rect.left + 2, rect.top + 2], [rect.right - 2, rect.top + 2], [rect.left + 2, rect.bottom - 2], [rect.right - 2, rect.bottom - 2], [(rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2]];
+
+    return points.some(([px, py]) => {
+        if (px < 0 || py < 0 || px > win.innerWidth || py > win.innerHeight) return false;
+
+        const node = doc.elementsFromPoint(px, py).find((hit) => !skip || !hit.closest(skip));
+
+        if (!node || node === doc.body || node === doc.documentElement) return false;
+        if (node.matches('input:not([type="checkbox"]):not([type="radio"]), textarea, select, [contenteditable="true"]')) return true;
+
+        return [...node.childNodes].some((child) => {
+            if (child.nodeType !== 3 || !child.textContent.trim()) return false;
+
+            const range = doc.createRange();
+            range.selectNodeContents(child);
+
+            return [...range.getClientRects()].some((box) => px >= box.left && px <= box.right && py >= box.top && py <= box.bottom);
+        });
+    });
 }
 
 // The bottom of what is pinned over the top of the page: boxes stacked from

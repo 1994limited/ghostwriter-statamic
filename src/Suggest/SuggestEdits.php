@@ -173,7 +173,6 @@ class SuggestEdits
             'configured' => $this->studio->configured(),
             'calls' => $this->calls($entry, $data),
             'candidates' => count($preview['findings']),
-            'checked' => $latest !== null && is_array($latest->toArray()['checked'] ?? null) ? count($latest->toArray()['checked']) : 0,
             'review' => $latest === null ? null : [
                 'id' => $latest->id,
                 'status' => $stale ? 'failed' : $latest->status->value,

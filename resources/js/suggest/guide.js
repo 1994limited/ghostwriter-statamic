@@ -11,7 +11,6 @@
 // Decisions are shared through the server (api), and kept as the page's
 // history.
 import { FinishGuide, el } from '../finish/shell.js';
-import { counts as finishCounts } from '../finish/state.js';
 import { counts, fieldStates, fillFact, filters, following, isOpen, nextOpen, previous, stepsFrom, tagText, versionsOf, wordingFixes } from './steps.js';
 import { plain } from './markdown.js';
 
@@ -299,15 +298,17 @@ export class SuggestGuide extends FinishGuide {
 
         if (this.status === 'running') text = review?.status === 'queued' ? this.t('Waiting to start…') : this.t('Reviewing… then double-checking. Ghostwriter reads each thing it found in its paragraph, then checks every suggestion again before you see it.');
         else if (this.status === 'failed') text = this.t('I couldn\'t finish reading the page: :reason', { reason: review?.error ?? this.t('the AI provider didn\'t answer') });
-        else if (this.status === 'ready' && this.data.checked) text = this.data.checked === 1 ? this.t('1 thing it found was fine in context, so it isn\'t shown.') : this.t(':count things it found were fine in context, so they aren\'t shown.', { count: this.data.checked });
         else if (review?.truncated) text = this.t('I ran out of room; these are the first :count.', { count: this.steps.length });
         else if (review && !review.fresh && review.ago) text = this.t('From a review :ago. The page has changed since; suggestions that no longer fit are marked.', { ago: review.ago });
 
         this.status_.hidden = !text;
         this.status_.classList.toggle('is-running', this.status === 'running');
         this.status_.replaceChildren(...[
-            this.status === 'running' ? el('span', { class: 'gw-s-spinner', 'aria-hidden': 'true' }) : null,
-            el('span', { text }),
+            // The spinner sits before the words, on their first line.
+            el('span', { class: 'gw-s-status__line' }, [
+                this.status === 'running' ? el('span', { class: 'gw-s-spinner', 'aria-hidden': 'true' }) : null,
+                el('span', { class: 'gw-s-status__text', text }),
+            ].filter(Boolean)),
             this.status === 'running' ? el('ol', { class: 'gw-s-phases', 'aria-label': this.t('Progress') }, [
                 el('li', { class: review?.status === 'queued' ? 'is-now' : 'is-done', text: this.t('Started') }),
                 el('li', { class: review?.status === 'running' ? 'is-now' : '', text: this.t('Reviewing, then double-checking') }),
@@ -357,7 +358,8 @@ export class SuggestGuide extends FinishGuide {
         this.stepText.textContent = '';
 
         const finish = [...FinishGuide.guides].find((guide) => !(guide instanceof SuggestGuide));
-        const left = finish ? finishCounts(finish.steps ?? [], 0).count : 0;
+        // The same number as the header menu's: nothing while Finish this page isn't out.
+        const left = finish?.left?.() ?? 0;
         let text;
 
         if (this.status === 'running') text = this.t('Suggestions show here once Ghostwriter has checked each one in its paragraph.');
@@ -370,7 +372,7 @@ export class SuggestGuide extends FinishGuide {
 
         const buttons = el('div', { class: 'gw-f-fixes' }, [
             this.steps.length ? el('button', { type: 'button', class: 'gw-f-btn', text: this.t('Go through again'), onclick: () => this.again() }) : null,
-            left ? el('button', { type: 'button', class: 'gw-f-btn', text: left === 1 ? this.t('1 thing still to finish') : this.t(':count things still to finish', { count: left }), onclick: () => finish.openAt(finish.firstOpen()) }) : null,
+            left ? el('button', { type: 'button', class: 'gw-f-btn', text: left === 1 ? this.t('1 thing still to finish') : this.t(':count things still to finish', { count: left }), onclick: () => finish.openFromMenu() }) : null,
             this.status !== 'running' && this.data.configured ? this.button(this.t('Review again'), () => this.onStart(), { model: true }) : null,
         ]);
 
