@@ -21,7 +21,15 @@ import { Button } from '@statamic/cms/ui';
 import { debounce, gapLabels } from '../preview/overlay.js';
 import { markGaps } from '../preview/markers.js';
 import { canRead, locate, measure } from '../preview/locator.js';
-import { THUMB_HEIGHT, THUMB_RENDER_WIDTH, cardName, cardsFor, moveTo, sharedStart, startBlock, thumbOrder, thumbScale } from '../preview/layouts.js';
+import { THUMB_HEIGHT, THUMB_RENDER_WIDTH, cardName, cardsFor, compareRemembered, moveTo, rememberCompare, sharedStart, startBlock, thumbOrder, thumbScale } from '../preview/layouts.js';
+
+const storage = () => {
+    try {
+        return window.localStorage;
+    } catch {
+        return null;
+    }
+};
 
 export default {
     components: { Button },
@@ -49,6 +57,8 @@ export default {
             thumbs: {},
             thumbWidth: 0,
             renderHeight: THUMB_RENDER_WIDTH,
+            // Compare layouts: the cards with thumbnails. Otherwise a row of chips.
+            expanded: compareRemembered(storage()),
         };
     },
 
@@ -94,6 +104,9 @@ export default {
         'row.show'(show) {
             if (show) this.$nextTick(() => this.measure());
         },
+        expanded(expanded) {
+            if (expanded) this.$nextTick(() => (this.measure(), this.debounced()));
+        },
     },
 
     created() {
@@ -127,7 +140,7 @@ export default {
 
         // One at a time, the chosen layout's first; a newer draft starts again.
         async renderThumbs() {
-            if (!this.previewable || !this.ready || !this.row.show || !this.session.id) return;
+            if (!this.previewable || !this.ready || !this.expanded || !this.row.show || !this.session.id) return;
 
             const key = this.thumbKey;
             this.running = key;
@@ -178,6 +191,11 @@ export default {
             }
         },
 
+        setExpanded(expanded) {
+            this.expanded = expanded;
+            rememberCompare(storage(), expanded);
+            this.$nextTick(() => this.$el.querySelector?.('[data-gw-compare] button, button[data-gw-compare]')?.focus());
+        },
         choose(card) {
             if (this.disabled || card.stale || card.chosen) return;
 
@@ -204,11 +222,56 @@ export default {
 
 <template>
     <div>
-    <div v-if="row.show" class="mb-4 border-b border-gray-200 pb-4 dark:border-gray-700!" data-ghostwriter-layouts>
+    <!-- Compact: a chip for each layout, so the page preview has the room. -->
+    <div v-if="row.show && !expanded" class="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-gray-200 pb-3 dark:border-gray-700!" data-ghostwriter-layouts data-compact>
+        <span id="gw-layouts-label" class="text-sm font-medium">{{ __('Layout') }}</span>
+        <div class="flex min-w-0 flex-wrap gap-1.5" role="radiogroup" aria-labelledby="gw-layouts-label">
+            <button
+                v-for="(card, index) in row.cards"
+                :key="card.id"
+                type="button"
+                role="radio"
+                class="gw-layout-chip flex max-w-full min-w-0 items-center gap-1.5 rounded-full border bg-white px-2.5 py-0.5 text-xs leading-5 transition motion-reduce:transition-none dark:bg-gray-900!"
+                :class="[
+                    card.chosen ? 'is-chosen font-medium' : 'border-gray-200 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!',
+                    card.stale ? 'cursor-not-allowed opacity-60' : '',
+                ]"
+                :data-gw-card="card.id"
+                :aria-checked="card.chosen ? 'true' : 'false'"
+                :aria-disabled="card.stale || disabled ? 'true' : null"
+                :aria-label="name(card)"
+                :aria-busy="pending === card.id ? 'true' : null"
+                :tabindex="tabindex(card)"
+                @click="choose(card)"
+                @keydown="key($event, index)"
+            >
+                <span class="truncate">{{ card.name }}</span>
+                <span v-if="card.suggested" class="shrink-0 rounded-full bg-[var(--gw-ink)] px-1.5 text-[10px] leading-4 font-medium text-white dark:bg-[var(--gw-accent)]! dark:text-gray-900!">{{ __('Suggested') }}</span>
+            </button>
+        </div>
+        <span v-if="row.planning" class="flex items-center gap-1.5 text-xs text-gray-500" role="status">
+            <svg class="size-3.5 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
+                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+            </svg>
+            {{ __('Finding other layouts…') }}
+        </span>
+        <span v-if="row.stale" class="text-xs text-amber-700 dark:text-amber-400!">{{ __('Needs refreshing') }}</span>
+        <Button
+            v-if="row.stale"
+            size="sm"
+            :text="__('Refresh layouts')"
+            :loading="refreshing"
+            :disabled="disabled || refreshing"
+            @click="$emit('refresh')"
+        />
+        <span class="grow"></span>
+        <span data-gw-compare><Button size="sm" variant="ghost" :text="__('Compare layouts')" aria-expanded="false" @click="setExpanded(true)" /></span>
+    </div>
+    <div v-else-if="row.show" class="mb-4 border-b border-gray-200 pb-4 dark:border-gray-700!" data-ghostwriter-layouts>
         <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             <span id="gw-layouts-label" class="text-sm font-medium">{{ __('Layout') }}</span>
-            <span class="text-xs text-gray-500">{{ __('The same words, laid out differently. Choosing one changes nothing until you use the draft.') }}</span>
-            <span class="grow"></span>
+            <span class="min-w-0 flex-1 text-xs text-gray-500">{{ __('The same words, laid out differently. Choosing one changes nothing until you use the draft.') }}</span>
             <span v-if="row.planning && !row.skeletons" class="flex items-center gap-1.5 text-xs text-gray-500" role="status">
                 <svg class="size-3.5 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
@@ -224,6 +287,7 @@ export default {
                 :disabled="disabled || refreshing"
                 @click="$emit('refresh')"
             />
+            <span data-gw-compare><Button size="sm" variant="ghost" :text="__('Hide thumbnails')" aria-expanded="true" @click="setExpanded(false)" /></span>
         </div>
 
         <div

@@ -7,6 +7,30 @@ export const THUMB_RENDER_WIDTH = 1280;
 export const THUMB_HEIGHT = 118;
 export const MAX_CARDS = 3;
 
+// Where Compare layouts (the cards with thumbnails, not the chips) is remembered.
+export const COMPARE_KEY = 'ghostwriter.layouts.compare';
+
+/**
+ * Whether the cards show their thumbnails: off (a row of chips, so the page
+ * preview has the room) unless Compare layouts was left on in this browser.
+ * Storage that can't be read counts as off.
+ */
+export function compareRemembered(storage) {
+    try {
+        return storage?.getItem(COMPARE_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+export function rememberCompare(storage, on) {
+    try {
+        storage?.setItem(COMPARE_KEY, on ? '1' : '0');
+    } catch {
+        // Not remembered: it's only a convenience.
+    }
+}
+
 /**
  * The cards for a piece: the writer's draft and up to two others, and a
  * skeleton for each the planner may still add. Nothing to show (no row) for

@@ -1,7 +1,7 @@
 // The layout cards' and extras' logic, in Node with no DOM: node --test resources/js/preview/*.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardName, cardsFor, changed, extraPayload, isStat, moveTo, partLabel, sharedStart, startBlock, thumbOrder, thumbScale, useLabel } from './layouts.js';
+import { cardName, cardsFor, compareRemembered, rememberCompare, changed, extraPayload, isStat, moveTo, partLabel, sharedStart, startBlock, thumbOrder, thumbScale, useLabel } from './layouts.js';
 
 const plans = [
     { id: 'w', name: 'As written', description: 'The writer’s own layout', blocks: 3, suggested: false, stale: false, writer: true, outline: ['Hero', 'Text', 'Call to action'] },
@@ -123,4 +123,20 @@ test('thumbnails start where the layouts begin to differ', () => {
     assert.equal(startBlock(map, 0), null);
     assert.equal(startBlock(map, 9), null);
     assert.equal(startBlock([{ key: 'f1', kind: 'field' }, { key: 's1', kind: 'section', parent: 'f1' }, { key: 's2', kind: 'section', parent: 'f1' }], 1), 's2');
+});
+
+test('Compare layouts is off unless remembered on, and storage that throws counts as off', () => {
+    const store = new Map();
+    const storage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) };
+
+    assert.equal(compareRemembered(storage), false);
+    rememberCompare(storage, true);
+    assert.equal(compareRemembered(storage), true);
+    rememberCompare(storage, false);
+    assert.equal(compareRemembered(storage), false);
+    assert.equal(compareRemembered(null), false);
+
+    const broken = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
+    assert.equal(compareRemembered(broken), false);
+    assert.doesNotThrow(() => rememberCompare(broken, true));
 });

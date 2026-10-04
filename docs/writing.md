@@ -145,6 +145,8 @@ Ghostwriter doesn't just write the draft one way. Once the first draft is in, it
 
 In Blocks and Text, writing that is still one piece of the draft can be clicked and changed as usual, in any layout. Writing a layout has moved or joined, and the extras, are changed in their own place: switch to the first card, or use the Extras list.
 
+**The row stays small** so the Preview has the room: the layouts are a row of names, the chosen one marked and **Suggested** kept. **Compare layouts** shows the cards with their thumbnails, and **Hide thumbnails** puts the row back; your browser remembers which. Thumbnails only render while they show.
+
 The cards are a radio group: Tab to the chosen one, and the arrow keys move between them and choose. Each is announced with its name, whether it's suggested, its blocks and its description. In a narrow panel, the cards scroll sideways.
 
 ![Three layout cards above the preview, Numbers first chosen](images/writing-layouts.png)
