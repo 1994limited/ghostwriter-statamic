@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { inlineSpot, labelParts, pinnedBottom, saySide, sayRect } from './place.js';
+import { coversText, inlineSpot, labelParts, pinnedBottom, saySide, sayRect } from './place.js';
 
 test('a fix label cuts only the name in it short', () => {
     const name = 'Winter structure: plants that earn their keep in January';
@@ -55,4 +55,19 @@ test('the mark’s words go where they cover none of the page’s text', () => {
     assert.equal(saySide(1330, 60, 1400, { covers: (side) => side !== 'below-left', y: 10 }), 'below-left', 'No room above.');
     assert.deepEqual(sayRect('above-left', 1330, 700, 60, 20), { left: 1314, top: 676, right: 1374, bottom: 696 });
     assert.deepEqual(sayRect('left', 1330, 700, 60, 20), { left: 1268, top: 702, right: 1328, bottom: 722 });
+});
+
+test('words that only touch the box still count as covered', () => {
+    // Craft's sidebar: "03/10/2026, 00:06 BST" ends 2px inside the label's left edge, between the sample points.
+    const text = { nodeType: 3, textContent: '03/10/2026, 00:06 BST', box: { left: 1172, top: 513, right: 1323, bottom: 529.9 } };
+    const dd = { childNodes: [text], matches: () => false, closest: () => null };
+    const doc = {
+        body: {}, documentElement: {},
+        elementsFromPoint: (x, y) => (x >= 1164 && x <= 1376 && y >= 506 && y <= 538 ? [dd] : []),
+        createRange: () => ({ node: null, selectNodeContents(node) { this.node = node; }, getClientRects() { return [this.node.box]; } }),
+    };
+    const win = { innerWidth: 1400, innerHeight: 900 };
+
+    assert.equal(coversText(sayRect('above-left', 1316, 536, 69, 24), { doc, win }), true);
+    assert.equal(coversText(sayRect('above-left', 1316, 600, 69, 24), { doc, win }), false, 'Below the dates: clear.');
 });
