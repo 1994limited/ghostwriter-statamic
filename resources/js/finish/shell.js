@@ -795,23 +795,30 @@ export class FinishGuide {
     tint(step) {
         this.flashing?.remove();
 
-        const marks = [...(this.fieldFor(step)?.querySelectorAll(this.inlineSelector) ?? [])];
+        const flashing = el('div', { class: 'gw-f-flash', 'aria-hidden': 'true' });
+
+        this.flashing = flashing;
+        this.flashingStep = step;
+        this.root.append(flashing);
+        this.placeTint();
+        setTimeout(() => flashing.remove(), 1800);
+    }
+
+    // The tint over the words where they are now: moved, not drawn again,
+    // as the page scrolls, so its fade carries on.
+    placeTint() {
+        if (!this.flashing?.isConnected) return;
+
+        const marks = [...(this.fieldFor(this.flashingStep)?.querySelectorAll(this.inlineSelector) ?? [])];
         const rects = marks.flatMap((mark) => [...mark.getClientRects()]);
+        const lines = [...this.flashing.children];
 
-        if (!rects.length) return;
-
-        this.flashing = el('div', { class: 'gw-f-flash', 'aria-hidden': 'true' }, rects.map((rect) => {
-            const line = el('span', { class: 'gw-f-flash-line' });
+        lines.slice(rects.length).forEach((line) => line.remove());
+        rects.forEach((rect, i) => {
+            const line = lines[i] ?? this.flashing.appendChild(el('span', { class: 'gw-f-flash-line' }));
 
             Object.assign(line.style, { left: `${rect.left - 3}px`, top: `${rect.top - 2}px`, width: `${rect.width + 6}px`, height: `${rect.height + 4}px` });
-
-            return line;
-        }));
-        this.root.append(this.flashing);
-
-        const flashing = this.flashing;
-
-        setTimeout(() => flashing.remove(), 1800);
+        });
     }
 
     // The mark at x, y, its words on whichever side fits in the window.
@@ -896,6 +903,7 @@ export class FinishGuide {
         if (this.panel.hidden || this.phone || this.minimised) return;
 
         this.flyer.classList.toggle('is-covered', this.covered());
+        this.placeTint();
 
         // The field wasn't there when the mark set off (the form was still
         // drawing it): fly to it now it is.
