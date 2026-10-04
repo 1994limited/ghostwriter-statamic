@@ -73,14 +73,15 @@ export default {
                         <Field
                             :id="`${uid}-${question.id}`"
                             :label="question.question + (question.optional ? ` (${__('optional')})` : '')"
-                            :instructions="question.hint"
                         >
+                            <p v-if="question.hint" :id="`${uid}-${question.id}-hint`" class="-mt-1 text-sm text-gray-600/90 dark:text-gray-400!">{{ question.hint }}</p>
                             <p v-if="skipped[question.id]" class="text-xs text-gray-500 italic">{{ __('Skipped') }}</p>
                             <RadioGroup
                                 v-else-if="question.kind === 'choice'"
                                 :model-value="answers[question.id] ?? null"
                                 :name="`${uid}-${question.id}`"
                                 appearance="inline"
+                                :aria-describedby="question.hint ? `${uid}-${question.id}-hint` : null"
                                 @update:model-value="(value) => $emit('answer', question.id, value)"
                                 @keydown.meta.enter.stop.prevent="$emit('send')"
                                 @keydown.ctrl.enter.stop.prevent="$emit('send')"
@@ -93,6 +94,7 @@ export default {
                                 :model-value="answers[question.id] ?? ''"
                                 :rows="1"
                                 elastic
+                                :aria-describedby="question.hint ? `${uid}-${question.id}-hint` : null"
                                 :disabled="disabled"
                                 @update:model-value="(value) => $emit('answer', question.id, value)"
                                 @keydown.meta.enter.stop.prevent="$emit('send')"

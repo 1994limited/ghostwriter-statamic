@@ -567,7 +567,8 @@ export default {
 
                 // Questions waiting: put the cursor where the answer goes.
                 if (this.asked) {
-                    this.$refs.asks?.[0]?.focus?.() ?? this.$refs.asks?.focus?.();
+                    // After the entry form has put its own cursor in place.
+                    setTimeout(() => [this.$refs.asks].flat().at(-1)?.focus?.(), 250);
                     this.announce(this.__n('Ghostwriter has :count question for you.|Ghostwriter has :count questions for you.', this.asked.questions.length));
                 } else if (this.asking) this.focusComposer();
 
