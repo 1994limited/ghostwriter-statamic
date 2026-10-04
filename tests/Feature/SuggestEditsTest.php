@@ -151,6 +151,18 @@ class SuggestEditsTest extends TestCase
         $this->assertSame($before, Entry::find('services')->data()->all(), 'The entry is never saved.');
     }
 
+    public function test_a_reply_that_cant_be_read_is_told_in_plain_words(): void
+    {
+        $this->signIn();
+        $this->ai->respond('reviewer', 'I read the page and it reads well. Nothing to change.');
+
+        $this->postJson(cp_route('ghostwriter.suggest.start'), ['entry' => 'services', 'values' => []])->assertOk();
+
+        $review = $this->guide()['review'];
+        $this->assertSame('failed', $review['status']);
+        $this->assertSame('the answer came back in a shape I couldn\'t read. Try again.', $review['error'], 'Not the `unreadable` code.');
+    }
+
     public function test_a_dismissal_is_kept_for_the_next_review(): void
     {
         $this->signIn();

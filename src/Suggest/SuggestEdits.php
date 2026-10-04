@@ -519,6 +519,13 @@ class SuggestEdits
             return null;
         }
 
-        return $error === 'unreadable' ? __('Ghostwriter\'s answer couldn\'t be read.') : $error;
+        if ($error !== 'unreadable') {
+            return $error; // A provider's message, already in words.
+        }
+
+        // The code core sets, in core's words (here too for a core without them).
+        $words = $this->text(new Message('suggest.review.error.unreadable'));
+
+        return $words !== 'suggest.review.error.unreadable' ? $words : __('the answer came back in a shape I couldn\'t read. Try again.');
     }
 }
