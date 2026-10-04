@@ -20,6 +20,8 @@ import DraftPreview from './DraftPreview.vue';
 import ExtrasList from './ExtrasList.vue';
 import GapPopover from './GapPopover.vue';
 import LayoutCards from './LayoutCards.vue';
+import LinkPopover from './LinkPopover.vue';
+import { linkKey } from '../finish/linkkeys.js';
 import PagePreview from './PagePreview.vue';
 import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
@@ -37,7 +39,7 @@ const BESIDE = 980;
 const COMMENTS_POLL = 10000;
 
 export default {
-    components: { Alert, AsksCard, BriefCard, Button, CommentComposer, CommentItem, CommentsSidebar, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
+    components: { Alert, AsksCard, BriefCard, Button, CommentComposer, CommentItem, CommentsSidebar, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, LinkPopover, PagePreview, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -133,6 +135,9 @@ export default {
             skipped: {},
             more: false,
             answering: false,
+            // A link Ghostwriter added, open in its popover: {link, element}; Remove link under way.
+            addedLink: null,
+            linkBusy: false,
         };
     },
 
@@ -181,6 +186,30 @@ export default {
 
         working() {
             return this.session?.status === 'working';
+        },
+
+        // The SEO pass is still checking a first draft's headings and links:
+        // the draft can be read, but not used or changed until it's done.
+        checking() {
+            return Boolean(this.session?.seo?.checking);
+        },
+
+        // The links Ghostwriter added to the draft, by the page they go to.
+        addedLinks() {
+            const links = {};
+
+            (this.session?.seo?.links ?? []).forEach((link) => {
+                const key = linkKey(link.href);
+
+                if (key) links[key] = link;
+            });
+
+            return links;
+        },
+
+        // The first message with a draft: the SEO pass's notice goes under it.
+        firstDraftIndex() {
+            return this.conversation.findIndex((entry) => entry.role === 'assistant' && entry.draft);
         },
 
         // Only the messages to show (core's BriefThread::visible()); the
@@ -313,10 +342,12 @@ export default {
         // A popover belongs to the chip it was opened from: another tab, or Edit YAML, closes it.
         view() {
             this.gap = null;
+            this.addedLink = null;
         },
 
         editing() {
             this.gap = null;
+            this.addedLink = null;
         },
 
         // Comment mode is the Preview's: leaving it (or a draft that can't be shown) leaves the mode.
@@ -363,8 +394,14 @@ export default {
         },
     },
 
+    updated() {
+        this.markAddedLinks();
+    },
+
     beforeUnmount() {
         clearTimeout(this.timer);
+        clearTimeout(this.linkTimer);
+        this.linkWatch?.disconnect();
         clearInterval(this.ticker);
         clearInterval(this.commentsPoll);
         this.sizer?.disconnect();
@@ -560,8 +597,13 @@ export default {
 
             const drawing = (data.images ?? []).some((image) => image.status === 'working');
 
-            // The planner may still be looking for other layouts after the draft lands.
-            if (data.status === 'working' || drawing || data.layouts?.planning) this.later(() => this.open(data.id));
+            // The SEO pass, then the planner, may still be at work after the draft lands.
+            if (data.status === 'working' || drawing || data.layouts?.planning || data.seo?.checking) this.later(() => this.open(data.id));
+
+            // The checks have finished: the draft can be used.
+            if (data.id === this.session?.id && this.session?.seo?.checking && !data.seo?.checking) {
+                this.announce(data.seo?.notice ? `${this.__('Checked.')} ${data.seo.notice}` : this.__('Checked. The draft is ready to use.'));
+            }
 
             this.$nextTick(() => {
                 const chat = this.$refs.chat;
@@ -811,6 +853,114 @@ export default {
                 else if (gap.host?.isConnected) (gap.host.querySelector('.gw-gap[tabindex], a.gw-gap') ?? gap.host).focus();
                 else (this.$el.querySelector('iframe[data-ghostwriter-preview="current"]') ?? this.$refs.draftPane)?.focus?.();
             });
+        },
+
+        // -- Links Ghostwriter added (the Text and Blocks tabs) --------------
+
+        // Each link to a page the SEO pass added gets a dotted mark (CSS
+        // only: nothing is written into the words, so editing them saves
+        // only the link). Run after every render, and whenever the draft's
+        // HTML is put back (a field left, a chip painted).
+        markAddedLinks() {
+            const root = this.$refs.draftText;
+
+            if (!root) {
+                this.linkWatch?.disconnect();
+                this.linkWatch = null;
+
+                return;
+            }
+
+            if (this.linkRoot !== root) {
+                this.linkWatch?.disconnect();
+                this.linkRoot = root;
+                this.linkWatch = new MutationObserver(() => this.markAddedLinks());
+            }
+
+            this.linkWatch.disconnect();
+
+            root.querySelectorAll('a[href]').forEach((anchor) => {
+                const added = this.addedLinks[linkKey(anchor.getAttribute('href'))];
+
+                anchor.classList.toggle('gw-added-link', Boolean(added));
+
+                if (added) {
+                    anchor.dataset.gwAdded = '';
+                    anchor.setAttribute('aria-describedby', 'gw-added-link-note');
+                } else if (anchor.dataset.gwAdded !== undefined) {
+                    delete anchor.dataset.gwAdded;
+                    anchor.removeAttribute('aria-describedby');
+                }
+            });
+
+            this.linkWatch.observe(root, { childList: true, subtree: true });
+        },
+
+        addedLinkAt(target) {
+            const anchor = target instanceof Element ? target.closest('a.gw-added-link') : null;
+            const link = anchor ? this.addedLinks[linkKey(anchor.getAttribute('href'))] : null;
+
+            return link ? { link, element: anchor } : null;
+        },
+
+        // Hovering or focusing a link Ghostwriter added opens its popover.
+        hoverLink(event) {
+            const found = this.addedLinkAt(event.target);
+
+            if (!found) return;
+
+            clearTimeout(this.linkTimer);
+
+            if (this.addedLink?.element !== found.element) this.addedLink = found;
+        },
+
+        // A click opens it too (the words aren't followed in the draft).
+        clickLink(event) {
+            const found = this.addedLinkAt(event.target);
+
+            if (!found) return;
+
+            event.preventDefault();
+            clearTimeout(this.linkTimer);
+            this.addedLink = found;
+        },
+
+        // Moving away closes it after a moment, unless the pointer goes into it.
+        leaveLink(event) {
+            if (!this.addedLinkAt(event.target) || this.linkBusy) return;
+
+            clearTimeout(this.linkTimer);
+            this.linkTimer = setTimeout(() => (this.addedLink = null), 300);
+        },
+
+        keepLink() {
+            clearTimeout(this.linkTimer);
+        },
+
+        closeLink({ refocus = false } = {}) {
+            const element = this.addedLink?.element;
+
+            this.addedLink = null;
+
+            if (refocus && element?.isConnected) element.closest('[contenteditable], [tabindex]')?.focus?.();
+        },
+
+        // Remove link: the words stay, the link goes from the draft and its
+        // layouts, and the writer won't put it back. No model.
+        async removeAddedLink({ href }) {
+            this.linkBusy = true;
+
+            try {
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/links/remove`), { href });
+
+                this.addedLink = null;
+                this.receive(data);
+                this.announce(this.__('Link removed. The words stay.'));
+            } catch (error) {
+                this.fail(error);
+            } finally {
+                this.linkBusy = false;
+            }
         },
 
         // Written into the draft as typed: no model. Saved like any draft
@@ -1430,7 +1580,11 @@ export default {
                         ><span v-if="entry.role === 'user' && entry.from" class="mb-1 block text-xs font-medium text-gray-500">{{ entry.mine ? __('You') : entry.from }}</span><span v-if="entry.role !== 'user' && asking && index === conversation.length - 1" class="mb-1 block text-xs font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400!">{{ __('Ghostwriter needs your answer') }}</span><div v-if="entry.html" class="gw-prose gw-reply whitespace-normal" v-html="entry.html"></div><template v-else>{{ entry.content }}</template><span
                                 v-if="entry.draft"
                                 class="mt-2 flex items-center gap-1.5 border-t border-gray-200 pt-2 text-xs font-medium text-green-700 dark:border-gray-700! dark:text-green-400!"
-                            ><svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ draftNote(entry.draft) }}</span></div>
+                            ><svg class="size-3.5 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3.2 3.2L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ draftNote(entry.draft) }}</span><span
+                                v-if="index === firstDraftIndex && (checking || session.seo?.notice)"
+                                class="mt-1.5 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400!"
+                                data-ghostwriter-seo-notice
+                            >{{ checking ? __('Checking headings and links…') : session.seo.notice }}</span></div>
                         <BriefCard
                             v-if="entry.step === 'card' && session.brief"
                             ref="card"
@@ -1571,12 +1725,12 @@ export default {
                                 <Button size="sm" :text="__('Save changes')" :loading="busy" @click="saveDraft" />
                             </template>
                             <template v-else>
-                                <Button size="sm" :text="__('Edit YAML')" :disabled="working" @click="editing = true" />
+                                <Button size="sm" :text="__('Edit YAML')" :disabled="working || checking" @click="editing = true" />
                                 <Button
                                     size="sm"
                                     variant="primary"
                                     :text="useText"
-                                    :disabled="working || !!session.draft_problem"
+                                    :disabled="working || checking || !!session.draft_problem"
                                     :loading="busy"
                                     @click="apply"
                                 />
@@ -1610,6 +1764,18 @@ export default {
 
                             <Textarea v-if="editing || session.draft_problem" v-model="raw" elastic :rows="24" class="font-mono text-sm" @focus="editing = true" />
 
+                            <!-- The SEO pass on a first draft: the draft can be read meanwhile, not used. -->
+                            <div v-if="checking && !editing && !session.draft_problem" class="mb-4 rounded-md border border-gray-200 px-3 py-2 text-sm dark:border-gray-700!" role="status" data-ghostwriter-checking>
+                                <p class="flex items-center gap-2 font-medium">
+                                    <svg class="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
+                                        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                                    </svg>
+                                    {{ __('Draft ready. Checking headings and links…') }}
+                                </p>
+                                <p class="mt-1 text-xs text-gray-500">{{ __('You can read the draft meanwhile. Use this draft is ready once the checks finish, so nothing changes under you.') }}</p>
+                            </div>
+
                             <LayoutCards
                                 v-else
                                 :session="session"
@@ -1618,7 +1784,7 @@ export default {
                                 :form-values="formValues"
                                 :ready="thumbsReady"
                                 :thumbnails="!previewFailed"
-                                :disabled="working"
+                                :disabled="working || checking"
                                 :pending="choosing"
                                 :refreshing="refreshingLayouts"
                                 @choose="chooseLayout"
@@ -1673,8 +1839,14 @@ export default {
                                     @close="setCommenting(false)"
                                 />
                                 <template v-if="view !== 'preview'">
-                                    <p v-if="!working" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
-                                    <DraftPreview :nodes="session.preview" :view="view" :editable="!working" :switched="switched" @edit="editField" @gap="openGap" />
+                                    <p v-if="!working && !checking" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
+                                    <p v-if="Object.keys(addedLinks).length" id="gw-added-link-note" class="mb-3 flex items-center gap-1.5 text-xs text-gray-500" data-ghostwriter-added-links-note>
+                                        <span class="gw-added-link-sample" aria-hidden="true">{{ __('Dotted links') }}</span>
+                                        {{ __('were added by Ghostwriter. Hover one to see where it goes, or remove it.') }}
+                                    </p>
+                                    <div ref="draftText" @mouseover="hoverLink" @mouseout="leaveLink" @focusin="hoverLink" @click="clickLink">
+                                        <DraftPreview :nodes="session.preview" :view="view" :editable="!working && !checking" :switched="switched" @edit="editField" @gap="openGap" />
+                                    </div>
                                     <ExtrasList v-if="view === 'text'" :extras="session.extras ?? []" :editable="!working" @edit="editExtra" @remove="removeExtra" @gap="openGap" />
                                 </template>
                             </div>
@@ -1692,6 +1864,20 @@ export default {
                                 @post="savePin"
                                 @remove="removePin(pendingList.find((pin) => pin.id === composer.editing))"
                                 @cancel="closeComposer()"
+                            />
+
+                            <LinkPopover
+                                v-if="addedLink && view !== 'preview'"
+                                :key="addedLink.link.href"
+                                :link="addedLink.link"
+                                :element="addedLink.element"
+                                :container="$refs.draftPane"
+                                :busy="linkBusy"
+                                :disabled="working || checking"
+                                @stay="keepLink"
+                                @leave="leaveLink({ target: addedLink.element })"
+                                @remove="removeAddedLink"
+                                @close="closeLink"
                             />
 
                             <GapPopover

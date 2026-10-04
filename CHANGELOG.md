@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Added
+- **Internal links** (SEO layer row 4; core main, 1994limited/ghostwriter-core#90). A first draft is linked to the site's other pages before the layout planner, so every layout carries the links:
+  - The SEO pass gets the link index (every routed collection, decision 9), Bard's links (`statamic://entry::id`) and the entry's collection, site and language. One `seo-editor` call picks the words and pages, core's `LinkValidator` checks them, one `seo-verifier` call keeps or drops each; about one link per 250 words, 2 to 5.
+  - The draft pane says **"Draft ready. Checking headings and links…"** while that runs, and **Use this draft**, Edit YAML, the layout cards and click-to-edit wait for it, so the text never changes under the editor. The conversation shows the pass's one-line notice under the first draft ("I linked to 2 of your pages: …").
+  - The Text and Blocks tabs mark each link Ghostwriter added with a faint dotted underline and a small mark; hovering, focusing or clicking it shows the page it goes to (title, type, address, why), **Open page** and **Remove link**, which keeps the words (`POST sessions/{session}/links/remove`) and stops the writer putting it back.
+  - **Finish this page** gains a suggestion a link: "Check 2 links Ghostwriter added. “…” goes to Contact us (/contact)", with **Keep it** and **Remove the link** (in Bard, through the editor). Suggestions never count in the header menu and never block publishing.
+  - `LinkInsertTest` runs core's `LinkInsertContract` on Bard: the link survives "Use this draft" and renders as the page's address.
 - **The link index** (SEO layer row 3, decision 9; core main, 1994limited/ghostwriter-core#89). Every routable page of a site can now be a link target, not only Ghostwriter's own collections:
   - Every collection with a route for the site gets **link rows** (title, site-relative address, summary, the collection's title as the type, live dates, noindex, key page, `entry::{id}` reference, stems) beside the full rows, in the same `revisit/{site}/{group}.index.json` files. Taxonomy terms with a term template and 40 words or more of their own text are link rows too (linked by address).
   - `FileEntryIndex` implements core's `LinkIndex::related()` (bound in the container): ranked by core's `LinkCandidates`, left out by `Linkable` (drafts, scheduled before their day, expired, redirects and pages with no route, SEO Pro or a noindex toggle, utility pages, the home page), never across sites. Above 5,000 rows a site, `_stems.json` narrows the rows scored.

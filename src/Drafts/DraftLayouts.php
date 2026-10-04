@@ -22,15 +22,22 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Markers;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\Links\StatamicLinks;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\LinkContext;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoPass;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoState;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Conversation;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\WriterContext;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\LinkIndex;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\TaggedResponse;
 use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Seo\HeadingProfiles;
+use NineteenNinetyFour\Ghostwriter\Suggest\EntryChecks;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\Entry;
+use Statamic\Facades\Site;
 use Statamic\Fields\Blueprint;
 use Symfony\Component\Yaml\Yaml;
 use Throwable;
@@ -40,9 +47,12 @@ use Throwable;
  * the site's side of them, and what the panel shows.
  *
  * - The first draft's turn stores the writer's draft with its own layout
- *   straight away, then asks the layout planner for up to two more (one
- *   call) and stores those: the panel shows the draft meanwhile, with
- *   "Finding other layouts…". Later turns re-arrange without a call.
+ *   straight away. Then the SEO pass links it to the site's other pages
+ *   (two calls; the panel shows "Checking headings and links…" and holds
+ *   "Use this draft" meanwhile, so the text never changes under the
+ *   editor), and the layout planner looks for up to two more layouts (one
+ *   call; "Finding other layouts…"). Later turns re-arrange without a
+ *   call.
  * - Any other change to the draft (click-to-edit, Edit YAML) re-arranges
  *   the layouts, no call; one that no longer fits is "Needs refreshing".
  * - The chosen layout is stored on the session, so it is everyone's on the
@@ -56,6 +66,9 @@ class DraftLayouts
     /** How long a planner call is shown as under way, at most. */
     public const PLANNING_SECONDS = 900;
 
+    /** How long the SEO pass's link calls are shown as under way, at most. */
+    public const CHECKING_SECONDS = 600;
+
     public function __construct(
         private SessionLayouts $layouts,
         private SchemaReader $reader,
@@ -63,6 +76,7 @@ class DraftLayouts
         private SessionGuard $sessions,
         private SessionStore $store,
         private HeadingProfiles $headings,
+        private LinkIndex $index,
     ) {}
 
     /**
@@ -136,16 +150,65 @@ class DraftLayouts
                 return;
             }
 
-            $usage = $this->layouts->afterWriter($copy, null, $response, $conversation, $writer, $site);
+            $written = $copy->draft;
+            $usage = $this->layouts->afterWriter($copy, null, $response, $conversation, $writer, $this->withLinks($site, $copy, $writer), function (string $stage) use ($sessionId) {
+                if ($stage === SeoPass::CHECKING) {
+                    self::checking($sessionId);
+                } else {
+                    self::checked($sessionId);
+                }
+            });
 
-            $this->sessions->change($sessionId, function (Session $latest) use ($copy, $usage, $site) {
+            $this->sessions->change($sessionId, function (Session $latest) use ($copy, $usage, $site, $written) {
                 $latest->extras = $copy->extras;
+
+                // The SEO pass's links are the draft's own, unless it was
+                // edited meanwhile (it isn't usable until they're in).
+                if ($latest->draft === $written) {
+                    $latest->draft = $copy->draft;
+                    $latest->seo = $copy->seo;
+                } elseif ($copy->seo !== []) {
+                    $latest->seo = (new SeoState(removed: SeoState::of($latest)->removed, checked: SeoState::of($copy)->checked))->toArray();
+                }
+
                 $this->settle($latest, $copy, $usage, $site);
             });
         } catch (Throwable $exception) {
             $this->log($exception);
         } finally {
+            self::checked($sessionId);
             self::planned($sessionId);
+        }
+    }
+
+    /**
+     * The context with what the SEO pass needs to link a first draft to
+     * the site's other pages (SEO layer §7): the link index (every routable
+     * page, decision 9), Bard's links (`statamic://entry::id`), and the
+     * entry's collection, site and language.
+     */
+    public function withLinks(LayoutContext $site, Session $session, WriterContext $writer): LayoutContext
+    {
+        try {
+            $entry = $session->source !== null ? Entry::find((string) $session->source) : ($session->recordId !== null ? Entry::find((string) $session->recordId) : null);
+            $handle = $entry?->locale() ?? Site::default()->handle();
+            $type = app(TypeRepository::class)->find($session->kind);
+            $group = $type?->group ?? (string) $entry?->collectionHandle();
+
+            return new LayoutContext($site->schema, $site->pattern, $site->entries, $site->defaults, $site->exampleIds, $site->profile, new LinkContext(
+                $this->index,
+                new StatamicLinks,
+                $group,
+                $handle,
+                $entry ? EntryChecks::ref($entry) : null,
+                $writer->kind,
+                $writer->voice,
+                (string) (Site::get($handle)?->locale() ?? 'en'),
+            ));
+        } catch (Throwable $exception) {
+            $this->log($exception);
+
+            return $site;
         }
     }
 
@@ -484,6 +547,44 @@ class DraftLayouts
     {
         if ($this->layouts->extras($session)->item($itemId) === null) {
             throw new InvalidArgumentException('That extra is not on this piece any more.');
+        }
+    }
+
+    // -- The SEO pass's links, under way ----------------------------------------
+
+    /** Marked while the first draft's links are looked for, until they're in. */
+    public static function checking(string $sessionId): void
+    {
+        Cache::put(self::checkingKey($sessionId), true, self::CHECKING_SECONDS);
+    }
+
+    public static function checked(string $sessionId): void
+    {
+        Cache::forget(self::checkingKey($sessionId));
+    }
+
+    public static function isChecking(string $sessionId): bool
+    {
+        return (bool) Cache::get(self::checkingKey($sessionId), false);
+    }
+
+    private static function checkingKey(string $sessionId): string
+    {
+        return 'ghostwriter.seo.checking.'.$sessionId;
+    }
+
+    /**
+     * "Remove link" on a link Ghostwriter added (the Text tab's popover):
+     * the words stay, the layouts follow. No call.
+     *
+     * @throws InvalidArgumentException when the draft has no such link.
+     */
+    public function removeLink(Session $session, string $href, ContentType $type): void
+    {
+        $site = $this->context($type->forSession($session), site: false) ?? throw new InvalidArgumentException('The collection this was written for no longer exists.');
+
+        if (! $this->layouts->removeLink($session, $href, $site)) {
+            throw new InvalidArgumentException('That link isn\'t in the draft any more.');
         }
     }
 

@@ -15,7 +15,9 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Record;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionAccess;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\Message;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoState;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Asks;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
@@ -204,7 +206,40 @@ class Presenter
             'comments' => $session->draft !== null && $problem === null ? $this->comments($session) : null,
             'usage' => $session->usage,
             'images' => $this->images($session, $type),
+            // What the SEO pass did: the links Ghostwriter added (the Text
+            // tab marks them, with a popover), its one-line notice, and
+            // whether it is still checking a first draft.
+            'seo' => $this->seo($session),
         ];
+    }
+
+    /**
+     * @return array{checking: bool, notice: ?string, links: list<array<string, mixed>>}
+     */
+    private function seo(Session $session): array
+    {
+        $state = SeoState::of($session);
+        $message = $state->message();
+
+        return [
+            'checking' => DraftLayouts::isChecking($session->id),
+            'notice' => $message === null ? null : self::seoText($message->key, $message->params),
+            'links' => array_map(fn (array $link) => $link + ['open_url' => $link['url']], $state->links),
+        ];
+    }
+
+    /**
+     * One of core's SEO strings in the editor's language: its English
+     * source is the key for `__()`, as everywhere else in the addon.
+     *
+     * @param  array<string, scalar|null>  $params
+     */
+    private static function seoText(string $key, array $params = []): string
+    {
+        $name = str_starts_with($key, 'seo.') ? substr($key, 4) : $key;
+        $english = Message::strings('seo')[$name] ?? $key;
+
+        return __($english, array_map(fn ($value) => (string) $value, $params));
     }
 
     /**
