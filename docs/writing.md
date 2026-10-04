@@ -113,6 +113,25 @@ The panel follows the Control Panel's dark mode.
 
 The tabs are reachable by keyboard: Tab to the selected one, then the arrow keys move between them. The frame is titled for screen readers ("Preview of the draft: …"), and the outlines are visual only.
 
+### Comments
+
+Comment on the page itself and let Ghostwriter revise just those parts. Turn on **Comment** above the Preview (or press **Alt+Shift+C**). The amber count on the button is your comments not sent yet, plus those sent and not resolved.
+
+- **Pin a comment**: click a block, or select some words in one, and write what should change in the small box that opens there. **⌘↵** (Ctrl+Enter) adds it; Esc cancels. Each comment gets a numbered amber pin on its block, or at the words.
+- **Your comments are yours until you apply them.** They stay in this browser, even if you reload or close the panel. Click a pin, or use **Edit** and **Delete** in the list, to change one. **Comment on the whole page** adds one about the page as a whole.
+- **Apply N comments** sends them together, as one message in the conversation ("4 comments", each with its block and words; click one to see it on the page). Ghostwriter makes **one** call and changes only the commented blocks. The layout stays unless a comment asks for a new one.
+- **Ghostwriter answers with one message**, with a reply to each comment:
+  - **Changed**: the block changed. The page shows it with a green **Changed** mark, which flashes once. **Before / after** shows the change word by word, and **Put it back** undoes it.
+  - **Replied**: an answer with no change, for a question, an image, or something it would have had to invent.
+  - **Not applied**: a check refused the change, and the reply says why ("That change needed something I don’t have (£75)…"). A fact you give in a comment ("it’s £60 a visit") may fill a gap, and is labelled as yours.
+  - **Skipped**: someone changed that block while Ghostwriter worked, so nothing changed. Apply again to use the new version.
+- **Resolve** a comment when you're done with it: its pin goes. **Reopen** brings it back.
+- **Comments follow their words.** Switch layout and each pin moves to the block holding its words. If a layout leaves its words out, the comment says "Not in this layout". If a later message rewrites the words away, it says they've gone.
+- **Shared conversations**: comments that have been sent are in the conversation, so everyone on the piece sees them and their answers. While the comments are on show, the panel checks for new ones every 10 seconds. One run at a time: while Ghostwriter applies comments, Send waits, and you can keep pinning new ones for next time.
+- **Keyboard**: in comment mode, Tab reaches the blocks on the page. The arrow keys move between them, Enter opens the box, and **Alt+Shift+M** comments on words you've selected. The comments list beside (or under) the page has every action, including **Show on page**.
+
+Adding, editing, resolving and putting back cost nothing. Only **Apply** asks the model, once, however many comments it carries (up to 12).
+
 ### Layouts
 
 Ghostwriter doesn't just write the draft one way. Once the first draft is in, it looks for up to two other layouts of **the same words**, and shows them as cards above the draft under **Layout**:

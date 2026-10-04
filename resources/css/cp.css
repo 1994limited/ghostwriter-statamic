@@ -162,3 +162,12 @@ button[data-ui-group-target]:has(svg[data-ghostwriter-stock-badge])::after {
 /* Narrow: the layout cards scroll sideways rather than squeeze. */
 .gw-writer.is-narrow .gw-layout-row { overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 0.5rem; margin-inline: -0.25rem; padding-inline: 0.25rem; }
 .gw-writer.is-narrow .gw-layout-card { flex: 0 0 min(15rem, 75%); scroll-snap-align: start; }
+
+/* Comments in the Preview: the sidebar beside the page from about 980 px of
+   draft pane (it stays in view while the page scrolls), under it below that. */
+.gw-review { display: flex; flex-direction: column; gap: 0.75rem; }
+.gw-review.is-beside { display: grid; grid-template-columns: minmax(0, 1fr) 18rem; align-items: start; gap: 0.75rem; }
+.gw-review.is-beside .gw-review__side { position: sticky; top: 0; max-height: calc(100vh - 12rem); }
+.gw-note p { @apply my-1; }
+.gw-note > :first-child { @apply mt-0; }
+.gw-note > :last-child { @apply mb-0; }

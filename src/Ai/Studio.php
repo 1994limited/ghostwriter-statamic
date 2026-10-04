@@ -186,6 +186,17 @@ class Studio
     }
 
     /**
+     * What Apply's reviser is given, as for a writer's turn: the
+     * conversation and the writer's context (core's SessionReview::revise()).
+     *
+     * @return array{0: Conversation, 1: WriterContext}
+     */
+    public function revision(Session $session, ContentType $type, string $voice): array
+    {
+        return [$this->inputs->conversation($session), $this->writerContext($type, $voice)];
+    }
+
+    /**
      * The brief as the message the writer starts from: the session's
      * answers, or a brief card's answers and working title.
      */

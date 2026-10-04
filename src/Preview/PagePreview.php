@@ -6,10 +6,12 @@ use Facades\Statamic\CP\LivePreview;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use NineteenNinetyFour\Ghostwriter\Core\Anchor\NormalisedText;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\Units;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Preview\PreviewData;
 use NineteenNinetyFour\Ghostwriter\Core\Preview\PreviewMarkers;
+use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Drafts\BuiltValues;
 use NineteenNinetyFour\Ghostwriter\Stock\StandInComps;
@@ -72,6 +74,12 @@ class PagePreview
         $hash = self::stableHash($preview->hash, $built->data);
         $key = sha1(implode('|', [$hash, $blueprint->handle(), $site, (string) $original?->id(), $slug, (string) $parent, json_encode($form['date'] ?? null)]));
         $map = $this->withStandIns($preview->map->toArray());
+
+        // Another layout's units are numbered afresh: named by the draft's own
+        // ids again, so comments find their words in any layout.
+        if ($arranged && $session->units !== []) {
+            $map = self::sessionUnits($map, $session, $draft, $built->schema);
+        }
         $title = collect($map)->first(fn (array $block) => $block['kind'] === 'field' && $block['type'] === 'title')['key'] ?? null;
 
         if ($kept = $this->kept($session->id, $key)) {
@@ -154,6 +162,47 @@ class PagePreview
         $stable = $walk($data);
 
         return $generated ? sha1((string) json_encode($stable, JSON_INVALID_UTF8_SUBSTITUTE)) : $hash;
+    }
+
+    /**
+     * The map's units, as another layout numbers them, named by the
+     * session's own unit ids: each by its words, where they are the words
+     * of exactly one unit of the draft. A piece of a unit, or an extra, has
+     * no unit of its own in the draft and is left out.
+     *
+     * @param  array<int, array<string, mixed>>  $map
+     * @return array<int, array<string, mixed>>
+     */
+    public static function sessionUnits(array $map, Session $session, Draft $draft, Schema $schema): array
+    {
+        try {
+            $ours = Units::fromDraft(Draft::parse((string) $session->draft), $schema)->restore($session->units);
+            $byText = [];
+
+            foreach ($ours->all() as $unit) {
+                if ($unit->markdown !== null && trim($unit->markdown) !== '') {
+                    $byText[NormalisedText::string($unit->markdown)][] = $unit->id;
+                }
+            }
+
+            $to = [];
+
+            foreach (Units::fromDraft($draft, $schema)->all() as $unit) {
+                $ids = $unit->markdown !== null ? ($byText[NormalisedText::string($unit->markdown)] ?? []) : [];
+
+                if (count($ids) === 1) {
+                    $to[$unit->id] = $ids[0];
+                }
+            }
+        } catch (Throwable) {
+            $to = [];
+        }
+
+        foreach ($map as $i => $block) {
+            $map[$i]['units'] = array_values(array_filter(array_map(fn ($id) => $to[$id] ?? null, $block['units'] ?? [])));
+        }
+
+        return $map;
     }
 
     /**

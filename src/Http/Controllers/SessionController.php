@@ -25,6 +25,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
+use NineteenNinetyFour\Ghostwriter\Core\Review\Comments;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Brief;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
@@ -33,6 +34,7 @@ use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
+use NineteenNinetyFour\Ghostwriter\Jobs\ApplyComments;
 use NineteenNinetyFour\Ghostwriter\Jobs\FillBrief;
 use NineteenNinetyFour\Ghostwriter\Jobs\RunSessionTurn;
 use NineteenNinetyFour\Ghostwriter\Preview\PagePreview;
@@ -234,8 +236,13 @@ class SessionController
             }
         });
 
-        // A brief that failed to fill is filled again; otherwise the turn runs again.
-        FillBrief::next($session);
+        // Comments that weren't answered are applied again; a brief that
+        // failed to fill is filled again; otherwise the turn runs again.
+        if (Comments::unanswered($session) !== null) {
+            ApplyComments::start($session->id);
+        } else {
+            FillBrief::next($session);
+        }
 
         return response()->json($this->presenter->detail($session));
     }
