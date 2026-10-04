@@ -31,8 +31,8 @@ export function el(tag, attrs = {}, children = []) {
     return node;
 }
 
-import { counts, currentAfter, fieldStates, firstOpen, nextOpen, stepsFrom, tagText } from './state.js';
-import { inlineSpot, labelParts, pinnedBottom, saySide } from './place.js';
+import { counts, currentAfter, fieldStates, firstOpen, firstToDo, nextOpen, published, stepsFrom, tagText } from './state.js';
+import { coversText, inlineSpot, labelParts, pinnedBottom, saySide, sayRect } from './place.js';
 
 // What is pinned over the top of the form: Statamic's header and a Bard
 // toolbar stuck under it. The mark and its words never go under them.
@@ -174,9 +174,21 @@ export class FinishGuide {
         this.root?.remove();
     }
 
-    // From the header menu ("Finish this page"): the guide, on the first step still open.
+    // From the header menu ("Finish this page") or Suggest edits' "1 thing
+    // still to finish": the guide, brought out if it wasn't, on the first
+    // step still to do, so whatever counted a step opens onto it.
     openFromMenu() {
-        this.openAt(this.firstOpen());
+        if (!this.shown) {
+            this.shown = true;
+            this.steps.forEach((step) => this.touched.add(step.gap.dotted));
+        }
+
+        this.openAt(firstToDo(this.steps));
+    }
+
+    // What is left as the header menu and Suggest edits show it (state.js published()).
+    left() {
+        return published(this.steps, this.index, this.shown);
     }
 
     // A new check. The steps are the live gaps and nothing else (state.js):
@@ -383,7 +395,7 @@ export class FinishGuide {
 
         // The header menu's count: nothing until there was something to finish.
         this.visible = visible;
-        this.onCount({ count: visible ? count : 0, label });
+        this.onCount({ count: this.left(), label });
 
         // The dock, while minimised.
         this.dock.hidden = !visible || !this.minimised;
@@ -821,10 +833,15 @@ export class FinishGuide {
         });
     }
 
-    // The mark at x, y, its words on whichever side fits in the window.
+    // The mark at x, y, its words on whichever side fits in the window and
+    // covers none of the page's own (a sidebar's dates, a field's label).
     place(x, y) {
+        const label = this.say.offsetWidth;
+        const height = this.say.offsetHeight || 20;
+        const covers = (side) => coversText(sayRect(side, x, y, label, height), { skip: '.gw-f-flyer, .gw-f-flash' });
+
         this.flyer.style.transform = `translate(${x}px, ${y}px)`;
-        this.flyer.dataset.say = saySide(x, this.say.offsetWidth, window.innerWidth, { prefer: 'left' });
+        this.flyer.dataset.say = saySide(x, label, window.innerWidth, { prefer: 'left', covers: label ? covers : null, y, height });
     }
 
     // A CMS dialog or stack is on top: the mark keeps out of its way.

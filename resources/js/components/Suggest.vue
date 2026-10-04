@@ -241,7 +241,6 @@ export default {
             <p>{{ __('Ghostwriter reads this page against your voice guide and the rest of the site, and suggests small changes for you to accept or not. Each suggestion is checked in its paragraph before you see it.') }}</p>
             <p>{{ __('Nothing changes until you accept a suggestion, and nothing is saved until you save. Alt text is the one exception: it\'s saved to the image, after you confirm.') }}</p>
             <template v-if="info">
-                <p v-if="info.candidates" class="text-gray-600 dark:text-gray-400!">{{ info.candidates === 1 ? __('1 thing found already, without AI, to check in context.') : __(':count things found already, without AI, to check in context.', { count: info.candidates }) }}</p>
                 <Alert v-if="!info.configured" variant="warning" :text="__('Add an API key first: Suggest edits reads the page with your AI provider.')" />
                 <p v-else class="font-medium">{{ cost(info) }}</p>
             </template>

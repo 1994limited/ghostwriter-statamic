@@ -47,6 +47,32 @@ export function firstOpen(steps) {
     return open >= 0 ? open : steps.length;
 }
 
+/**
+ * Where the guide opens when asked to (the header menu, Suggest edits'
+ * "1 thing still to finish"): the first open step, else the first skipped
+ * one, so a count always lands on what it counted.
+ */
+export function firstToDo(steps) {
+    const open = firstOpen(steps);
+
+    if (open < steps.length) return open;
+
+    const left = steps.findIndex((step) => !isSuggestion(step.gap));
+
+    return left >= 0 ? left : steps.length;
+}
+
+/**
+ * What is left to finish as everything outside the guide says it: the
+ * header menu's badge and row, and Suggest edits' "1 thing still to
+ * finish". Nothing until the guide is out (a required field left empty
+ * doesn't bring it out on its own), so no count points at a guide that
+ * isn't there.
+ */
+export function published(steps, index, shown) {
+    return shown ? counts(steps, index).count : 0;
+}
+
 /** The next open step from `from`, coming round to the start; the end when none is open. */
 export function nextOpen(steps, from) {
     for (let i = from; i < steps.length; i++) {

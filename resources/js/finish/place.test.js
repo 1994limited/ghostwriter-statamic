@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { inlineSpot, labelParts, pinnedBottom, saySide } from './place.js';
+import { inlineSpot, labelParts, pinnedBottom, saySide, sayRect } from './place.js';
 
 test('a fix label cuts only the name in it short', () => {
     const name = 'Winter structure: plants that earn their keep in January';
@@ -42,4 +42,17 @@ test('only what is stacked from the top counts as chrome', () => {
     assert.equal(pinnedBottom([box(0, 56), box(500, 41)], null, 800), 56, 'A toolbar further down the form is not.');
     assert.equal(pinnedBottom([box(0, 56), box(56, 744)], null, 800), 56, 'The main pane is not.');
     assert.equal(pinnedBottom([box(0, 56)], box(300, 41), 800), 341, 'The editor\'s own toolbar, when pointing into it.');
+});
+
+test('the mark’s words go where they cover none of the page’s text', () => {
+    // Above the guide, near the right edge: the sidebar's dates are on its left.
+    const covered = new Set(['left', 'below-left', 'below-right']);
+
+    assert.equal(saySide(1330, 60, 1400, { covers: (side) => covered.has(side), y: 700 }), 'above-left');
+    assert.equal(saySide(500, 60, 1400, { covers: () => false, y: 700 }), 'left', 'Nothing in the way: the preferred side.');
+    assert.equal(saySide(500, 60, 1400, { covers: (side) => side === 'left', y: 700 }), 'right');
+    assert.equal(saySide(1330, 60, 1400, { covers: () => true, y: 700 }), 'left', 'Text everywhere: the side that fits.');
+    assert.equal(saySide(1330, 60, 1400, { covers: (side) => side !== 'below-left', y: 10 }), 'below-left', 'No room above.');
+    assert.deepEqual(sayRect('above-left', 1330, 700, 60, 20), { left: 1314, top: 676, right: 1374, bottom: 696 });
+    assert.deepEqual(sayRect('left', 1330, 700, 60, 20), { left: 1268, top: 702, right: 1328, bottom: 722 });
 });

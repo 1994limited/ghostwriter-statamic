@@ -7,7 +7,6 @@
 On an existing entry, open the menu beside **Edit with Ghostwriter** and choose **Suggest edits**. A confirm says what it does and what it costs before anything is sent:
 
 - **Two calls to your AI provider** for a page: one reviews the page, a second double-checks every suggestion before you see it. A long page is read in parts, and the confirm says how many calls that makes.
-- How many things the free checks found already, to be checked in context.
 
 The review runs in the background (on the queue). While it runs, the menu beside **Edit with Ghostwriter** shows **Review suggestions · Reviewing…** and the guide shows its progress. You can keep working on the page.
 

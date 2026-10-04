@@ -1,7 +1,7 @@
 // node --test resources/js/finish
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { counts, currentAfter, fieldStates, stepsFrom, tagText } from './state.js';
+import { counts, currentAfter, fieldStates, firstToDo, published, stepsFrom, tagText } from './state.js';
 
 const t = (text, params = {}) => Object.entries(params).reduce((out, [key, value]) => out.replace(`:${key}`, value), text);
 const gap = (id, dotted, kind = 'ask', severity = 'blocks', speech = 'Fill this in') => ({ id, dotted, kind, severity, speech });
@@ -62,4 +62,31 @@ test('skipped gaps stay in the list and in the count', () => {
     assert.equal(steps[0].status, 'skipped');
     assert.equal(counts(steps, 1).count, 2);
     assert.equal(counts(steps, 1).skipped, 1);
+});
+
+// Entry 168 in Craft, the same here: the only gap a required image left
+// empty (`required`, nothing that blocks), so the guide stayed in and the
+// menu showed nothing, but Suggest edits said "1 thing still to finish"
+// and its button opened a guide that wasn't there.
+const heroImage = () => ({
+    id: 'image-empty|hero_image||0', kind: 'image-empty', severity: 'required', path: 'hero_image', dotted: 'hero_image', field: 'hero_image', label: 'Hero image',
+    hint: null, excerpt: null, occurrence: 0, message: 'Hero image is empty. Pages like this usually have an image here.', speech: 'Empty!', blocks: false, meta: [],
+    fixes: [{ label: 'Find a photo', action: 'find-photo', cost: 'free', primary: true }],
+});
+
+test('what is left to finish is one number everywhere: nothing until the guide is out', () => {
+    const steps = stepsFrom({ count: 1, gaps: [heroImage()] });
+
+    assert.equal(counts(steps, 0).count, 1, 'the guide itself counts it');
+    assert.equal(published(steps, 0, false), 0, 'not out: the menu and Suggest edits say nothing');
+    assert.equal(published(steps, 0, true), 1);
+});
+
+test('a guide opened from a count lands on what it counted, skipped or not', () => {
+    const open = stepsFrom({ count: 1, gaps: [heroImage()] });
+    const skipped = stepsFrom({ count: 1, gaps: [heroImage()] }, { skipped: new Set(['image-empty|hero_image||0']) });
+
+    assert.equal(firstToDo(open), 0);
+    assert.equal(firstToDo(skipped), 0, 'skipped, but still counted: the guide opens on it');
+    assert.equal(firstToDo([]), 0);
 });
