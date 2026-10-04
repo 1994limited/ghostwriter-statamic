@@ -114,6 +114,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('sessions/{session}', [SessionController::class, 'show'])->name('sessions.show');
     Route::get('sessions/{session}/open', [SessionController::class, 'open'])->name('sessions.open');
     Route::post('sessions/{session}/messages', [SessionController::class, 'message'])->name('sessions.message');
+    Route::post('sessions/{session}/answers', [SessionController::class, 'answers'])->name('sessions.answers');
     Route::post('sessions/{session}/retry', [SessionController::class, 'retry'])->name('sessions.retry');
     Route::post('sessions/{session}/brief/try-again', [SessionController::class, 'tryAgain'])->name('sessions.brief.try_again');
     Route::post('sessions/{session}/brief/agree', [SessionController::class, 'agree'])->name('sessions.brief.agree');

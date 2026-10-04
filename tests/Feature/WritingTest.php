@@ -778,6 +778,53 @@ class WritingTest extends TestCase
         $this->assertSame(['ask', 'details', 'card', null], array_column($detail['messages'], 'step'));
     }
 
+    public function test_the_writers_questions_are_answered_one_box_each_as_one_message(): void
+    {
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
+        $this->signIn();
+        $this->makeType();
+        $id = $this->agreedSession()['id'];
+
+        $this->ai->respond('writer', "<reply>A few things only you know.</reply>\n<questions>\n- id: client\n  question: Which client was it for?\n  hint: Name, if they agreed\n- id: when\n  question: When did it launch?\n  kind: choice\n  options: [This year, Last year]\n  optional: true\n</questions>");
+        $this->runTurn($this->sessions()->find($id));
+
+        $asked = collect($this->getJson(cp_route('ghostwriter.sessions.show', $id))
+            ->assertJsonPath('stage', 'questions')
+            ->assertJsonPath('waiting_on_you', true)
+            ->json('messages'))->last()['asked'];
+        $this->assertSame('A few things only you know.', $asked['intro']);
+        $this->assertFalse($asked['answered']);
+        $this->assertSame(['client', 'when'], array_column($asked['questions'], 'id'));
+        $this->assertSame(['This year', 'Last year'], $asked['questions'][1]['options']);
+        $this->assertSame('Name, if they agreed', $asked['questions'][0]['hint']);
+
+        // Nothing answered: nothing sent.
+        $count = count($this->sessions()->find($id)->messages);
+        $this->postJson(cp_route('ghostwriter.sessions.answers', $id), ['answers' => ['client' => ' ']])->assertStatus(409);
+        $this->assertCount($count, $this->sessions()->find($id)->messages);
+
+        $messages = $this->postJson(cp_route('ghostwriter.sessions.answers', $id), ['answers' => ['client' => 'Harbour Books', 'when' => null], 'more' => 'Keep it short.'])
+            ->assertOk()
+            ->assertJsonPath('status', Session::WORKING)
+            ->json('messages');
+        Bus::assertDispatchedAfterResponse(RunSessionTurn::class, fn (RunSessionTurn $job) => $job->sessionId === $id);
+
+        $answers = end($messages);
+        $this->assertSame("Which client was it for? → Harbour Books\n\nWhen did it launch? → skipped\n\nAlso: Keep it short.", $answers['content']);
+        $this->assertSame('Keep it short.', $answers['more']);
+
+        // The card now shows each answer, read-only.
+        $card = $messages[count($messages) - 2]['asked'];
+        $this->assertTrue($card['answered']);
+        $this->assertSame(['Harbour Books', null], array_column($card['questions'], 'answer'));
+
+        // Answered once only.
+        $session = $this->sessions()->find($id);
+        $session->status = Session::IDLE;
+        $this->sessions()->save($session);
+        $this->postJson(cp_route('ghostwriter.sessions.answers', $id), ['answers' => ['client' => 'Again']])->assertStatus(409);
+    }
+
     public function test_the_agreed_brief_can_be_changed_without_running_a_turn(): void
     {
         Bus::fake([RunSessionTurn::class, FillBrief::class]);

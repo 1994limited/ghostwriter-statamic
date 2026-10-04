@@ -99,7 +99,7 @@ class RunSessionTurn implements ShouldQueue
 
             if ($answer !== null) {
                 $prior = $latest->draft;
-                $latest->answer($answer->reply, $answer->document, $answer->inputTokens, $answer->outputTokens, Carbon::now());
+                $latest->answer($answer->reply, $answer->document, $answer->inputTokens, $answer->outputTokens, Carbon::now(), $answer->questions);
 
                 // The layouts follow the new draft: the writer's own at
                 // once; a later turn's others re-arranged (no call).
