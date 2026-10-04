@@ -1142,9 +1142,11 @@ export default {
             if (!this.commenting && this.canComment) this.setCommenting(true);
 
             this.focusedComment = number;
-            this.$nextTick(() => {
+            // After the list has brought its card into view: the pin last,
+            // since the draft's pane scrolls to it (the page's frame doesn't).
+            this.$nextTick(() => this.$nextTick(() => {
                 if (!this.$refs.preview?.showThread(number)) this.announce(this.__('That comment has no place on this page.'));
-            });
+            }));
         },
 
         // What a run did: the changed blocks flash, and anything not applied is said, with why.

@@ -7,6 +7,9 @@
       changes (click-to-edit, Edit YAML, a new turn, an image chosen, a
       layout chosen, an extra changed), only while it's showing. It shows
       the chosen layout, as Use this draft would put it into the form. The server reuses a render for an unchanged draft.
+    - The frame is as tall as its page and never scrolls itself: the draft's
+      column scrolls, through the layouts, this hint and the whole page
+      (framefit.js pins what the page sizes from the window's height first).
     - The next render loads in a hidden frame and swaps in when it has
       loaded, at the same block, so nothing flashes. Meanwhile the old one
       stays, dimmed, with a spinner in the frame's bar.
@@ -30,6 +33,7 @@
 import { Button } from '@statamic/cms/ui';
 import { attach, debounce, gapLabels, labelFor, previewError } from '../preview/overlay.js';
 import { changedKeys, coverOf, placePins, planPaths } from '../preview/comments.js';
+import { fitFrame } from '../preview/framefit.js';
 
 const PHONE_WIDTH = 390;
 const DESKTOP_MIN = 1024;
@@ -77,6 +81,8 @@ export default {
             scrollerHeight: 0,
             renderedKey: null,
             frameId: 0,
+            // Each frame's height once fitted to its page, by entry id.
+            fitted: {},
         };
     },
 
@@ -113,23 +119,24 @@ export default {
             return { width: DESKTOP_RENDER, scale: pane / DESKTOP_RENDER, outer: pane };
         },
 
-        frameStyle() {
-            const { width, scale } = this.frameBox;
-
-            return {
-                width: `${width}px`,
-                height: `${Math.round(this.frameHeight / scale)}px`,
-                transform: scale === 1 ? null : `scale(${scale})`,
-                transformOrigin: '0 0',
-            };
-        },
-
-        // As tall as the draft's pane (less the bar), so scrolled to, the
-        // page fills it; failing that, as tall as the window allows.
-        frameHeight() {
-            if (this.scrollerHeight > 0) return Math.max(320, Math.min(900, this.scrollerHeight - 64));
+        // The window the page is laid out for: as tall as the draft's pane
+        // (less the bar); failing that, as tall as the window allows.
+        paneHeight() {
+            if (this.scrollerHeight > 0) return Math.max(320, this.scrollerHeight - 64);
 
             return Math.max(420, Math.min(900, this.viewHeight - 280));
+        },
+
+        // The same, in the frame's own px (Desktop may be scaled down).
+        viewport() {
+            return Math.round(this.paneHeight / this.frameBox.scale);
+        },
+
+        // The page on show, as tall as it is; the pane's height until it's measured.
+        stageHeight() {
+            const fitted = this.current ? this.fitted[this.current.id] : null;
+
+            return fitted ? Math.ceil(fitted * this.frameBox.scale) : this.paneHeight;
         },
 
         barTitle() {
@@ -140,6 +147,10 @@ export default {
     watch: {
         'frameBox.scale'(scale) {
             this.overlays.forEach((overlay) => overlay?.setScale(scale));
+        },
+
+        viewport(viewport) {
+            this.fits.forEach((fit) => fit?.setViewport(viewport));
         },
 
         renderKey() {
@@ -169,13 +180,18 @@ export default {
         },
 
         active(active) {
-            if (active) this.schedule(true);
+            if (!active) return;
+
+            this.schedule(true);
+            // Shown again: its page may have changed size while hidden.
+            this.$nextTick(() => this.current && this.fits.get(this.current.id)?.measure());
         },
     },
 
     created() {
         this.debounced = debounce(() => this.render(), 800);
         this.overlays = new Map();
+        this.fits = new Map();
     },
 
     mounted() {
@@ -192,6 +208,7 @@ export default {
         this.resizer?.disconnect();
         clearTimeout(this.timer);
         this.overlays.forEach((overlay) => overlay?.stop());
+        this.fits.forEach((fit) => fit?.stop());
     },
 
     methods: {
@@ -281,7 +298,9 @@ export default {
                 return this.fail({ message: error.message, detail: [error.exception, error.template, error.file].filter(Boolean).join(' · ') });
             }
 
-            const anchor = this.current ? this.overlays.get(this.current.id)?.nearestTop() : null;
+            // The block at the top of the view, kept there once the new page shows.
+            const top = this.current ? this.viewTop(this.frame()) : 0;
+            const anchor = top > 0 ? this.overlays.get(this.current.id)?.nearestTop(top) : null;
             const map = entry.map ?? [];
             const byKey = Object.fromEntries(map.map((block) => [block.key, block]));
             const places = planPaths(map);
@@ -302,6 +321,7 @@ export default {
                     }),
                     onPin: (number) => this.$emit('pin', number),
                     onEscape: () => this.$emit('escape'),
+                    reveal: (top) => this.reveal(frame, top),
                     commentLabels: {
                         target: (label, count) => (count ? this.__n(':label block, :count comment. Add a comment.|:label block, :count comments. Add a comment.', count, { label }) : this.__(':label block. Add a comment.', { label })),
                         pin: (number, state, label) => this.__('Comment :number, :state, on :label', { number, state: this.__(state), label }),
@@ -318,11 +338,11 @@ export default {
             }
 
             this.overlays.set(entry.id, overlay);
+            // As tall as its page, measured before it swaps in, so the column keeps its place.
+            this.fits.set(entry.id, entry.sameOrigin ? fitFrame(frame, { viewport: this.viewport, onHeight: (height) => (this.fitted[entry.id] = height) }) : null);
             this.current && this.overlays.get(this.current.id)?.setComments({ on: false });
             // For tests and debugging from the CP page: what the locator found.
             Object.defineProperty(frame, 'ghostwriterOverlay', { value: overlay, configurable: true });
-            overlay?.scrollToBlock(anchor);
-
             const old = this.current;
 
             this.current = { ...entry, title: overlay?.title || '', path: this.path(entry.url), ms: Math.round(performance.now() - entry.started) };
@@ -337,7 +357,13 @@ export default {
             if (old) {
                 this.overlays.get(old.id)?.stop();
                 this.overlays.delete(old.id);
+                this.fits.get(old.id)?.stop();
+                this.fits.delete(old.id);
+                delete this.fitted[old.id];
             }
+
+            // Once the new page's height is in place: the same block at the top of the view.
+            if (anchor) this.$nextTick(() => overlay?.scrollToBlock(anchor));
         },
 
         currentOverlay() {
@@ -403,6 +429,38 @@ export default {
 
         frame() {
             return this.$el?.querySelector?.('iframe[data-ghostwriter-preview="current"]') ?? null;
+        },
+
+        // Each frame's own style: its height is its page's, once measured (framefit.js).
+        frameStyleFor(entry) {
+            const { width, scale } = this.frameBox;
+
+            return {
+                width: `${width}px`,
+                height: `${this.fitted[entry.id] ?? this.viewport}px`,
+                transform: scale === 1 ? null : `scale(${scale})`,
+                transformOrigin: '0 0',
+            };
+        },
+
+        // Where the view's top is in a frame's document (0 above the page).
+        viewTop(frame) {
+            if (!frame || !this.scroller) return 0;
+
+            return Math.max(0, (this.scroller.getBoundingClientRect().top - frame.getBoundingClientRect().top) / this.frameBox.scale);
+        },
+
+        // A point of the page (its y, in the frame's px) to the top of the
+        // draft's pane, which scrolls; the frame doesn't.
+        reveal(frame, top) {
+            if (!this.scroller || !frame?.isConnected) {
+                frame?.contentWindow?.scrollTo(0, top);
+
+                return;
+            }
+
+            const y = frame.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop + top * this.frameBox.scale;
+            this.scroller.scrollTop = Math.max(0, Math.round(y));
         },
 
         slow() {
@@ -477,7 +535,7 @@ export default {
                     </span>
                     <span class="shrink-0 rounded-full bg-amber-100 px-2 py-px font-medium whitespace-nowrap text-amber-800 dark:bg-amber-500/20! dark:text-amber-300!">{{ frameBox.outer < 360 ? __('Not saved') : __('Preview · not saved') }}</span>
                 </div>
-                <div class="relative overflow-hidden" :style="{ height: `${frameHeight}px` }" :aria-busy="loading ? 'true' : 'false'">
+                <div class="relative overflow-hidden" :style="{ height: `${stageHeight}px` }" :aria-busy="loading ? 'true' : 'false'">
                     <template v-for="entry in [current, next].filter(Boolean)" :key="entry.id">
                         <iframe
                             :src="entry.url"
@@ -487,7 +545,8 @@ export default {
                             allow=""
                             class="absolute top-0 left-0 block border-0 bg-white transition-opacity duration-150 motion-reduce:transition-none"
                             :class="[entry === current ? (loading ? 'opacity-70' : '') : 'invisible']"
-                            :style="frameStyle"
+                            :style="frameStyleFor(entry)"
+                            scrolling="no"
                             :tabindex="entry === current ? null : -1"
                             :aria-hidden="entry === current ? null : 'true'"
                             :data-ghostwriter-preview="entry === current ? 'current' : 'next'"
