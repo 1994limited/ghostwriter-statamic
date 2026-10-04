@@ -69,7 +69,7 @@ export default {
             // kind chosen and left.
             session: null,
             // Which brief card button is waiting on the server.
-            pending: null,
+            briefPending: null,
             // Said to screen readers when the brief card arrives.
             announcement: '',
             message: '',
@@ -567,7 +567,7 @@ export default {
 
         // The brief card's buttons. Each sends the card as the person left it.
         async briefAction(action, card) {
-            this.pending = action;
+            this.briefPending = action;
             this.errors = {};
 
             const [method, path] = {
@@ -586,7 +586,7 @@ export default {
                 this.errors = error.response?.data?.errors ?? {};
                 this.fail(error);
             } finally {
-                this.pending = null;
+                this.briefPending = null;
             }
         },
 
@@ -1355,7 +1355,7 @@ export default {
                             :questions="session.type?.questions ?? []"
                             :entries="info.entries"
                             :disabled="working || (session.brief.agreed !== true && stage !== 'proposed')"
-                            :pending="pending"
+                            :pending="briefPending"
                             :errors="errors"
                             @agree="(card) => briefAction('agree', card)"
                             @try-again="(card) => briefAction('try-again', card)"
