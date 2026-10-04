@@ -25,7 +25,7 @@ final class LocatorCopyTest extends TestCase
         $core = __DIR__.'/../../vendor/1994/ghostwriter-core/resources/js/preview/markers.js';
         $ours = __DIR__.'/../../resources/js/preview/markers.js';
 
-        $this->assertFileExists($core, 'ghostwriter-core 1.8.2 or later ships resources/js/preview/markers.js.');
+        $this->assertFileExists($core, 'ghostwriter-core 1.8.3 or later ships resources/js/preview/markers.js.');
         $this->assertSame(hash_file('sha256', $core), hash_file('sha256', $ours), 'resources/js/preview/markers.js differs from core\'s: copy it again (cp vendor/1994/ghostwriter-core/resources/js/preview/markers.js resources/js/preview/).');
     }
 }

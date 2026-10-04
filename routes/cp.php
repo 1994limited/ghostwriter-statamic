@@ -5,6 +5,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\CollectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\DashboardController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\EntryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\FinishController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\GapsController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImageryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ImagesController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\LayoutsController;
@@ -106,6 +107,8 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::patch('sessions/{session}/brief', [SessionController::class, 'editBrief'])->name('sessions.brief.update');
     Route::patch('sessions/{session}/field', [SessionController::class, 'editField'])->name('sessions.field');
     Route::patch('sessions/{session}/draft', [SessionController::class, 'draft'])->name('sessions.draft');
+    Route::patch('sessions/{session}/gap', [GapsController::class, 'resolve'])->name('sessions.gap');
+    Route::get('sessions/{session}/links', [GapsController::class, 'links'])->name('sessions.links');
     Route::post('sessions/{session}/apply', [SessionController::class, 'apply'])->name('sessions.apply');
     Route::post('sessions/{session}/preview', [PreviewController::class, 'store'])->name('sessions.preview');
     Route::patch('sessions/{session}/layout', [LayoutsController::class, 'choose'])->name('sessions.layout');

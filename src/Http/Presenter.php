@@ -19,6 +19,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftLayouts;
+use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
@@ -120,7 +121,8 @@ class Presenter
         if ($session->draft !== null) {
             try {
                 $draft = Draft::parse($session->draft);
-                $words = $draft->wordCount();
+                // The words, not the links chosen for fields the draft doesn't hold.
+                $words = (new Draft(DraftValues::words($draft->data), $draft->raw))->wordCount();
 
                 if ($type && ($blueprint = TypeRepository::blueprintOf($type->forSession($session)))) {
                     // Blocks and Text show the chosen layout of the words.

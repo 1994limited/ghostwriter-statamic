@@ -7,6 +7,7 @@ use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\MarkerResolver;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Auth\User;
@@ -36,9 +37,11 @@ class SchemaEntryWriter implements EntryWriter
         $schema = $this->reader->schema($blueprint);
 
         $pattern = $this->layouts->pattern($schema, $collection->handle(), $type->variant, $type->where, $type->examples);
-        $built = $this->layouts->build($draft->data, $schema, $pattern, $type->defaults);
+        $built = $this->layouts->build(DraftValues::words($draft->data), $schema, $pattern, $type->defaults);
 
         $data = $this->finish->finish($built->data, $schema, $pattern, null, $draft->title())['data'];
+        // Links chosen from the preview for fields the draft doesn't hold.
+        $data = MarkerResolver::withChosenLinks($data, MarkerResolver::chosenLinks($draft->data));
         $data['title'] = $draft->title();
 
         // A single-author field is set to whoever asked for the piece.

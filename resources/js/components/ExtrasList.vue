@@ -9,22 +9,26 @@
     it has room; one no layout uses never reaches the entry.
 
     A fact to add or a count to check shows as a chip, not as its marker
-    (core's markers.js). Clicked to edit, the words are the item's own,
-    markers included, so nothing is saved with a chip in it.
+    (core's markers.js), and the chip opens the gap popover (`gap`).
+    Clicked to edit (or Enter), the words are the item's own, markers
+    included, so nothing is saved with a chip in it (textchips.js).
 -->
 <script>
 import { changed, extraPayload, isStat, partLabel } from '../preview/layouts.js';
 import { gapLabels } from '../preview/overlay.js';
-import { has, injectStyles, toHtml } from '../preview/markers.js';
+import { injectStyles } from '../preview/markers.js';
+import { chipsDirective, editKey, editPress, isPainted, readBack } from '../preview/textchips.js';
 
 export default {
+    directives: { gwChips: chipsDirective },
+
     props: {
         extras: { type: Array, required: true },
         editable: { type: Boolean, default: false },
     },
 
-    // `edit` {id, payload, revert}; `remove` {id, label}.
-    emits: ['edit', 'remove'],
+    // `edit` {id, payload, revert}; `remove` {id, label}; `gap` a chip activated.
+    emits: ['edit', 'remove', 'gap'],
 
     created() {
         this.labels = gapLabels((text) => this.__(text));
@@ -50,47 +54,66 @@ export default {
             return field === 'text' ? item.text : item.parts?.[field] ?? '';
         },
 
-        // The words with their markers as chips, escaped: for showing only.
-        shown(item, field) {
-            return toHtml(this.value(item, field), { labels: this.labels });
+        // The words with their markers as chips, until they're edited.
+        chips(item, field) {
+            return {
+                raw: this.value(item, field),
+                labels: this.labels,
+                gap: this.editable ? (found, host) => this.$emit('gap', { ...found, host, path: ['@extra', item.id, field] }) : null,
+            };
         },
 
-        hasGaps(item, field) {
-            return has(this.value(item, field));
+        press(item, field, event) {
+            if (this.editable) editPress(event, event.currentTarget, this.value(item, field));
+        },
+
+        keyed(item, field, event) {
+            if (this.editable) editKey(event, event.currentTarget, this.value(item, field));
         },
 
         // Editing starts from the item's own words, markers and all.
         enter(item, field, event) {
-            if (this.hasGaps(item, field)) event.target.innerText = this.value(item, field);
+            if (isPainted(event.target)) return;
 
-            event.target.dataset.was = event.target.innerText;
+            event.target.dataset.was = readBack(event.target);
         },
 
         leave(item, field, event) {
             const element = event.target;
+
+            if (isPainted(element)) return;
+
             const was = element.dataset.was;
-            const value = element.innerText.replace(/\n$/, '');
+            const value = readBack(element);
 
             delete element.dataset.was;
 
             if (was === undefined || !changed(item, field, value)) {
                 // Unchanged: back to the chips.
-                if (this.hasGaps(item, field)) element.innerHTML = this.shown(item, field);
+                this.$forceUpdate();
 
                 return;
             }
 
-            this.$emit('edit', { id: item.id, payload: extraPayload(item, field, value.trim()), revert: () => (element.innerHTML = this.shown(item, field)) });
+            this.$emit('edit', {
+                id: item.id,
+                payload: extraPayload(item, field, value.trim()),
+                revert: () => {
+                    element.innerText = this.value(item, field);
+                    this.$forceUpdate();
+                },
+            });
         },
 
         cancel(event) {
+            if (isPainted(event.target)) return;
             if (event.target.dataset.was !== undefined) event.target.innerText = event.target.dataset.was;
 
             event.target.blur();
         },
 
         finish(event) {
-            if (event.shiftKey || event.isComposing) return;
+            if (event.defaultPrevented || isPainted(event.target) || event.shiftKey || event.isComposing) return;
 
             event.preventDefault();
             event.target.blur();
@@ -121,11 +144,14 @@ export default {
                                 :role="editable ? 'textbox' : null"
                                 :aria-label="editable ? `${extra.label}: ${field === 'text' ? __('Text') : partLabel(field)}` : null"
                                 spellcheck="true"
+                                v-gw-chips="chips(item, field)"
+                                @mousedown="press(item, field, $event)"
+                                @keydown="keyed(item, field, $event)"
                                 @focus="enter(item, field, $event)"
                                 @blur="leave(item, field, $event)"
                                 @keydown.esc.stop.prevent="cancel"
                                 @keydown.enter="finish"
-                                v-html="shown(item, field)"
+                                v-text="value(item, field)"
                             />
                         </div>
                         <p v-if="item.count_label" class="text-xs text-gray-500">{{ item.count_label }}</p>

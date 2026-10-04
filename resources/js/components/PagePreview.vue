@@ -17,8 +17,9 @@
       core's locator). Links in the frame do nothing.
     - Gap markers show as chips, not raw text: an amber chip for a fact to
       add, a dotted underline for a count to check, a dashed underline for
-      a link to choose, each with a tooltip (core's markers.js). They are
-      only shown: the draft keeps its markers.
+      a link to choose, each with a tooltip (core's markers.js). A chip is a
+      button (`gap`): the panel opens a small popover at it, to resolve the
+      gap in the draft itself. The frame never changes the draft.
 -->
 <script>
 import { Button } from '@statamic/cms/ui';
@@ -43,7 +44,8 @@ export default {
     },
 
     // `failed`: this render failed; `rendered`: one has swapped in.
-    emits: ['failed', 'rendered', 'blocks'],
+    // `gap`: a chip in the page clicked, {kind, hint, list?, value?, match, occurrence, element, frame, scale}.
+    emits: ['failed', 'rendered', 'blocks', 'gap'],
 
     data() {
         return {
@@ -57,6 +59,8 @@ export default {
             partial: false,
             paneWidth: 0,
             viewHeight: window.innerHeight || 900,
+            // The height of the draft's scrolling pane, when there is one.
+            scrollerHeight: 0,
             renderedKey: null,
             frameId: 0,
         };
@@ -106,8 +110,11 @@ export default {
             };
         },
 
-        // As tall as the window allows, so the page reads like a page.
+        // As tall as the draft's pane (less the bar), so scrolled to, the
+        // page fills it; failing that, as tall as the window allows.
         frameHeight() {
+            if (this.scrollerHeight > 0) return Math.max(320, Math.min(900, this.scrollerHeight - 64));
+
             return Math.max(420, Math.min(900, this.viewHeight - 280));
         },
 
@@ -139,6 +146,8 @@ export default {
         this.measurePane();
         this.resizer = new ResizeObserver(() => this.measurePane());
         this.resizer.observe(this.$refs.pane);
+        this.scroller = this.$el.closest?.('[data-gw-scroller]');
+        if (this.scroller) this.resizer.observe(this.scroller);
         this.schedule(true);
     },
 
@@ -153,6 +162,7 @@ export default {
         measurePane() {
             this.paneWidth = Math.floor(this.$refs.pane?.clientWidth ?? 0);
             this.viewHeight = window.innerHeight || this.viewHeight;
+            this.scrollerHeight = this.scroller?.clientHeight ?? 0;
         },
 
         // Now (first render, or back on the tab) or after the edits settle.
@@ -236,7 +246,14 @@ export default {
             }
 
             const anchor = this.current ? this.overlays.get(this.current.id)?.nearestTop() : null;
-            const overlay = entry.sameOrigin ? attach(frame, entry.map, { titleKey: entry.titleKey, scale: this.frameBox.scale, labels: gapLabels((text) => this.__(text)) }) : null;
+            const overlay = entry.sameOrigin
+                ? attach(frame, entry.map, {
+                    titleKey: entry.titleKey,
+                    scale: this.frameBox.scale,
+                    labels: gapLabels((text) => this.__(text)),
+                    onGap: (found) => this.$emit('gap', { ...found, frame, scale: this.frameBox.scale }),
+                })
+                : null;
 
             if (entry.sameOrigin && !overlay) {
                 this.next = null;
@@ -333,7 +350,7 @@ export default {
                         </svg>
                         {{ __('Updating preview…') }}
                     </span>
-                    <span class="shrink-0 rounded-full bg-amber-100 px-2 py-px font-medium whitespace-nowrap text-amber-800 dark:bg-amber-500/20! dark:text-amber-300!">{{ __('Preview · not saved') }}</span>
+                    <span class="shrink-0 rounded-full bg-amber-100 px-2 py-px font-medium whitespace-nowrap text-amber-800 dark:bg-amber-500/20! dark:text-amber-300!">{{ frameBox.outer < 360 ? __('Not saved') : __('Preview · not saved') }}</span>
                 </div>
                 <div class="relative overflow-hidden" :style="{ height: `${frameHeight}px` }" :aria-busy="loading ? 'true' : 'false'">
                     <template v-for="entry in [current, next].filter(Boolean)" :key="entry.id">
