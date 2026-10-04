@@ -4,7 +4,7 @@
 // fix writes into the form. Fixes write into the publish form's state, never
 // a save: the editor checks and saves as usual.
 import { unref } from 'vue';
-import { asks, checks, leftovers, normaliseHint, sentenceAround, LINK_PREFIX } from './patterns.js';
+import { asks, checks, leftovers, links, normaliseHint, sentenceAround } from './patterns.js';
 import { checkReplacement, pickCheck } from './check.js';
 import { bardEditor, editorAt, setCurrent } from './bard.js';
 import { ensure, stock } from '../stock/store.js';
@@ -132,11 +132,10 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
         if (typeof text !== 'string') return null;
 
         if (gap.kind === 'link') {
-            const pattern = new RegExp(`\\[([^\\[\\]\\n]*)\\]\\(\\s*<?(?:https?://example\\.com/?)?${LINK_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^\\s)>]*)>?\\s*\\)`, 'g');
-            const found = [...text.matchAll(pattern)].filter((m) => normaliseHint(decodeURIComponent(m[2])) === normaliseHint(gap.hint));
+            const found = links(text).filter((m) => normaliseHint(m.hint) === normaliseHint(gap.hint));
             const m = found[gap.occurrence ?? 0] ?? found[0];
 
-            return m ? { start: m.index, end: m.index + m[0].length, words: m[1] } : null;
+            return m ? { start: m.index, end: m.index + m.length, words: m.words } : null;
         }
 
         if (gap.kind === 'check') {
