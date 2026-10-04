@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+- **The link index** (SEO layer row 3, decision 9; core main, 1994limited/ghostwriter-core#89). Every routable page of a site can now be a link target, not only Ghostwriter's own collections:
+  - Every collection with a route for the site gets **link rows** (title, site-relative address, summary, the collection's title as the type, live dates, noindex, key page, `entry::{id}` reference, stems) beside the full rows, in the same `revisit/{site}/{group}.index.json` files. Taxonomy terms with a term template and 40 words or more of their own text are link rows too (linked by address).
+  - `FileEntryIndex` implements core's `LinkIndex::related()` (bound in the container): ranked by core's `LinkCandidates`, left out by `Linkable` (drafts, scheduled before their day, expired, redirects and pages with no route, SEO Pro or a noindex toggle, utility pages, the home page), never across sites. Above 5,000 rows a site, `_stems.json` narrows the rows scored.
+  - `sharing()` and `nearest()` read full rows only, so Overlaps, the review's digest and Content to revisit stay on Ghostwriter's collections.
+  - Saves in any routed collection (`RefreshLinkRow`, or the existing job for Ghostwriter's) and of terms write the row; deleting an entry or a term forgets it and checks again the pages that linked to it. A collection's route or tree, a navigation or a taxonomy saved marks its rows for the next daily pass.
+  - The daily pass (03:00, `ghostwriter:revisit`) and the weekly full pass cover link rows through core's `LinkPlan`: key pages (navigation trees, the top of a structured collection) then the newest, at most 5,000 a collection and 20,000 a site, written 500 at a time and at most 5,000 a run. A collection added to Ghostwriter's gets full rows; one removed gets link rows.
+  - The overview shows super users a note when a collection has more pages than the index keeps.
+
 ### Changed
 - **Finish this page leaves required fields to Statamic, and prompts for a needed image** (core main, 1994limited/ghostwriter-core#82):
   - A required text, date or select field left empty is no longer a step or counted. Statamic's own validation reports it on save.

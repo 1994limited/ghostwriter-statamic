@@ -12,11 +12,13 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitStore;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\LinkCandidates;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Storage\FileRenderProfiles;
+use NineteenNinetyFour\Ghostwriter\Suggest\LinkRows;
 use NineteenNinetyFour\Ghostwriter\Suggest\SuggestEdits;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\WorkStates;
@@ -80,11 +82,38 @@ class DashboardController
             ])->values(),
             'sessions' => $summaries->take(30)->values(),
             // Developers only: a template with no H1, a logo as the H1, or several (render profiles).
-            'template_notes' => User::current()?->isSuper() ? collect(app(FileRenderProfiles::class)->all())->filter(fn ($profile) => $profile->note() !== null)->map(fn ($profile) => ['key' => $profile->key, 'text' => $profile->note()])->values()->all() : [],
+            // and a collection too big for the link index (SEO layer §7.1).
+            'template_notes' => User::current()?->isSuper() ? [
+                ...collect(app(FileRenderProfiles::class)->all())->filter(fn ($profile) => $profile->note() !== null)->map(fn ($profile) => ['key' => $profile->key, 'text' => $profile->note()])->values()->all(),
+                ...$this->linkNotes(),
+            ] : [],
             'suggest_all_url' => cp_route('ghostwriter.kinds.suggest_all'),
             'stock' => app(Ledger::class)->overview(),
             'revisit' => $this->revisit(),
         ]);
+    }
+
+    /**
+     * Groups with more pages than the link index keeps: "Products has
+     * 48,000 entries; Ghostwriter links to the 5,000 most recently
+     * updated."
+     *
+     * @return list<array{key: string, heading: string, text: string}>
+     */
+    private function linkNotes(): array
+    {
+        $several = Site::all()->count() > 1;
+
+        return array_map(fn (array $over) => [
+            'key' => 'links:'.$over['site'].':'.$over['group'],
+            'heading' => __('Internal links'),
+            'text' => __(':group:site has :count entries; Ghostwriter links to the :cap most recently updated.', [
+                'group' => $over['label'],
+                'site' => $several ? ' ('.(Site::get($over['site'])?->name() ?? $over['site']).')' : '',
+                'count' => number_format($over['count']),
+                'cap' => number_format(LinkCandidates::GROUP_ROWS),
+            ]),
+        ], app(LinkRows::class)->over());
     }
 
     /**

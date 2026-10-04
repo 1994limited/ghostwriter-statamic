@@ -195,7 +195,7 @@ export default {
 
         <SetupAlert v-if="!configured" :provider="provider" />
 
-        <Alert v-for="note in template_notes" :key="note.key" variant="warning" :heading="__('Page template')" :text="note.text" class="mb-6" />
+        <Alert v-for="note in template_notes" :key="note.key" variant="warning" :heading="note.heading || __('Page template')" :text="note.text" class="mb-6" />
 
         <!-- Get started, until it is complete; then a line saying so, until it is hidden -->
         <Panel v-if="!hiddenSetup && !setup.complete" class="mb-6">

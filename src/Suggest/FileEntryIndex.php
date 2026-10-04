@@ -2,31 +2,49 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Suggest;
 
+use DateTimeImmutable;
 use Illuminate\Support\Facades\File;
 use NineteenNinetyFour\Ghostwriter\Core\Anchor\NormalisedText;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Lock;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\LinkCandidates;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\CheckContext;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\DigestEntry;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EntryIndex;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EntryRef;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\IndexedParagraph;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\IndexRow;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\IndexScope;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\LinkIndex;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\RowKind;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\Shingles;
 use NineteenNinetyFour\Ghostwriter\Storage\FileRevisitStore;
 use NineteenNinetyFour\Ghostwriter\Storage\JsonFiles;
+use Statamic\Facades\Site;
+use Throwable;
 
 /**
- * The site's entries as Suggest edits compares pages with them: each
- * entry's title, address, a short summary and its paragraphs' shingles,
- * kept beside the revisit shards (`revisit/{site}/{collection}.index.json`)
- * and written when the entry is saved. Duplicates (Overlaps) look for
- * paragraphs sharing shingles; the review's digest takes the entries
- * whose titles and summaries share most words with the page.
+ * The site's pages as Suggest edits and the SEO layer compare a page with
+ * them, kept beside the revisit shards (`revisit/{site}/{group}.index.json`,
+ * one row per page, core's IndexRow):
  *
- * No model, and nothing read from the Stache when asked.
+ * - full rows: entries of Ghostwriter's collections, with their
+ *   paragraphs' shingles. Duplicates (Overlaps) look for paragraphs
+ *   sharing shingles; the review's digest takes the entries whose titles
+ *   and summaries share most words with the page.
+ * - link rows: every other routable page (collections with a route,
+ *   taxonomy terms with text of their own), only for related(): no
+ *   shingles, no revisit row.
+ *
+ * Above LinkCandidates::STEM_INDEX_ABOVE rows a site has a stem index
+ * (`revisit/{site}/_stems.json`), written by the daily pass, that narrows
+ * the rows related() scores. No model, and nothing read from the Stache
+ * when asked.
  */
-class FileEntryIndex implements EntryIndex
+class FileEntryIndex implements EntryIndex, LinkIndex
 {
     use JsonFiles;
+
+    public const STEMS = '_stems.json';
 
     /** @var array<string, array<string, array<string, mixed>>> */
     private array $loaded = [];
@@ -42,7 +60,7 @@ class FileEntryIndex implements EntryIndex
         $found = [];
 
         foreach ($this->entries($except->site) as $key => $entry) {
-            if ($key === $except->key()) {
+            if ($key === $except->key() || self::isLink($entry)) {
                 continue;
             }
 
@@ -67,7 +85,7 @@ class FileEntryIndex implements EntryIndex
         $scored = [];
 
         foreach ($this->entries($entry->site) as $key => $other) {
-            if ($key === $entry->key()) {
+            if ($key === $entry->key() || self::isLink($other)) {
                 continue;
             }
 
@@ -90,14 +108,24 @@ class FileEntryIndex implements EntryIndex
             is_string($row[4]['url'] ?? null) ? $row[4]['url'] : null,
             mb_substr((string) ($row[4]['summary'] ?? ''), 0, DigestEntry::SUMMARY),
             'entry::'.$row[3]->id,
+            is_string($row[4]['type'] ?? null) ? $row[4]['type'] : '',
         ), array_slice($scored, 0, max(0, $limit)));
     }
 
+    public function related(string $text, string $group, int|string|null $site = null, ?EntryRef $except = null, int $limit = LinkCandidates::LIMIT, array $linked = [], ?DateTimeImmutable $now = null): array
+    {
+        $site ??= Site::default()->handle();
+        $locale = self::locale($site);
+
+        return LinkCandidates::rank($this->candidates($site, $text, $locale), $text, $group, $site, $except, $limit, $linked, $now, $locale);
+    }
+
     /**
-     * Keeps an entry's title, address, summary and paragraphs' shingles,
-     * from what the checks read of it.
+     * Keeps an entry's full row: what the link source says of it, and its
+     * paragraphs' shingles from what the checks read of it. Without a row
+     * (older callers) the title, address and summary given are kept.
      */
-    public function put(EntryRef $ref, string $title, ?string $url, CheckContext $context, string $summary = ''): void
+    public function put(EntryRef $ref, string $title, ?string $url, CheckContext $context, string $summary = '', ?IndexRow $row = null): void
     {
         $paragraphs = [];
         $first = '';
@@ -116,24 +144,53 @@ class FileEntryIndex implements EntryIndex
             }
         }
 
-        $row = [
-            'entry' => $ref->toArray(),
-            'title' => $title,
-            'url' => $url,
-            'summary' => mb_substr(trim($summary !== '' ? $summary : $first), 0, DigestEntry::SUMMARY),
-            'paragraphs' => $paragraphs,
-        ];
+        $summary = mb_substr(trim($summary !== '' ? $summary : $first), 0, DigestEntry::SUMMARY);
+        $row ??= IndexRow::make($ref, IndexScope::Full, $title, $url, link: 'entry::'.$ref->id, updated: now()->toAtomString(), indexed: now()->toAtomString(), locale: self::locale($ref->site));
 
-        $this->change($ref, function (array $rows) use ($ref, $row) {
-            $rows[$ref->key()] = $row;
+        // The row's own summary (an SEO description, a summary field) first; else the first paragraph.
+        if ($row->summary === '' && $summary !== '') {
+            $row = IndexRow::make($ref, IndexScope::Full, $row->title, $row->url, $summary, $row->type, $row->kind, $row->liveFrom, $row->liveUntil, $row->noindex, $row->key, $row->link, $row->updated, $row->published, $row->indexed, self::locale($ref->site));
+        }
+
+        $data = [...$row->withScope(IndexScope::Full)->toArray(), 'entry' => $ref->toArray(), 'title' => $title, 'url' => $url, 'paragraphs' => $paragraphs];
+
+        $this->change($ref->site, $ref->group, function (array $rows) use ($ref, $data) {
+            $rows[$ref->key()] = $data;
 
             return $rows;
         });
     }
 
+    /**
+     * Keeps link rows, one write per file. A full row of the same page is
+     * replaced: its group isn't Ghostwriter's any more.
+     *
+     * @param  iterable<IndexRow>  $rows
+     */
+    public function putLinks(iterable $rows): void
+    {
+        $byFile = [];
+
+        foreach ($rows as $row) {
+            $byFile[(string) $row->entry->site."\0".$row->entry->group][] = $row;
+        }
+
+        foreach ($byFile as $list) {
+            $first = $list[0];
+
+            $this->change($first->entry->site, $first->entry->group, function (array $stored) use ($list) {
+                foreach ($list as $row) {
+                    $stored[$row->entry->key()] = $row->withScope(IndexScope::Link)->toArray();
+                }
+
+                return $stored;
+            });
+        }
+    }
+
     public function forget(EntryRef $ref): void
     {
-        $this->change($ref, function (array $rows) use ($ref) {
+        $this->change($ref->site, $ref->group, function (array $rows) use ($ref) {
             unset($rows[$ref->key()]);
 
             return $rows;
@@ -141,11 +198,198 @@ class FileEntryIndex implements EntryIndex
     }
 
     /**
+     * Forgets rows of a site by key, one write per file.
+     *
+     * @param  list<string>  $keys
+     */
+    public function forgetKeys(int|string|null $site, array $keys): void
+    {
+        $byGroup = [];
+        $all = $this->entries($site);
+
+        foreach ($keys as $key) {
+            if (isset($all[$key])) {
+                $byGroup[(string) ($all[$key]['entry']['group'] ?? '')][] = $key;
+            }
+        }
+
+        foreach ($byGroup as $group => $list) {
+            $this->change($site, (string) $group, function (array $rows) use ($list) {
+                foreach ($list as $key) {
+                    unset($rows[$key]);
+                }
+
+                return $rows;
+            });
+        }
+    }
+
+    public function row(EntryRef $ref): ?IndexRow
+    {
+        $data = $this->entries($ref->site)[$ref->key()] ?? null;
+
+        return is_array($data) ? self::rowOf($data, $ref->site) : null;
+    }
+
+    /**
+     * Every row of a site, both scopes, by key.
+     *
+     * @return \Generator<string, IndexRow>
+     */
+    public function rows(int|string|null $site): \Generator
+    {
+        foreach ($this->entries($site) as $key => $data) {
+            $row = self::rowOf($data, $site);
+
+            if ($row !== null) {
+                yield $key => $row;
+            }
+        }
+    }
+
+    /**
+     * What the daily pass compares with the site's pages: each row's
+     * group, scope, page date and when it was written.
+     *
+     * @return array<string, array{group: string, scope: string, updated: ?string, indexed: ?string}>
+     */
+    public function meta(int|string|null $site): array
+    {
+        $meta = [];
+
+        foreach ($this->entries($site) as $key => $data) {
+            $meta[$key] = [
+                'group' => (string) ($data['entry']['group'] ?? ''),
+                'scope' => self::isLink($data) ? IndexScope::Link->value : IndexScope::Full->value,
+                'updated' => is_string($data['updated'] ?? null) ? $data['updated'] : null,
+                'indexed' => is_string($data['indexed'] ?? null) ? $data['indexed'] : null,
+            ];
+        }
+
+        return $meta;
+    }
+
+    /** Forget what was read, so the next read sees what another instance (or process) wrote. */
+    public function fresh(): static
+    {
+        $this->loaded = [];
+
+        return $this;
+    }
+
+    /** How many rows a site has. */
+    public function count(int|string|null $site): int
+    {
+        return count($this->entries($site));
+    }
+
+    /**
+     * Writes a site's stem index when it has more than
+     * LinkCandidates::STEM_INDEX_ABOVE rows, and removes it otherwise.
+     */
+    public function writeStems(int|string|null $site): void
+    {
+        $path = FileRevisitStore::path().'/'.self::name($site).'/'.self::STEMS;
+
+        if ($this->count($site) <= LinkCandidates::STEM_INDEX_ABOVE) {
+            File::delete($path);
+
+            return;
+        }
+
+        $stems = [];
+
+        foreach ($this->rows($site) as $key => $row) {
+            foreach ($row->allStems() as $stem) {
+                $stems[$stem][] = $key;
+            }
+        }
+
+        $this->writeJson($path, ['built' => now()->toAtomString(), 'stems' => $stems], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * The rows related() scores: every row of a small site; on a big one,
+     * the rows the stem index says share a stem with the draft, and rows
+     * written since the index was.
+     *
+     * @return iterable<IndexRow>
+     */
+    private function candidates(int|string|null $site, string $text, ?string $locale): iterable
+    {
+        $all = $this->entries($site);
+        $stems = count($all) > LinkCandidates::STEM_INDEX_ABOVE ? $this->readJson(FileRevisitStore::path().'/'.self::name($site).'/'.self::STEMS) : null;
+
+        if (! is_array($stems) || ! is_array($stems['stems'] ?? null)) {
+            return $this->rows($site);
+        }
+
+        $keys = [];
+
+        foreach (LinkCandidates::draftStems($text, $locale) as $stem) {
+            foreach (is_array($stems['stems'][$stem] ?? null) ? $stems['stems'][$stem] : [] as $key) {
+                $keys[(string) $key] = true;
+            }
+        }
+
+        $built = is_string($stems['built'] ?? null) ? $stems['built'] : '';
+        $rows = [];
+
+        foreach ($all as $key => $data) {
+            if (isset($keys[$key]) || (string) ($data['indexed'] ?? '') > $built) {
+                $row = self::rowOf($data, $site);
+
+                if ($row !== null) {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function rowOf(array $data, int|string|null $site): ?IndexRow
+    {
+        $row = IndexRow::fromArray($data, self::locale($site));
+
+        // A row written before link rows existed: a Ghostwriter entry, linked to by reference.
+        if ($row !== null && $row->link === null && $row->kind === RowKind::Entry) {
+            $array = $row->toArray();
+            $array['link'] = 'entry::'.$row->entry->id;
+
+            return IndexRow::fromArray($array);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function isLink(array $data): bool
+    {
+        return ($data['scope'] ?? null) === IndexScope::Link->value;
+    }
+
+    /** The locale stems are worked out in for a site: the checks' language. */
+    private static function locale(int|string|null $site): ?string
+    {
+        try {
+            return app(EntryChecks::class)->language($site === null ? null : (string) $site);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
      * @param  callable(array<string, array<string, mixed>>): array<string, array<string, mixed>>  $change
      */
-    private function change(EntryRef $ref, callable $change): void
+    private function change(int|string|null $site, string $group, callable $change): void
     {
-        $path = $this->path($ref->site, $ref->group);
+        $path = $this->path($site, $group);
 
         $this->lock->run('entry-index:'.sha1($path), function () use ($path, $change) {
             $data = $this->readJson($path);
@@ -162,7 +406,7 @@ class FileEntryIndex implements EntryIndex
     }
 
     /**
-     * Every indexed entry of a site, by key.
+     * Every indexed page of a site, by key.
      *
      * @return array<string, array<string, mixed>>
      */

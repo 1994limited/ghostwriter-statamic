@@ -11,11 +11,13 @@ use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitStore;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EditReviews;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EditReviewStore;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EntryRef;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\IndexScope;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Storage\FileRevisitStore;
 use NineteenNinetyFour\Ghostwriter\Storage\JsonFiles;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Entry;
+use Statamic\Contracts\Taxonomies\Term;
 use Statamic\Facades\Site;
 use Throwable;
 
@@ -50,6 +52,8 @@ class Revisit
         private EditReviewStore $reviewStore,
         private TypeRepository $types,
         private Settings $settings,
+        private StatamicLinkSource $links,
+        private LinkRows $linkRows,
     ) {}
 
     public function saved(Entry $entry, ?DateTimeImmutable $now = null): void
@@ -57,13 +61,17 @@ class Revisit
         $now ??= Carbon::now()->toDateTimeImmutable();
         $ref = EntryChecks::ref($entry);
 
+        // Any other collection with a route: a link row only (SEO layer §7.1).
         if (! $this->types->enabled((string) $entry->collectionHandle())) {
+            $this->linkRows->saved($entry);
+
             return;
         }
 
         $context = $this->checks->context($entry, now: $now);
+        $row = $this->links->row($entry, IndexScope::Full);
 
-        $this->entries->put($ref, (string) ($entry->get('title') ?? ''), self::url($entry), $context, self::summary($entry));
+        $this->entries->put($ref, (string) ($entry->get('title') ?? ''), $row->url, $context, self::summary($entry), $row);
         $this->index->refreshOne($this->source, $ref, $now);
 
         try {
@@ -79,10 +87,30 @@ class Revisit
         $ref = EntryChecks::ref($entry);
 
         $this->entries->forget($ref);
-        $this->index->deleted($this->source, $ref, $now, ['entry::'.$entry->id(), 'statamic://entry::'.$entry->id()]);
+        $this->index->deleted($this->source, $ref, $now, StatamicLinkSource::targets($entry));
 
         foreach ($this->reviewStore->history($ref) as $review) {
             $this->reviewStore->delete($review->id);
+        }
+    }
+
+    /**
+     * A taxonomy term deleted: its rows forgotten in every site, and every
+     * page that linked to its address checked again.
+     */
+    public function deletedTerm(Term $term, ?DateTimeImmutable $now = null): void
+    {
+        $now ??= Carbon::now()->toDateTimeImmutable();
+
+        foreach (Site::all()->keys()->all() as $site) {
+            $localized = $term->in((string) $site);
+            $ref = new EntryRef(StatamicLinkSource::TAXONOMY.$term->taxonomyHandle(), (string) $term->id(), (string) $site);
+
+            $this->entries->forget($ref);
+
+            if ($localized !== null) {
+                $this->index->deleted($this->source, $ref, $now, StatamicLinkSource::targets($localized));
+            }
         }
     }
 
@@ -107,12 +135,14 @@ class Revisit
                     $entry = $entry?->locale() === $handle ? $entry : $entry?->in($handle);
 
                     if ($entry) {
-                        $this->entries->put($snapshot->ref, $snapshot->title, self::url($entry), $snapshot->context, self::summary($entry));
+                        $row = $this->links->row($entry, IndexScope::Full);
+                        $this->entries->put($snapshot->ref, $snapshot->title, $row->url, $snapshot->context, self::summary($entry), $row);
                     }
                 }
             }
 
             $read += $this->index->refresh($this->source, $now, $whole ? null : $last, $handle, $whole);
+            $this->linkPass($handle, $now, $whole);
             $state['sites'][$handle] = ['run' => $now->format(DATE_ATOM), 'full' => $whole ? $now->format(DATE_ATOM) : ($state['sites'][$handle]['full'] ?? null)];
         }
 
@@ -120,6 +150,32 @@ class Revisit
         $this->writeJson($this->statePath(), $state);
 
         return $read;
+    }
+
+    /**
+     * The link rows' part of the daily pass (SEO layer §7.1): every other
+     * routable group's pages, within the caps, a full pass weekly. A page
+     * of one of Ghostwriter's collections that still has a link row (the
+     * collection was added since) is indexed in full instead. Never stops
+     * the rest of the pass.
+     */
+    private function linkPass(string $site, DateTimeImmutable $now, bool $full): void
+    {
+        try {
+            $pass = $this->linkRows->pass($site, $now, $full);
+
+            foreach ($pass['full'] as $ref) {
+                $entry = $this->links->find($ref);
+
+                if ($entry instanceof Entry) {
+                    $this->saved($entry, $now);
+                } else {
+                    $this->entries->forget($ref);
+                }
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+        }
     }
 
     /**
@@ -151,15 +207,6 @@ class Revisit
     public static function ref(Entry $entry): EntryRef
     {
         return EntryChecks::ref($entry);
-    }
-
-    private static function url(Entry $entry): ?string
-    {
-        try {
-            return $entry->url() ?: null;
-        } catch (Throwable) {
-            return null;
-        }
     }
 
     private static function summary(Entry $entry): string

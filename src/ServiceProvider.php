@@ -59,6 +59,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Studio\StudioOptions;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EditReviews;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EditReviewStore;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EntryIndex;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\LinkIndex;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
@@ -241,6 +242,7 @@ class ServiceProvider extends AddonServiceProvider
         $this->app->bindIf(EditReviewStore::class, FileEditReviewStore::class);
         $this->app->bindIf(RevisitStore::class, FileRevisitStore::class);
         $this->app->bindIf(EntryIndex::class, FileEntryIndex::class);
+        $this->app->bindIf(LinkIndex::class, FileEntryIndex::class);
         $this->app->bindIf(EntrySource::class, StatamicEntrySource::class);
         $this->app->bindIf(AssetAlt::class, StatamicAssetAlt::class);
         $this->app->bindIf(SeoFields::class, StatamicSeoFields::class);
