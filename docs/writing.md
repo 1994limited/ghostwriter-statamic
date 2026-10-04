@@ -56,7 +56,7 @@ If the brief can't be filled in, Ghostwriter says so with **Try again**; or repl
 
 ## The conversation
 
-Ghostwriter writes on the first turn whenever it can. If it needs something only you know, it asks first, at most three questions. The panel makes that plain: the question is headed **Ghostwriter needs your answer**, the reply box says **Your turn: answer the questions above and the draft follows.** (or **Your turn: answer above to carry on.** once there is a draft), and **Just draft it with what you have** has it write now and mark the gaps.
+Ghostwriter writes on the first turn whenever it can. If it needs something only you know, it asks first: four short questions at most, headed **Ghostwriter needs your answer** and announced to screen readers. Each question has its own box, labelled with the question, with a hint under it when one helps; a question with a few set answers has radio buttons instead, and one it can do without is marked *(optional)*. **Skip** a question you can't answer: Ghostwriter writes around it or marks the place for you to fill in. **Add anything else** opens the reply box for anything more. **Send answers** (or ⌘↵ / Ctrl+↵ in any box, which never saves the entry) sends them all as one message, and **Just draft it with what you have** has it write now and mark the gaps. Once sent, the questions stay in the conversation with your answers under them.
 
 ![Ghostwriter asking three questions, with Ghostwriter needs your answer and Just draft it with what you have](images/writing-questions.png)
 

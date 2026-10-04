@@ -12,6 +12,7 @@
 -->
 <script>
 import { Alert, Button, Heading, Subheading, Textarea } from '@statamic/cms/ui';
+import AsksCard from './AsksCard.vue';
 import BriefCard from './BriefCard.vue';
 import CommentComposer from './CommentComposer.vue';
 import CommentsSidebar from './CommentsSidebar.vue';
@@ -36,7 +37,7 @@ const BESIDE = 980;
 const COMMENTS_POLL = 10000;
 
 export default {
-    components: { Alert, BriefCard, Button, CommentComposer, CommentItem, CommentsSidebar, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
+    components: { Alert, AsksCard, BriefCard, Button, CommentComposer, CommentItem, CommentsSidebar, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -124,6 +125,12 @@ export default {
             flash: null,
             draftWide: true,
             timer: null,
+            // The answers to the writer's questions, and the ones skipped,
+            // by question id; "Add anything else" opened; sending them.
+            replies: {},
+            skipped: {},
+            more: false,
+            answering: false,
         };
     },
 
@@ -200,6 +207,16 @@ export default {
 
         asking() {
             return this.session?.waiting_on_you === true && !this.working;
+        },
+
+        // The questions the writer is waiting on, when it asked them one by
+        // one (core's Studio\Asks): each has its own box.
+        asked() {
+            if (!this.asking) return null;
+
+            const last = this.conversation[this.conversation.length - 1];
+
+            return last?.role === 'assistant' && last.asked ? last.asked : null;
         },
 
         // What is probably going on, going by how long it has been.
@@ -549,7 +566,10 @@ export default {
                 if (chat) chat.scrollTop = chat.scrollHeight;
 
                 // Questions waiting: put the cursor where the answer goes.
-                if (this.asking) this.focusComposer();
+                if (this.asked) {
+                    this.$refs.asks?.[0]?.focus?.() ?? this.$refs.asks?.focus?.();
+                    this.announce(this.__n('Ghostwriter has :count question for you.|Ghostwriter has :count questions for you.', this.asked.questions.length));
+                } else if (this.asking) this.focusComposer();
 
                 if (filled) {
                     this.announce(this.__('The brief is filled in. Check it, then start writing.'));
@@ -607,10 +627,45 @@ export default {
         // For when the questions are not worth answering.
         skipQuestions() {
             this.message = this.__('Please draft it with what you have. Put anything you are unsure of in square brackets.');
+            this.replies = {};
+            this.skipped = {};
+            this.more = false;
             this.send();
         },
 
+        // The answers to the writer's questions, as one message, with
+        // anything else in the box below. A skipped one goes as skipped.
+        async sendAnswers() {
+            if (!this.asked || this.working || this.answering) return;
+
+            const answers = Object.fromEntries(this.asked.questions.map((question) => [question.id, this.skipped[question.id] ? null : (this.replies[question.id] ?? null)]));
+
+            if (!Object.values(answers).some((answer) => answer?.trim()) && !this.message.trim()) {
+                this.$toast.error(this.__('Answer at least one question, or ask for the draft as it is.'));
+
+                return;
+            }
+
+            this.answering = true;
+
+            try {
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/answers`), { answers, more: this.message });
+
+                this.replies = {};
+                this.skipped = {};
+                this.message = '';
+                this.more = false;
+                this.receive(data);
+            } catch (error) {
+                this.fail(error);
+            } finally {
+                this.answering = false;
+            }
+        },
+
         async send() {
+            if (this.asked) return this.sendAnswers();
+
             if (!this.message.trim() || this.working || this.stage === 'proposed') return;
 
             const message = this.message;
@@ -1306,8 +1361,26 @@ export default {
                         </div>
 
                         <template v-for="(entry, index) in conversation" :key="entry.index ?? index">
+                        <!-- The writer's questions, one box each; once answered, each with its answer. -->
+                        <AsksCard
+                            v-if="entry.role === 'assistant' && entry.asked"
+                            ref="asks"
+                            :asked="entry.asked"
+                            :live="!!asked && index === conversation.length - 1"
+                            :disabled="working || answering"
+                            :answered-by="entry.asked.answered_by"
+                            :answers="replies"
+                            :skipped="skipped"
+                            @answer="(id, value) => (replies = { ...replies, [id]: value })"
+                            @skip="(id, skip) => (skipped = { ...skipped, [id]: skip })"
+                            @send="sendAnswers"
+                        />
+                        <!-- The answers are in the questions' card: only anything else they said is a message. -->
+                        <div v-else-if="entry.role === 'user' && entry.answers" v-show="entry.more" class="ms-8 rounded-lg bg-gray-100 px-3 py-2 text-sm whitespace-pre-wrap dark:bg-gray-800!">
+                            <span v-if="entry.from" class="mb-1 block text-xs font-medium text-gray-500">{{ entry.mine ? __('You') : entry.from }}</span>{{ entry.more }}
+                        </div>
                         <!-- The editor's comments, sent as one message: each pin's label and words; a click shows it on the page. -->
-                        <div v-if="entry.role === 'user' && entry.comments?.items" class="ms-8 rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800!" data-ghostwriter-comments-message>
+                        <div v-else-if="entry.role === 'user' && entry.comments?.items" class="ms-8 rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800!" data-ghostwriter-comments-message>
                             <span v-if="entry.from" class="mb-1 block text-xs font-medium text-gray-500">{{ entry.mine ? __('You') : entry.from }}</span>
                             <p class="font-medium">{{ __n(':count comment|:count comments', entry.comments.items.length) }}</p>
                             <ol class="mt-1 space-y-1">
@@ -1402,20 +1475,35 @@ export default {
                             </span>
                             {{ session.draft ? __('Your turn: answer above to carry on.') : __('Your turn: answer the questions above and the draft follows.') }}
                         </div>
+                        <!-- The questions have their own boxes: anything else is folded away until wanted. -->
+                        <button
+                            v-if="asked && !more && !message.trim()"
+                            type="button"
+                            class="text-sm font-medium text-gray-700 underline underline-offset-2 dark:text-gray-300!"
+                            aria-expanded="false"
+                            @click="(more = true), $nextTick(() => focusComposer())"
+                        >
+                            + {{ __('Add anything else') }}
+                        </button>
                         <Textarea
+                            v-else
                             ref="composer"
                             v-model="message"
-                            :rows="3"
+                            :rows="asked ? 2 : 3"
                             :disabled="working || stage === 'proposed'"
-                            :aria-label="composerLabel"
-                            :placeholder="composerLabel"
+                            :aria-label="asked ? __('Anything else for Ghostwriter') : composerLabel"
+                            :placeholder="asked ? __('Add anything else') + '…' : composerLabel"
                             @keydown.meta.enter.stop.prevent="send"
                             @keydown.ctrl.enter.stop.prevent="send"
                         />
-                        <div class="flex items-center justify-between">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
                             <Button v-if="!session.editing" size="sm" variant="ghost" :text="__('Start over')" @click="startOver" />
                             <Button v-else size="sm" variant="ghost" :text="__('Start again from the entry')" :disabled="working" @click="startAgain" />
-                            <Button :text="working ? __('Working…') : __('Send')" :loading="working" :disabled="working || stage === 'proposed' || !message.trim()" @click="send" />
+                            <div class="flex flex-wrap items-center gap-2">
+                                <Button v-if="asked" size="sm" :text="__('Just draft it with what you have')" :disabled="working || answering" @click="skipQuestions" />
+                                <Button v-if="asked" variant="primary" :text="__('Send answers')" :loading="answering" :disabled="working || answering" @click="sendAnswers" />
+                                <Button v-else :text="working ? __('Working…') : __('Send')" :loading="working" :disabled="working || stage === 'proposed' || !message.trim()" @click="send" />
+                            </div>
                         </div>
                     </div>
                 </div>

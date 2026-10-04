@@ -16,6 +16,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionAccess;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Asks;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftComments;
@@ -176,8 +177,11 @@ class Presenter
             // Only the messages to show (BriefThread::visible()), each with
             // its place in the whole conversation and its brief step: the
             // brief card is drawn from `brief`.
+            // The writer's questions (core's Studio\Asks) come with the
+            // answers given in the next message, as `asked`; that message
+            // is shown in their card, and only what else it said on its own.
             'messages' => array_map(fn (int $index, array $message) => ['index' => $index, 'step' => BriefThread::step($message)] + ($message['role'] === 'assistant'
-                ? $message + ['html' => $this->markdown()->convert((string) $message['content'])->getContent()]
+                ? ['asked' => $this->asked($session, $index, $shared)] + $message + ['html' => $this->markdown()->convert((string) $message['content'])->getContent()]
                 : $message + [
                     'mine' => ($by = self::id($message['by'] ?? $session->startedBy)) === null || $by === $this->me(),
                     'from' => $shared ? self::name(self::id($message['by'] ?? $session->startedBy)) : null,
@@ -344,5 +348,23 @@ class Presenter
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * A writer's message with questions, as its card shows it, with who
+     * answered when the conversation is shared. Null for one without.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function asked(Session $session, int $index, bool $shared): ?array
+    {
+        $next = $session->messages[$index + 1] ?? null;
+        $asked = Asks::present($session->messages[$index], is_array($next) ? $next : null);
+
+        if ($asked === null) {
+            return null;
+        }
+
+        return $asked + ['answered_by' => $asked['answered'] && $shared ? self::name(self::id($next['by'] ?? $session->startedBy)) : null];
     }
 }

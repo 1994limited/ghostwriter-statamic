@@ -218,6 +218,36 @@ class SessionController
     }
 
     /**
+     * The answers to the writer's questions (core's Studio\Asks), by
+     * question id, sent as one message: an empty or missing one is
+     * skipped. `more` is anything else the person added.
+     */
+    public function answers(Request $request, string $session): JsonResponse
+    {
+        $session = $this->session($session);
+
+        $this->ensureConfigured();
+
+        $validated = $request->validate([
+            'answers' => ['present', 'array'],
+            'answers.*' => ['nullable', 'string', 'max:20000'],
+            'more' => ['nullable', 'string', 'max:50000'],
+        ]);
+
+        $session = $this->guarded(fn () => $this->sessions->answerQuestions(
+            $session->id,
+            array_map(fn (mixed $answer) => is_string($answer) ? $answer : null, $validated['answers']),
+            (string) ($validated['more'] ?? ''),
+            $this->viewer(),
+            'Ghostwriter is still working on the last message.',
+        ));
+
+        RunSessionTurn::start($session->id);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
      * The last turn failed: run it again, with the same message.
      */
     public function retry(string $session): JsonResponse
