@@ -791,7 +791,9 @@ class WritingTest extends TestCase
         $this->makeType();
 
         $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'articles'), ['details' => 'Faceted search.'])->json('id');
-        $this->ai->respond('brief-filler', 'I would rather chat about it.', 'Still no.', "<brief>\nwhat: A search.\n</brief>");
+        // Unreadable until told more, however often core asks (it may ask
+        // again once itself).
+        $this->ai->respond('brief-filler', fn (TextRequest $request) => str_contains($request->prompt, 'For a kitchen appliance maker.') ? "<brief>\nwhat: A search.\n</brief>" : 'I would rather chat about it.');
 
         $this->runJob(new FillBrief($id));
 
