@@ -123,6 +123,8 @@ export default {
             commentBusy: null,
             focusedComment: null,
             flash: null,
+            // {plan, places, nonce}: a layout just switched to, whose changes are pointed at once.
+            switched: null,
             draftWide: true,
             timer: null,
             // The answers to the writer's questions, and the ones skipped,
@@ -849,6 +851,7 @@ export default {
         // A layout card chosen: stored on the piece, for everyone on it. No model.
         async chooseLayout(plan) {
             this.choosing = plan;
+            const before = this.session.layouts?.chosen ?? null;
 
             try {
                 const { data } = await this.$axios.patch(this.url(`sessions/${this.session.id}/layout`), { plan });
@@ -856,6 +859,9 @@ export default {
                 this.receive(data);
 
                 const chosen = data.layouts?.plans?.find((card) => card.id === plan);
+
+                // Switched: what it changes against the writer's is scrolled to and outlined, once.
+                if (chosen && before !== plan && chosen.places?.length) this.switched = { plan, places: chosen.places, nonce: Date.now() };
 
                 if (chosen) this.announce(this.__(':name layout. The preview, Blocks and Text show it.', { name: chosen.name }));
             } catch (error) {
@@ -1636,6 +1642,7 @@ export default {
                                     :threads="allPins"
                                     :picked="composer?.key ?? null"
                                     :flash="flash"
+                                    :switched="switched"
                                     @failed="previewFailedFor"
                                     @rendered="previewRendered"
                                     @blocks="setView('blocks')"
@@ -1667,7 +1674,7 @@ export default {
                                 />
                                 <template v-if="view !== 'preview'">
                                     <p v-if="!working" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
-                                    <DraftPreview :nodes="session.preview" :view="view" :editable="!working" @edit="editField" @gap="openGap" />
+                                    <DraftPreview :nodes="session.preview" :view="view" :editable="!working" :switched="switched" @edit="editField" @gap="openGap" />
                                     <ExtrasList v-if="view === 'text'" :extras="session.extras ?? []" :editable="!working" @edit="editExtra" @remove="removeExtra" @gap="openGap" />
                                 </template>
                             </div>

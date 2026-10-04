@@ -28,11 +28,17 @@
       comment mode a click on a block, or words selected in one, is a
       `pick` for the panel's composer, and gap chips wait. Blocks a run
       changed carry a Changed mark (and flash once, `flash`).
+    - Switching layout (`switched`): once the new layout's render is on
+      show, the first block it changes (against "As written") is scrolled
+      to in the draft's pane and every changed block is outlined for about
+      two seconds (overlay.highlight(); no smooth scroll and a still
+      outline under reduced motion). Not on a first load.
 -->
 <script>
 import { Button } from '@statamic/cms/ui';
 import { attach, debounce, gapLabels, labelFor, previewError } from '../preview/overlay.js';
 import { changedKeys, coverOf, placePins, planPaths } from '../preview/comments.js';
+import { keysForPlaces } from '../preview/layouts.js';
 import { fitFrame } from '../preview/framefit.js';
 
 const PHONE_WIDTH = 390;
@@ -58,6 +64,8 @@ export default {
         picked: { type: String, default: null },
         // {numbers, nonce}: threads a run just changed, to flash once.
         flash: { type: Object, default: null },
+        // {plan, places, nonce}: a layout just switched to; what it changes is scrolled to and outlined, once.
+        switched: { type: Object, default: null },
     },
 
     // `failed`: this render failed; `rendered`: one has swapped in.
@@ -172,6 +180,14 @@ export default {
             this.currentOverlay()?.setPicked(key);
         },
 
+        switched(switched) {
+            // Only while the Preview shows: a later visit to the tab isn't a switch.
+            if (!switched?.places?.length || !this.active) return;
+
+            this.pendingSwitch = switched;
+            this.switchNow();
+        },
+
         flash(flash) {
             if (!flash?.numbers?.length) return;
 
@@ -268,18 +284,20 @@ export default {
 
             // The same render as the one on show: nothing to load.
             if (this.current && this.current.url === data.url && !this.problem) {
+                this.current.key = key;
+                this.switchNow();
 
                 return;
             }
 
-            this.load(data);
+            this.load(data, key);
         },
 
         // Into a hidden frame; swapped in once it has loaded.
-        load(data) {
+        load(data, key = null) {
             clearTimeout(this.timer);
 
-            this.next = { id: ++this.frameId, url: data.url, map: data.map, titleKey: data.title_key, sameOrigin: data.same_origin, started: performance.now() };
+            this.next = { id: ++this.frameId, key, url: data.url, map: data.map, titleKey: data.title_key, sameOrigin: data.same_origin, started: performance.now() };
 
             this.timer = setTimeout(() => this.slow(), this.timeout);
         },
@@ -321,7 +339,7 @@ export default {
                     }),
                     onPin: (number) => this.$emit('pin', number),
                     onEscape: () => this.$emit('escape'),
-                    reveal: (top) => this.reveal(frame, top),
+                    reveal: (top, smooth) => this.reveal(frame, top, smooth),
                     commentLabels: {
                         target: (label, count) => (count ? this.__n(':label block, :count comment. Add a comment.|:label block, :count comments. Add a comment.', count, { label }) : this.__(':label block. Add a comment.', { label })),
                         pin: (number, state, label) => this.__('Comment :number, :state, on :label', { number, state: this.__(state), label }),
@@ -363,7 +381,10 @@ export default {
             }
 
             // Once the new page's height is in place: the same block at the top of the view.
-            if (anchor) this.$nextTick(() => overlay?.scrollToBlock(anchor));
+            this.$nextTick(() => {
+                if (anchor) overlay?.scrollToBlock(anchor);
+                this.switchNow();
+            });
         },
 
         currentOverlay() {
@@ -380,6 +401,20 @@ export default {
             const located = overlay.boxes().map((entry) => entry.key);
 
             overlay.setComments({ on: this.commenting, pins: placePins(this.threads, map, located), changed: changedKeys(this.threads, map, located) });
+        },
+
+        // A layout just switched to: once its render is on show, what it
+        // changes is scrolled to (in the draft's pane) and outlined.
+        switchNow() {
+            const overlay = this.currentOverlay();
+
+            if (!overlay || !this.pendingSwitch || this.loading || !this.active) return;
+            if (this.current.key !== this.renderKey || this.session.layouts?.chosen !== this.pendingSwitch.plan) return;
+
+            const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+            overlay.highlight(keysForPlaces(this.current.map ?? [], this.pendingSwitch.places), { smooth: !reduce });
+            this.pendingSwitch = null;
         },
 
         // The blocks a run changed flash once, on the render that shows the change.
@@ -452,7 +487,7 @@ export default {
 
         // A point of the page (its y, in the frame's px) to the top of the
         // draft's pane, which scrolls; the frame doesn't.
-        reveal(frame, top) {
+        reveal(frame, top, smooth = false) {
             if (!this.scroller || !frame?.isConnected) {
                 frame?.contentWindow?.scrollTo(0, top);
 
@@ -460,7 +495,12 @@ export default {
             }
 
             const y = frame.getBoundingClientRect().top - this.scroller.getBoundingClientRect().top + this.scroller.scrollTop + top * this.frameBox.scale;
-            this.scroller.scrollTop = Math.max(0, Math.round(y));
+
+            if (smooth) {
+                this.scroller.scrollTo({ top: Math.max(0, Math.round(y)), behavior: 'smooth' });
+            } else {
+                this.scroller.scrollTop = Math.max(0, Math.round(y));
+            }
         },
 
         slow() {

@@ -284,6 +284,8 @@ class DraftLayouts
         $chosen = $this->chosen($session);
         $used = $chosen?->extrasUsed() ?? [];
         $schema = $type && count($plans) > 1 ? $this->safeSchema($type->forSession($session)) : null;
+        // What each layout changes against the writer's: words for its chip, and where to point on a switch.
+        $changes = $schema ? $this->layouts->changes($session, $schema) : [];
 
         return [
             'layouts' => [
@@ -303,6 +305,10 @@ class DraftLayouts
                     // Its blocks by name, in order: the card's outline where
                     // there is no thumbnail, and what a screen reader hears.
                     'outline' => self::outline($plan, $schema),
+                    // "Closing line as a quote": one to three, against the writer's.
+                    'changes' => $changes[$plan->id]['summary'] ?? [],
+                    // Where it changed: {field, block, section}, as the preview's map counts them.
+                    'places' => $changes[$plan->id]['places'] ?? [],
                 ], $plans),
             ],
             'extras' => $this->presentExtras($session, $used, $chosen),

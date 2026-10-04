@@ -45,6 +45,20 @@
 .dark .gw-editable:hover { @apply bg-gray-800; }
 .dark .gw-editable:focus { @apply bg-gray-900; }
 
+/*
+    A layout just switched to: what it changes is outlined in Blocks and
+    Text, fading out over about two seconds (a still outline, then gone,
+    under reduced motion), as the Preview's overlay does on the page.
+*/
+.gw-switched { border-radius: 0.5rem; scroll-margin-top: 3rem; animation: gw-switched 2.2s ease-out 1 forwards; }
+@keyframes gw-switched {
+    0%, 30% { box-shadow: 0 0 0 2px var(--gw-accent), 0 0 0 6px color-mix(in srgb, var(--gw-accent) 18%, transparent); }
+    100% { box-shadow: 0 0 0 2px transparent, 0 0 0 6px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gw-switched { animation: none; box-shadow: 0 0 0 2px var(--gw-accent); }
+}
+
 /* The draft preview is rendered markdown, so it needs its own prose styles. */
 .gw-prose h2 { @apply mt-8 mb-3 text-xl font-semibold first:mt-0; }
 .gw-prose h3 { @apply mt-6 mb-2 text-lg font-semibold; }

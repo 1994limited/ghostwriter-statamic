@@ -142,13 +142,16 @@ Ghostwriter doesn't just write the draft one way. Once the first draft is in, it
 - **Choose a card** and Preview, Blocks and Text all show that layout, and the button becomes **Use this draft (Numbers first)**. Choosing costs nothing and changes nothing until you use the draft. The choice is kept with the piece, so in a [shared conversation](#sharing-conversations) everyone sees the same one.
 - **While Ghostwriter is still looking**, the draft is already there with its own card, beside "Finding other layouts…". It takes one more short model call after the first draft, and none after that: asking for changes, editing the writing and choosing a layout all keep the layouts in step with the words without asking again.
 - **"Needs refreshing"**: a change to the draft can leave a layout unable to hold it (a required heading taken out, say). That card can't be chosen, and the draft as written is used until you click **Refresh layouts**, which asks once for new ones.
-- One layout is all there is when the draft has little to arrange (a short piece, or no page builder and a single section of rich text), or when nothing else fitted the blueprint. Then there is no **Layout** row.
+- **Only layouts that look noticeably different are offered**: one that only sets a line as a quote, or turns a list into paragraphs, near the foot of the page is dropped before you see it, and so is one too like another on offer.
+- One layout is all there is when the draft has little to arrange (a short piece, or no page builder and a single section of rich text), when nothing else fitted the blueprint, or when nothing else looked different enough. Then there is no **Layout** row, and the button is plain **Use this draft**.
+- **Each layout says what it changes** against the draft as written, beside its name: "Quote moved up · Text blocks joined", "Closing line as a quote", "Call to action added".
+- **Switching layout points at the change.** Once the new layout shows, the draft's pane scrolls to the first block it changes, and every changed block is outlined for about two seconds, in the Preview and in Blocks and Text. With reduced motion, the pane jumps there and the outline is still, then gone. Opening a piece doesn't do this; only switching does.
 
 In Blocks and Text, writing that is still one piece of the draft can be clicked and changed as usual, in any layout. Writing a layout has moved or joined, and the extras, are changed in their own place: switch to the first card, or use the Extras list.
 
 **The row stays small** so the Preview has the room: the layouts are a row of names, the chosen one marked and **Suggested** kept. **Compare layouts** shows the cards with their thumbnails, and **Hide thumbnails** puts the row back; your browser remembers which. Thumbnails only render while they show.
 
-The cards are a radio group: Tab to the chosen one, and the arrow keys move between them and choose. Each is announced with its name, whether it's suggested, its blocks and its description. In a narrow panel, the cards scroll sideways.
+The cards are a radio group: Tab to the chosen one, and the arrow keys move between them and choose. Each is announced with its name, whether it's suggested, its blocks, what it changes and its description. In a narrow panel, the cards scroll sideways.
 
 ![Three layout cards above the preview, Numbers first chosen](images/writing-layouts.png)
 

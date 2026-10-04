@@ -1,7 +1,7 @@
 // The layout cards' and extras' logic, in Node with no DOM: node --test resources/js/preview/*.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardName, cardsFor, compareRemembered, rememberCompare, changed, extraPayload, isStat, moveTo, partLabel, sharedStart, startBlock, thumbOrder, thumbScale, useLabel } from './layouts.js';
+import { cardName, cardsFor, changesText, keysForPlaces, marksFor, compareRemembered, rememberCompare, changed, extraPayload, isStat, moveTo, partLabel, sharedStart, startBlock, thumbOrder, thumbScale, useLabel } from './layouts.js';
 
 const plans = [
     { id: 'w', name: 'As written', description: 'The writer’s own layout', blocks: 3, suggested: false, stale: false, writer: true, outline: ['Hero', 'Text', 'Call to action'] },
@@ -139,4 +139,39 @@ test('Compare layouts is off unless remembered on, and storage that throws count
     const broken = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
     assert.equal(compareRemembered(broken), false);
     assert.doesNotThrow(() => rememberCompare(broken, true));
+});
+
+test('a layout says what it changes, beside its chip and to a screen reader', () => {
+    const card = { ...plans[1], changes: ['Stats added', 'Text split into 3 blocks'] };
+
+    assert.equal(changesText(card), 'Stats added · Text split into 3 blocks');
+    assert.equal(changesText(plans[0]), '');
+    assert.equal(cardName(card), 'Numbers first, suggested, 4 blocks: Hero, Stats, Text, Call to action. Changes: Stats added, Text split into 3 blocks. The numbers up top.');
+});
+
+test('the places a layout changed are found in the render’s block map', () => {
+    const map = [
+        { key: 'f1', kind: 'field', type: 'title', path: 'title', parent: null },
+        { key: 'b1', kind: 'block', type: 'hero', path: 'page_builder/0', parent: null },
+        { key: 'b2', kind: 'block', type: 'quote', path: 'page_builder/1', parent: null },
+        { key: 'b3', kind: 'block', type: 'text', path: 'page_builder/2', parent: null },
+        { key: 's1', kind: 'section', path: 'page_builder/2/text', parent: 'b3' },
+        { key: 's2', kind: 'section', path: 'page_builder/2/text', parent: 'b3' },
+        { key: 'b4', kind: 'block', type: 'card', path: 'page_builder/2/cards/0', parent: 'b3' },
+        { key: 'f2', kind: 'field', type: 'body', path: 'body', parent: null },
+        { key: 's3', kind: 'section', path: 'body', parent: 'f2' },
+        { key: 's4', kind: 'section', path: 'body', parent: 'f2' },
+    ];
+
+    assert.deepEqual(keysForPlaces(map, [{ field: 'page_builder', block: 2, section: 1 }, { field: 'page_builder', block: 1, section: null }]), ['b2', 's2'], 'in page order');
+    assert.deepEqual(keysForPlaces(map, [{ field: 'body', block: null, section: 1 }]), ['s4']);
+    assert.deepEqual(keysForPlaces(map, [{ field: 'page_builder', block: 0, section: 3 }]), ['b1'], 'no sections there: the block');
+    assert.deepEqual(keysForPlaces(map, [{ field: 'title', block: null, section: null }, { field: 'title', block: null, section: null }]), ['f1']);
+    assert.deepEqual(keysForPlaces(map, [{ field: 'page_builder', block: 9, section: null }, { field: 'gone', block: null, section: null }]), []);
+    assert.deepEqual(keysForPlaces(null, []), []);
+});
+
+test('in Blocks and Text, a layout’s places are its blocks, or whole fields', () => {
+    assert.deepEqual(marksFor([{ field: 'page_builder', block: 2, section: 1 }, { field: 'page_builder', block: 2, section: 0 }, { field: 'body', block: null, section: 4 }]), { fields: ['body'], blocks: { page_builder: [2] } });
+    assert.deepEqual(marksFor(null), { fields: [], blocks: {} });
 });

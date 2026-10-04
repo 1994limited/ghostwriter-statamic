@@ -15,6 +15,7 @@
 <script>
 import { gapLabels } from '../preview/overlay.js';
 import { chipsDirective, editKey, editPress, isPainted, readBack } from '../preview/textchips.js';
+import { SWITCH_HIGHLIGHT_MS, marksFor } from '../preview/layouts.js';
 
 export default {
     name: 'DraftPreview',
@@ -27,13 +28,39 @@ export default {
         // 'blocks' shows everything in its block; 'text' only the writing.
         view: { type: String, default: 'blocks' },
         editable: { type: Boolean, default: false },
+        // {places, nonce}: a layout just switched to; what it changes is outlined for a moment (top level only).
+        switched: { type: Object, default: null },
     },
 
     // `gap`: a chip activated, {kind, hint, list?, value?, match, occurrence, element, host, path}.
     emits: ['edit', 'gap'],
 
+    data() {
+        return { marks: null };
+    },
+
+    watch: {
+        switched(switched) {
+            if (this.nested || !switched?.places?.length) return;
+
+            clearTimeout(this.unmark);
+            this.marks = marksFor(switched.places);
+
+            // Brought into view in the draft's pane, then let go of.
+            this.$nextTick(() => {
+                const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+                this.$el.querySelector?.('.gw-switched')?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+            });
+            this.unmark = setTimeout(() => (this.marks = null), SWITCH_HIGHLIGHT_MS);
+        },
+    },
+
     created() {
         this.labels = gapLabels((text) => this.__(text));
+    },
+
+    beforeUnmount() {
+        clearTimeout(this.unmark);
     },
 
     computed: {
@@ -48,6 +75,13 @@ export default {
     methods: {
         key(node) {
             return JSON.stringify(node.path ?? node.handle);
+        },
+
+        // Outlined for a moment: a field a switched-to layout changed, or one of its blocks.
+        lit(node, index = null) {
+            if (!this.marks) return false;
+
+            return index === null ? this.marks.fields.includes(node.handle) : (this.marks.blocks[node.handle] ?? []).includes(index);
         },
 
         canEdit(node) {
@@ -144,7 +178,7 @@ export default {
 
 <template>
     <div :class="nested ? 'space-y-3' : 'space-y-5'">
-        <div v-for="node in shown" :key="key(node)">
+        <div v-for="node in shown" :key="key(node)" :class="{ 'gw-switched': lit(node) }">
             <div v-if="view === 'blocks'" class="mb-1 text-xs font-medium tracking-wide text-gray-500 uppercase">{{ node.label }}</div>
 
             <!-- Rich text: edited in place as HTML, saved back as markdown. -->
@@ -170,7 +204,7 @@ export default {
             </ul>
 
             <div v-else-if="node.kind === 'blocks'" :class="view === 'text' ? 'space-y-5' : 'space-y-3'">
-                <div v-for="(block, index) in node.items" :key="index" :class="view === 'text' ? '' : 'rounded-lg border border-gray-200 dark:border-gray-700!'">
+                <div v-for="(block, index) in node.items" :key="index" :class="[view === 'text' ? '' : 'rounded-lg border border-gray-200 dark:border-gray-700!', { 'gw-switched': lit(node, index) }]">
                     <div v-if="view === 'blocks'" class="flex items-center justify-between border-b border-gray-200 px-3 py-1.5 text-sm font-medium dark:border-gray-700!">
                         <span>{{ block.label }}</span>
                         <span v-if="!block.known" class="text-red-600">{{ __('Unknown block, will be left out') }}</span>
