@@ -23,6 +23,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Studio\PlanItem;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\PlannedIdea;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\TypeSurvey;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\VoiceSample;
+use NineteenNinetyFour\Ghostwriter\Seo\HeadingProfiles;
 use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Assets\Asset;
@@ -198,8 +199,10 @@ class StudioInputs
             ?? throw new InvalidArgumentException("The collection \"{$type->group}\" no longer exists.");
 
         $schema = $this->reader->schema($blueprint);
+        $studied = $this->layouts->studied($type->group, $type->variant, $type->where, $type->examples);
 
-        return $this->layouts->layout($schema, $this->layouts->pattern($schema, $type->group, $type->variant, $type->where, $type->examples));
+        // Each rich-text field's heading levels, as the SEO pass will fit them (the same profile).
+        return $this->layouts->layout($schema, $this->layouts->patternOf($schema, $studied), app(HeadingProfiles::class)->for($type, $blueprint, $schema, $studied));
     }
 
     public function kind(ContentType $type): ContentKind

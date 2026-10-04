@@ -4,18 +4,23 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\NotAllowed;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\NotFound;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\Outline;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoPass;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftLayouts;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
 use NineteenNinetyFour\Ghostwriter\Preview\PagePreview;
+use NineteenNinetyFour\Ghostwriter\Seo\HeadingProfiles;
+use NineteenNinetyFour\Ghostwriter\Storage\FileRenderProfiles;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\Entry;
 use Statamic\Facades\Site;
@@ -78,6 +83,40 @@ class PreviewController
         $render = $preview->render($session, $draft, $blueprint, $built, $original, $form, $site, $request->getSchemeAndHttpHost(), $arranged);
 
         return response()->json($render + ['ms' => (int) round((microtime(true) - $started) * 1000)]);
+    }
+
+    /**
+     * The rendered page's headings (locator.js outline()), posted by the
+     * panel after each render: recorded on the collection's render profile
+     * (two renders must agree to change it). `changed` asks the panel to
+     * render once more, as the draft's headings are now fitted to a
+     * different template.
+     */
+    public function outline(Request $request, string $session, FileRenderProfiles $profiles, HeadingProfiles $headings): JsonResponse
+    {
+        abort_unless(config('ghostwriter.preview.enabled', true), 404);
+
+        $session = $this->session($session);
+        $type = $this->type($session->kind)->forSession($session);
+
+        $validated = $request->validate([
+            'blueprint' => ['nullable', 'string', 'max:200'],
+            'site' => ['nullable', 'string', 'max:100'],
+            'outline' => ['present', 'array', 'max:'.Outline::MAX],
+            'outline.*' => ['array'],
+        ]);
+
+        $blueprint = SessionController::blueprintFor($type, $validated['blueprint'] ?? null);
+        $original = $session->source !== null ? Entry::find((string) $session->source) : null;
+        $site = $original?->locale() ?? (Site::get((string) ($validated['site'] ?? '')) ?? Site::selected())->handle();
+        $key = FileRenderProfiles::key($type->group, $blueprint->handle(), $site);
+
+        [$profile, $changed] = (new SeoPass(logger: Log::channel(config('ghostwriter.log_channel'))))
+            ->observe($profiles, $key, Outline::fromArray($validated['outline']), HeadingProfiles::label($type->group));
+
+        $headings->forget();
+
+        return response()->json(['changed' => $changed, 'h1' => $profile->h1->value, 'renders' => $profile->renders]);
     }
 
     private function type(string $handle): ContentType

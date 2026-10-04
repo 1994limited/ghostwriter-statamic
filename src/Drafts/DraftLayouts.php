@@ -28,6 +28,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Studio\WriterContext;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\TaggedResponse;
 use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
+use NineteenNinetyFour\Ghostwriter\Seo\HeadingProfiles;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\Entry;
 use Statamic\Fields\Blueprint;
@@ -61,6 +62,7 @@ class DraftLayouts
         private EntryLayouts $entries,
         private SessionGuard $sessions,
         private SessionStore $store,
+        private HeadingProfiles $headings,
     ) {}
 
     /**
@@ -80,7 +82,7 @@ class DraftLayouts
         $schema = $this->reader->schema($blueprint);
 
         if (! $site) {
-            return new LayoutContext($schema);
+            return new LayoutContext($schema, profile: $this->headings->for($type, $blueprint, $schema));
         }
 
         $studied = $this->entries->studied($type->group, $type->variant, $type->where, $type->examples);
@@ -89,7 +91,7 @@ class DraftLayouts
         // The writer is shown the two newest it was modelled on (PatternFinder).
         $examples = array_map(fn ($entry) => $entry->id, array_slice($studied, 0, 2));
 
-        return new LayoutContext($schema, $pattern, $studied, $type->defaults, $examples);
+        return new LayoutContext($schema, $pattern, $studied, $type->defaults, $examples, $this->headings->for($type, $blueprint, $schema, $studied));
     }
 
     /**
@@ -240,10 +242,6 @@ class DraftLayouts
         $draft = Draft::parse((string) $session->draft);
         $chosen = $planId === null || $session->plans === [] ? $this->chosen($session) : $this->layouts->plans($session)->get($planId);
 
-        if ($chosen === null || $chosen->origin === PlanOrigin::Writer) {
-            return $draft;
-        }
-
         try {
             $site = $this->context($type->forSession($session), $blueprint, site: false);
 
@@ -251,9 +249,11 @@ class DraftLayouts
                 return $draft;
             }
 
-            $data = $this->layouts->draftData($session, $site, $chosen->id);
+            // The writer's own layout too: the SEO pass fits its headings to
+            // the profile as it is now, which a render may have just changed.
+            $data = $this->layouts->draftData($session, $site, $chosen?->id);
 
-            return new Draft($data, trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK)));
+            return $data === $draft->data ? $draft : new Draft($data, trim(Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK)));
         } catch (Throwable $exception) {
             $this->log($exception);
 
@@ -283,9 +283,9 @@ class DraftLayouts
         $plans = $session->plans === [] ? [] : $this->layouts->plans($session)->all();
         $chosen = $this->chosen($session);
         $used = $chosen?->extrasUsed() ?? [];
-        $schema = $type && count($plans) > 1 ? $this->safeSchema($type->forSession($session)) : null;
+        $site = $type && count($plans) > 1 ? $this->quietContext($type->forSession($session)) : null;
         // What each layout changes against the writer's: words for its chip, and where to point on a switch.
-        $changes = $schema ? $this->layouts->changes($session, $schema) : [];
+        $changes = $site ? $this->layouts->changes($session, $site->schema, $site->profile) : [];
 
         return [
             'layouts' => [
@@ -304,7 +304,7 @@ class DraftLayouts
                     'writer' => $plan->origin === PlanOrigin::Writer,
                     // Its blocks by name, in order: the card's outline where
                     // there is no thumbnail, and what a screen reader hears.
-                    'outline' => self::outline($plan, $schema),
+                    'outline' => self::outline($plan, $site?->schema),
                     // "Closing line as a quote": one to three, against the writer's.
                     'changes' => $changes[$plan->id]['summary'] ?? [],
                     // Where it changed: {field, block, section}, as the preview's map counts them.
@@ -341,10 +341,10 @@ class DraftLayouts
         return $names;
     }
 
-    private function safeSchema(ContentType $type): ?Schema
+    private function quietContext(ContentType $type): ?LayoutContext
     {
         try {
-            return $this->context($type, site: false)?->schema;
+            return $this->context($type, site: false);
         } catch (Throwable) {
             return null;
         }

@@ -191,6 +191,16 @@ The preview is a Live Preview request, so everything that already treats Live Pr
 - **Chrome warns** in the console that a frame with `allow-scripts` and `allow-same-origin` "can escape its sandboxing". That is expected: the frame is your own site, as in Statamic's Live Preview, and the policy above keeps it to your own scripts.
 - **The frame must be allowed on the same origin.** If your web server sends `X-Frame-Options: DENY` or `frame-ancestors 'none'` for every page, the preview (and Statamic's Live Preview) can't show; allow `SAMEORIGIN`.
 
+### Headings
+
+Ghostwriter fits every draft's headings to the page, with no setting:
+
+- **The body starts below the page's main heading.** Most templates print the entry's title as the H1, so a draft's sections start at H2. The Preview tab reads which headings the template prints each time it renders a draft, and keeps that per collection and blueprint; if your template prints the H1 from another field, or none, later drafts follow it once two previews agree.
+- **Only the levels a Bard field's buttons offer.** A field with H2 and H3 buttons never gets an H4: a deeper heading becomes a bold lead-in ("**Heading.** Its paragraph"). A field with no heading buttons gets no headings.
+- **No skipped levels**, no empty headings, and a bold line used as a heading becomes a real one. Words are never changed.
+
+A template that prints no H1, a logo as the H1, or more than one, is listed for super admins on the Ghostwriter Overview. Ghostwriter still starts the text at H2; the fix belongs in the template.
+
 ## Use this draft
 
 **Use this draft** puts the draft into the entry form underneath, field by field, in the [layout](#layouts) you chose (the button names it). Anything the draft doesn't cover keeps what was in the form.

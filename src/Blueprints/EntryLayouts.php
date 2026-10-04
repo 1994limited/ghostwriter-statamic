@@ -14,6 +14,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Schema\EntryData;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Field;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Kind;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\RenderProfile;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Layout;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\Entry as Entries;
@@ -102,9 +103,9 @@ class EntryLayouts
     /**
      * The fields and the entries to follow, as the Studio shows them.
      */
-    public function layout(Schema $schema, Pattern $pattern): Layout
+    public function layout(Schema $schema, Pattern $pattern, ?RenderProfile $profile = null): Layout
     {
-        $layout = Layout::fromSchema($schema, $pattern, $this->layouts->describer());
+        $layout = Layout::fromSchema($schema, $pattern, $this->layouts->describer(), $profile);
         LayoutLog::record('describe', $layout->fields);
 
         return $layout;
