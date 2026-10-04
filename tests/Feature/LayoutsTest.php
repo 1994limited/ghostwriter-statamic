@@ -348,7 +348,9 @@ final class LayoutsTest extends TestCase
         $gap(['kind' => 'link', 'hint' => 'button link', 'path' => ['title'], 'value' => '/x'])->assertStatus(422);
 
         // Use this draft: nothing left to finish.
-        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->assertOk()->json('values');
+        $applied = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->assertOk();
+        $this->assertStringNotContainsString('gw_links', json_encode($applied->json('notes')), 'The links chosen are not a field to build.');
+        $values = $applied->json('values');
         $this->assertSame('3', collect($values['page_builder'])->firstWhere('type', 'stats')['items'][0]['value']);
         $this->assertStringNotContainsString('[[', json_encode($values));
         $this->assertStringNotContainsString('gw-link', json_encode($values));
