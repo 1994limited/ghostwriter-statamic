@@ -88,9 +88,11 @@ class RunSessionTurn implements ShouldQueue
         // removed meanwhile stays removed.
         $first = $answer?->document !== null && $site !== null && DraftLayouts::isFirst($before);
 
-        // The first draft's other layouts are looked for once it is saved:
-        // marked now, so the panel shows "Finding other layouts…" with it.
+        // The first draft's links and other layouts are looked for once it
+        // is saved: marked now, so the panel shows "Checking headings and
+        // links…", then "Finding other layouts…", with it.
         if ($first) {
+            DraftLayouts::checking($this->sessionId);
             DraftLayouts::planning($this->sessionId);
         }
 
@@ -111,7 +113,8 @@ class RunSessionTurn implements ShouldQueue
             }
         });
 
-        // Then, on the first draft only, one call to the layout planner.
+        // Then, on the first draft only, its links (two calls) and one call
+        // to the layout planner.
         if ($first) {
             $layouts->plan($this->sessionId, $answer, $turn[1], $turn[2], $site);
         }

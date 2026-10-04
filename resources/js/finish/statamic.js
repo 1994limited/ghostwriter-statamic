@@ -5,6 +5,7 @@
 // a save: the editor checks and saves as usual.
 import { unref } from 'vue';
 import { asks, checks, leftovers, links, normaliseHint, sentenceAround } from './patterns.js';
+import { linksTo } from './linkkeys.js';
 import { checkReplacement, pickCheck } from './check.js';
 import { bardEditor, editorAt, setCurrent } from './bard.js';
 import { ensure, stock } from '../stock/store.js';
@@ -130,6 +131,13 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
     // The nth marker in a plain string value: [start, end) or null.
     const inString = (text, gap) => {
         if (typeof text !== 'string') return null;
+
+        if (gap.kind === 'links-added') {
+            const found = linksTo(text, gap.meta?.formHref ?? gap.meta?.href);
+            const m = found.find((f) => normaliseHint(f.words) === normaliseHint(gap.hint)) ?? found[0];
+
+            return m ? { start: m.index, end: m.index + m.length, words: m.words } : null;
+        }
 
         if (gap.kind === 'link') {
             const found = links(text).filter((m) => normaliseHint(m.hint) === normaliseHint(gap.hint));

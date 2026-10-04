@@ -5,6 +5,7 @@
 // transactions, so undo works. Each editor is registered by its field path,
 // so the guide can select and replace inside it.
 import { asks, checks, leftovers, isLinkSentinel, linkHint, normaliseHint, sentenceAround } from './patterns.js';
+import { linkKey } from './linkkeys.js';
 import { pickCheck } from './check.js';
 
 // Each live editor with a function giving its field path now: a set moved
@@ -13,11 +14,11 @@ const editors = new Set();
 const listeners = new Set();
 const KEY = 'ghostwriterGaps';
 
-// What the guide points at now: { path, id, kind, hint, occurrence, match } or null.
+// What the guide points at now: { path, id, kind, hint, occurrence, match, href } or null.
 let current = null;
 
 export function setCurrent(gap) {
-    current = gap ? { path: gap.dotted, kind: gap.kind, hint: gap.hint, occurrence: gap.occurrence ?? 0, match: gap.meta?.match ?? null } : null;
+    current = gap ? { path: gap.dotted, kind: gap.kind, hint: gap.hint, occurrence: gap.occurrence ?? 0, match: gap.meta?.match ?? null, href: gap.meta?.formHref ?? gap.meta?.href ?? null } : null;
     editors.forEach(({ editor }) => redraw(editor));
 }
 
@@ -99,8 +100,48 @@ export function markersIn(doc) {
     return found.sort((a, b) => a.from - b.from);
 }
 
+// Runs of text carrying a link mark to the same page as `href` (a link
+// Ghostwriter added, which the guide asks the editor to check).
+export function linkRuns(doc, href) {
+    const key = linkKey(href);
+    const found = [];
+    let run = null;
+
+    if (!key) return found;
+
+    doc.descendants((node, pos) => {
+        if (!node.isText) {
+            run = null;
+
+            return true;
+        }
+
+        const mark = node.marks.find((m) => m.type.name === 'link' && linkKey(m.attrs.href) === key);
+
+        if (mark && run && run.to === pos) {
+            run.to = pos + node.nodeSize;
+            run.words += node.text;
+        } else if (mark) {
+            run = { kind: 'links-added', from: pos, to: pos + node.nodeSize, href: mark.attrs.href, words: node.text };
+            found.push(run);
+        } else {
+            run = null;
+        }
+
+        return false;
+    });
+
+    return found;
+}
+
 // The marker in this document a gap names: the nth of its kind with its hint.
 export function findGap(doc, gap) {
+    if (gap.kind === 'links-added') {
+        const runs = linkRuns(doc, gap.meta?.formHref ?? gap.meta?.href ?? gap.href);
+
+        return runs.find((r) => normaliseHint(r.words) === normaliseHint(gap.hint)) ?? runs[0] ?? null;
+    }
+
     const kind = gap.kind === 'link' ? 'link' : gap.kind;
     const all = markersIn(doc).filter((m) => m.kind === kind);
 
@@ -115,12 +156,15 @@ function decorations(state, tiptap, path) {
     const { Decoration, DecorationSet } = tiptap.pm.view;
     const list = [];
     const markers = markersIn(state.doc);
-    const target = current && current.path === path ? findGap(state.doc, { kind: current.kind, hint: current.hint, occurrence: current.occurrence, meta: { match: current.match } }) : null;
+    const target = current && current.path === path ? findGap(state.doc, { kind: current.kind, hint: current.hint, occurrence: current.occurrence, meta: { match: current.match, href: current.href } }) : null;
 
     markers.forEach((m) => {
         const now = target && target.from === m.from && target.to === m.to;
         list.push(Decoration.inline(m.from, m.to, { class: `gw-gap-mark${now ? ' is-current' : ''}`, 'data-gw-kind': m.kind }));
     });
+
+    // A link Ghostwriter added isn't a marker: only the one being checked is marked.
+    if (target?.kind === 'links-added') list.push(Decoration.inline(target.from, target.to, { class: 'gw-gap-mark is-current', 'data-gw-kind': 'links-added' }));
 
     return DecorationSet.create(state.doc, list);
 }

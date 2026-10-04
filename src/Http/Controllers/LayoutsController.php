@@ -103,6 +103,30 @@ class LayoutsController
         return response()->json($this->presenter->detail($session));
     }
 
+    /**
+     * "Remove link" on a link Ghostwriter added (the Text tab's popover):
+     * its words stay, the link goes, and the writer won't put it back. No
+     * call.
+     */
+    public function removeLink(Request $request, string $session): JsonResponse
+    {
+        $href = $request->validate(['href' => ['required', 'string', 'max:2000']])['href'];
+        $session = $this->session($session);
+        $type = $this->type($session);
+
+        abort_if(DraftLayouts::isChecking($session->id), 409, 'Ghostwriter is still checking the links.');
+
+        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($href, $type) {
+            try {
+                $this->layouts->removeLink($session, $href, $type);
+            } catch (InvalidArgumentException $exception) {
+                abort(422, $exception->getMessage());
+            }
+        }, self::BUSY));
+
+        return response()->json($this->presenter->detail($session));
+    }
+
     private function type(Session $session): ContentType
     {
         $type = $this->types->find($session->kind);

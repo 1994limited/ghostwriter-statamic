@@ -72,6 +72,33 @@
 .gw-prose th { @apply border-b border-gray-300 py-2 pe-3 text-start font-semibold dark:border-gray-600; }
 .gw-prose td { @apply border-b border-gray-200 py-2 pe-3 align-top dark:border-gray-700; }
 
+/* A link Ghostwriter added to another page (SEO layer §7.5): a faint dotted
+   underline and a small mark, drawn by CSS only so nothing is written into
+   the words. Hovering or focusing it opens its popover. */
+.gw-prose a.gw-added-link,
+.gw-added-link-sample {
+    @apply rounded-sm text-[#2f5fd0] decoration-dotted underline-offset-[3px] dark:text-[#8fb8ff];
+    text-decoration-line: underline;
+    text-decoration-thickness: 1.5px;
+}
+.gw-prose a.gw-added-link:hover,
+.gw-prose a.gw-added-link:focus-visible { @apply decoration-solid; background: color-mix(in srgb, var(--gw-accent, #5b4cf0) 10%, transparent); }
+.gw-prose a.gw-added-link::after {
+    content: '';
+    display: inline-block;
+    width: 0.65em;
+    height: 0.65em;
+    margin-inline-start: 2px;
+    vertical-align: super;
+    background-color: currentColor;
+    opacity: 0.7;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath fill-rule='evenodd' d='M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z'/%3E%3C/svg%3E") no-repeat center / contain;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath fill-rule='evenodd' d='M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+@media (forced-colors: active) {
+    .gw-prose a.gw-added-link::after { background-color: LinkText; }
+}
+
 /* Ghostwriter's replies in the conversation: the same prose, closer set. */
 .gw-reply p,
 .gw-reply ul,

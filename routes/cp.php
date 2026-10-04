@@ -130,6 +130,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('sessions/{session}/layouts/refresh', [LayoutsController::class, 'refresh'])->name('sessions.layouts.refresh');
     Route::patch('sessions/{session}/extras/{item}', [LayoutsController::class, 'editExtra'])->name('sessions.extras.update');
     Route::delete('sessions/{session}/extras/{item}', [LayoutsController::class, 'deleteExtra'])->name('sessions.extras.destroy');
+    Route::post('sessions/{session}/links/remove', [LayoutsController::class, 'removeLink'])->name('sessions.links.remove');
     Route::post('sessions/{session}/comments/apply', [CommentsController::class, 'apply'])->name('sessions.comments.apply');
     Route::post('sessions/{session}/comments/{answer}/{number}/resolve', [CommentsController::class, 'resolve'])->whereNumber(['answer', 'number'])->name('sessions.comments.resolve');
     Route::post('sessions/{session}/comments/{answer}/{number}/put-back', [CommentsController::class, 'putBack'])->whereNumber(['answer', 'number'])->name('sessions.comments.put_back');

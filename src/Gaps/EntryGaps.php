@@ -188,7 +188,8 @@ class EntryGaps
         }
 
         $id = (string) $entry->id();
-        $mine = array_filter($sessions, fn (Session $session) => $session->gaps !== [] && ((string) $session->recordId === $id || (string) $session->source === $id));
+        // A gap list, or links Ghostwriter added ("Check 3 links Ghostwriter added").
+        $mine = array_filter($sessions, fn (Session $session) => ! SessionGaps::fromSession($session)->isEmpty() && ((string) $session->recordId === $id || (string) $session->source === $id));
 
         usort($mine, fn (Session $a, Session $b) => strcmp((string) $b->appliedAt, (string) $a->appliedAt));
 
