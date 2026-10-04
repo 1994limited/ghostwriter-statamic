@@ -84,6 +84,7 @@ use NineteenNinetyFour\Ghostwriter\Suggest\FileEntryIndex;
 use NineteenNinetyFour\Ghostwriter\Suggest\StatamicAssetAlt;
 use NineteenNinetyFour\Ghostwriter\Suggest\StatamicEntrySource;
 use NineteenNinetyFour\Ghostwriter\Suggest\StatamicSeoFields;
+use NineteenNinetyFour\Ghostwriter\Testing\FakeScenarios;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Addons\SettingsRepository;
 use Statamic\Events\AddonSettingsSaving;
@@ -318,6 +319,9 @@ class ServiceProvider extends AddonServiceProvider
 
     public function bootAddon(): void
     {
+        // Scripted model replies for the end-to-end tests: off unless set up on a local site.
+        FakeScenarios::register($this->app);
+
         $this->publishes([
             PromptLibrary::directory() => resource_path('ghostwriter/prompts'),
         ], 'ghostwriter-prompts');

@@ -406,4 +406,22 @@ return [
 
     'writer' => SchemaEntryWriter::class,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Scripted replies for end-to-end tests
+    |--------------------------------------------------------------------------
+    |
+    | The folder of scenario files the end-to-end tests play instead of
+    | calling a model. Only on a local or testing environment, never in
+    | production, and only for a request that names a scenario in the
+    | X-Ghostwriter-Fake header (or the ghostwriter_fake cookie), or a job
+    | queued by one. Leave it null (the default) everywhere else. See
+    | docs/testing.md.
+    |
+    */
+
+    'testing' => [
+        'fake_scenarios' => env('GHOSTWRITER_FAKE_SCENARIOS'),
+    ],
+
 ];
