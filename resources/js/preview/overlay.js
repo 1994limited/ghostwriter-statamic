@@ -252,8 +252,12 @@ export function debounce(callback, wait) {
  * The overlay then also has setComments({on, pins, changed}), flash(keys),
  * setPicked(key), focusPin(number), focusTarget(key?), scrollToKey(key),
  * pinRect(number) and toViewport(rect).
+ *
+ * `reveal(top)` brings a point of the frame's document (its y, in the
+ * frame's px) to the top of the view: the frame is as tall as its page and
+ * the pane around it scrolls (framefit.js). Without it, the frame scrolls.
  */
-export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, onChange = () => {}, onGap = null, onPick = null, onPin = null, onEscape = null, commentLabels = {} } = {}) {
+export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, onChange = () => {}, onGap = null, onPick = null, onPin = null, onEscape = null, commentLabels = {}, reveal = null } = {}) {
     if (!canRead(frame)) return null;
 
     const doc = frame.contentDocument;
@@ -350,6 +354,9 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
     };
 
     const boxOf = (key) => state.boxes.find((candidate) => candidate.key === key) ?? null;
+
+    // A point of the document to the top of the view.
+    const scrollTo = (top) => (reveal ? reveal(Math.max(0, top)) : win.scrollTo(0, Math.max(0, top)));
 
     // Document coordinates of a viewport rect in the frame.
     const docRect = (rect) => ({ left: rect.left + win.scrollX, top: rect.top + win.scrollY, width: rect.width, height: rect.height });
@@ -727,9 +734,8 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
             state.hovered = key;
             draw();
         },
-        // The block nearest the top of the view, and how far below the top it starts.
-        nearestTop() {
-            const top = win.scrollY;
+        // The block nearest the top of the view (`top`, in the document; the frame's own scroll by default), and how far below the top it starts.
+        nearestTop(top = win.scrollY) {
             let best = null;
 
             for (const entry of state.boxes) {
@@ -743,7 +749,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
         scrollToBlock(anchor) {
             const entry = anchor ? state.boxes.find((candidate) => candidate.key === anchor.key) : null;
 
-            if (entry) win.scrollTo(0, Math.max(0, entry.box.top - anchor.offset));
+            if (entry) scrollTo(entry.box.top - anchor.offset);
         },
         // Comments: the mode, the pins ({number, key, status, state, label, quote}) and the changed blocks.
         setComments({ on = comments.on, pins = comments.pins, changed = comments.changed } = {}) {
@@ -786,7 +792,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
 
             if (button) {
                 const entry = boxOf(comments.pins.find((pin) => pin.number === number)?.key);
-                if (entry) win.scrollTo(0, Math.max(0, entry.box.top - 60));
+                if (entry) scrollTo(entry.box.top - 60);
                 button.focus({ preventScroll: true });
             }
 
@@ -800,7 +806,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
         scrollToKey(key) {
             const entry = boxOf(key);
 
-            if (entry) win.scrollTo(0, Math.max(0, entry.box.top - 60));
+            if (entry) scrollTo(entry.box.top - 60);
         },
         pinRect(number) {
             return pinButtons.get(String(number)) ? docRect(pinButtons.get(String(number)).getBoundingClientRect()) : null;
