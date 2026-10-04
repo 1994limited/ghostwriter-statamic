@@ -59,6 +59,8 @@ export default {
             partial: false,
             paneWidth: 0,
             viewHeight: window.innerHeight || 900,
+            // The height of the draft's scrolling pane, when there is one.
+            scrollerHeight: 0,
             renderedKey: null,
             frameId: 0,
         };
@@ -108,8 +110,11 @@ export default {
             };
         },
 
-        // As tall as the window allows, so the page reads like a page.
+        // As tall as the draft's pane (less the bar), so scrolled to, the
+        // page fills it; failing that, as tall as the window allows.
         frameHeight() {
+            if (this.scrollerHeight > 0) return Math.max(320, Math.min(900, this.scrollerHeight - 64));
+
             return Math.max(420, Math.min(900, this.viewHeight - 280));
         },
 
@@ -141,6 +146,8 @@ export default {
         this.measurePane();
         this.resizer = new ResizeObserver(() => this.measurePane());
         this.resizer.observe(this.$refs.pane);
+        this.scroller = this.$el.closest?.('[data-gw-scroller]');
+        if (this.scroller) this.resizer.observe(this.scroller);
         this.schedule(true);
     },
 
@@ -155,6 +162,7 @@ export default {
         measurePane() {
             this.paneWidth = Math.floor(this.$refs.pane?.clientWidth ?? 0);
             this.viewHeight = window.innerHeight || this.viewHeight;
+            this.scrollerHeight = this.scroller?.clientHeight ?? 0;
         },
 
         // Now (first render, or back on the tab) or after the edits settle.

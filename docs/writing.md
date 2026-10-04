@@ -76,6 +76,8 @@ If a turn fails, see ["That didn't work"](troubleshooting.md#that-didnt-work).
 
 The draft sits on the right, under three tabs: **Preview**, **Blocks** and **Text**. Ghostwriter remembers your choice in this browser.
 
+In a narrow window (a tablet or a phone), the conversation and the draft take turns: **Conversation** and **Draft** at the top switch between them. A dot on Draft means the draft has changed since you looked; a dot on Conversation means Ghostwriter is working, or (amber) waiting for your answer. The box for your message stays at the bottom of the conversation.
+
 - **Preview** shows the draft as a page of your site, rendered with the site's own templates. It is the first tab once there is a draft, for new entries and for [edits](editing.md). See [The Preview tab](#the-preview-tab).
 - **Blocks** lays the draft out the way the entry is built: its fields, and its page-builder blocks in order. **Text** shows just the words, read straight through.
 - **Click any writing (or Tab to it) to change it.** It's saved when you leave it; **Esc** puts back what was there. **Enter** finishes a one-line field; in longer text it starts a new line. Rich text stays rich: bold, links and lists are kept.

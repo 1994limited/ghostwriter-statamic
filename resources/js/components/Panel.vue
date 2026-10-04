@@ -22,6 +22,9 @@ import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
 import { useLabel } from '../preview/layouts.js';
 
+// The panel's content width below which it is one column (measure()).
+const NARROW = 900;
+
 export default {
     components: { Alert, BriefCard, Button, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
 
@@ -93,6 +96,12 @@ export default {
             gapBusy: false,
             // A gap resolved in the Preview: focus goes into the page once it has rendered again.
             refocusPreview: false,
+            // In a narrow panel the conversation and the draft are one column,
+            // one at a time, with a switch between them at the top.
+            narrow: false,
+            pane: 'conversation',
+            // The draft changed while the conversation was showing (narrow only).
+            draftFresh: false,
             timer: null,
         };
     },
@@ -197,6 +206,10 @@ export default {
     },
 
     async mounted() {
+        this.measure();
+        this.sizer = new ResizeObserver(() => this.measure());
+        this.sizer.observe(this.$el);
+
         await this.load();
 
         if (this.resume) {
@@ -239,11 +252,42 @@ export default {
     beforeUnmount() {
         clearTimeout(this.timer);
         clearInterval(this.ticker);
+        this.sizer?.disconnect();
     },
 
     methods: {
         url(path) {
             return `${this.baseUrl}/${path}`;
+        },
+
+        // Two columns need about 900 px of panel (the conversation at 360,
+        // the draft at 540); below that, one column with a switch. The
+        // panel's own width, not the window's: it is a slide-over.
+        measure() {
+            const style = getComputedStyle(this.$el);
+            const width = this.$el.clientWidth - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0);
+
+            this.narrow = width > 0 && width < NARROW;
+        },
+
+        // Conversation or Draft, in a narrow panel.
+        showPane(pane, focus = false) {
+            this.pane = pane;
+
+            if (pane === 'draft') this.draftFresh = false;
+
+            if (focus) this.$nextTick(() => document.getElementById(`gw-pane-tab-${pane}`)?.focus());
+        },
+
+        paneKey(event) {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+
+            event.preventDefault();
+
+            const panes = ['conversation', 'draft'];
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : (panes.indexOf(this.pane) + 1) % 2;
+
+            this.showPane(panes[next], true);
         },
 
         fail(error) {
@@ -309,6 +353,7 @@ export default {
                 editing: false,
             };
 
+            this.pane = 'conversation';
             this.$nextTick(() => this.focusComposer());
         },
 
@@ -356,6 +401,8 @@ export default {
 
             if (data.id !== this.session?.id) {
                 this.gap = null;
+                this.pane = data.draft ? 'draft' : 'conversation';
+                this.draftFresh = false;
                 this.$emit('session', data.id);
                 this.sessionView = this.failedBefore(data.id) ? 'blocks' : null;
                 this.previewLoaded = false;
@@ -367,12 +414,20 @@ export default {
                 this.announce(this.__(':count layouts to choose from, above the draft.', { count: data.layouts.plans.length }));
             }
 
+            const opened = data.id !== this.session?.id;
+
             this.session = data;
 
             if (changed) {
                 this.raw = data.draft ?? '';
                 this.editing = false;
+
+                // In a narrow panel, a new draft while the conversation shows: marked on Draft.
+                if (!opened && this.narrow && this.pane === 'conversation' && data.draft) this.draftFresh = true;
             }
+
+            // Questions waiting, or the brief to check: the conversation.
+            if ((data.waiting_on_you === true && data.status !== 'working') || filled) this.pane = 'conversation';
 
             const drawing = (data.images ?? []).some((image) => image.status === 'working');
 
@@ -744,7 +799,7 @@ export default {
 </script>
 
 <template>
-    <div class="h-full overflow-y-auto sm:p-6">
+    <div class="gw-writer h-full overflow-y-auto sm:p-6" :class="{ 'is-narrow': narrow, 'is-writing': step === 'write' }">
         <div v-if="step === 'loading'" class="py-24 text-center text-gray-500">{{ __('Loading…') }}</div>
 
         <template v-else>
@@ -854,9 +909,43 @@ export default {
             </div>
 
             <!-- The conversation and the draft -->
-            <!-- Side by side from lg; stacked below it, each as tall as it needs (at least most of the screen), never overlapping. -->
-            <div v-else class="grid gap-6 max-lg:grid-cols-1 lg:h-full lg:grid-cols-5">
-                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 max-lg:min-h-[80vh]! lg:col-span-2 dark:border-gray-700!">
+            <!--
+                The conversation and the draft: side by side in a wide panel;
+                in a narrow one (measure()), one column, one at a time, with
+                Conversation | Draft at the top. Flex and grid only, so
+                nothing can sit over anything else at any width.
+            -->
+            <div v-else class="gw-writer__body">
+                <div v-if="narrow" class="gw-writer__switch" role="tablist" :aria-label="__('Writing panel')">
+                    <button
+                        v-for="name in ['conversation', 'draft']"
+                        :id="`gw-pane-tab-${name}`"
+                        :key="name"
+                        type="button"
+                        role="tab"
+                        class="gw-writer__switch-tab"
+                        :aria-selected="pane === name ? 'true' : 'false'"
+                        :aria-controls="`gw-pane-${name}`"
+                        :tabindex="pane === name ? 0 : -1"
+                        @click="showPane(name)"
+                        @keydown="paneKey"
+                    >
+                        {{ name === 'conversation' ? __('Conversation') : __('Draft') }}
+                        <span v-if="name === 'conversation' && (asking || working)" class="gw-writer__dot" :class="asking ? 'is-asking' : ''" aria-hidden="true"></span>
+                        <span v-if="name === 'conversation' && asking" class="sr-only">{{ __('(waiting for your answer)') }}</span>
+                        <span v-if="name === 'draft' && draftFresh" class="gw-writer__dot" aria-hidden="true"></span>
+                        <span v-if="name === 'draft' && draftFresh" class="sr-only">{{ __('(updated)') }}</span>
+                    </button>
+                </div>
+
+                <div class="gw-writer__grid">
+                <div
+                    id="gw-pane-conversation"
+                    class="gw-writer__pane flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 dark:border-gray-700!"
+                    :class="{ 'is-away': narrow && pane !== 'conversation' }"
+                    :role="narrow ? 'tabpanel' : null"
+                    :aria-labelledby="narrow ? 'gw-pane-tab-conversation' : null"
+                >
                     <div class="sr-only" aria-live="polite" aria-atomic="true">{{ announcement }}</div>
                     <div ref="chat" class="flex-1 space-y-3 overflow-y-auto p-4">
                         <!-- A piece from before the brief card: its brief, as text. -->
@@ -953,7 +1042,13 @@ export default {
                     </div>
                 </div>
 
-                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 max-lg:min-h-[80vh]! lg:col-span-3 dark:border-gray-700!">
+                <div
+                    id="gw-pane-draft"
+                    class="gw-writer__pane flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 dark:border-gray-700!"
+                    :class="{ 'is-away': narrow && pane !== 'draft' }"
+                    :role="narrow ? 'tabpanel' : null"
+                    :aria-labelledby="narrow ? 'gw-pane-tab-draft' : null"
+                >
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700!">
                         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-gray-500">
                             <span>{{ session.draft ? __n(':count word|:count words', session.words) : __('Draft') }}</span>
@@ -998,7 +1093,7 @@ export default {
                         </div>
                     </div>
 
-                    <div ref="draftPane" class="relative flex-1 overflow-y-auto p-4" tabindex="-1">
+                    <div ref="draftPane" class="relative min-h-0 flex-1 overflow-y-auto p-4" tabindex="-1" data-gw-scroller>
                         <div v-if="!session.draft" class="py-24 text-center text-gray-500">
                             <template v-if="working">
                                 <svg class="mx-auto mb-3 size-6 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1075,6 +1170,7 @@ export default {
                             />
                         </template>
                     </div>
+                </div>
                 </div>
             </div>
         </template>
