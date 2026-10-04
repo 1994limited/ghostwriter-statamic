@@ -9,7 +9,7 @@ On an existing entry, open the menu beside **Edit with Ghostwriter** and choose 
 - **Two calls to your AI provider** for a page: one reviews the page, a second double-checks every suggestion before you see it. A long page is read in parts, and the confirm says how many calls that makes.
 - How many things the free checks found already, to be checked in context.
 
-The review runs in the background (on the queue). While it runs, the pill beside Save reads **Reviewing…** and the guide shows its progress. You can keep working on the page.
+The review runs in the background (on the queue). While it runs, the menu beside **Edit with Ghostwriter** shows **Review suggestions · Reviewing…** and the guide shows its progress. You can keep working on the page.
 
 ### What it suggests
 
@@ -27,14 +27,14 @@ Each step shows the change **in its sentence**, the old words struck through and
 
 ### Stepping through
 
-The guide is Finish this page's: the pill by Save, the flying mark, the dock and the highlights, in indigo so a suggestion never looks like something unfinished (amber). Fields with suggestions are outlined and tagged ("2 · Voice", "3–4"); inside Bard the words have a dotted underline, the current ones filled.
+The guide is Finish this page's: the flying mark, the dock and the highlights, in indigo so a suggestion never looks like something unfinished (amber). Fields with suggestions are outlined and tagged ("2 · Voice", "3–4"); inside Bard the words have a dotted underline, the current ones filled.
 
 - **Filters**: All, then one per category, with how many are open.
 - **Accept all wording fixes** accepts every open Voice, Clarity and SEO suggestion in the filter (never facts, links, alt text or dates). **Undo all** puts them back.
 - **Undo** after any decision puts the words back.
 - Everything goes **into the form**. Nothing is saved until you save (alt text aside). When you save, suggestions whose words are in the page are marked done.
 - Decisions are shared with everyone who can edit the page (as conversations are) and kept as the page's history. Suggestions nobody acted on expire after 14 days; the decisions stay.
-- A review opened later shows its pill with the guide minimised. If you edit text a suggestion was about, it's marked "This text has changed since the review."
+- A review opened later adds its count to the menu beside **Edit with Ghostwriter** (one number with what is left to finish; plain when there are only suggestions), with the guide minimised. **Review suggestions** in that menu opens it. If you edit text a suggestion was about, it's marked "This text has changed since the review."
 - **Keyboard**: Alt+Shift+N and P step through, Alt+Shift+G opens or minimises, Esc minimises from inside the guide, Enter puts in an answer or your edit and Esc puts it back. Changes are announced to screen readers.
 - Below 640 px the guide is a sheet at the bottom of the screen.
 

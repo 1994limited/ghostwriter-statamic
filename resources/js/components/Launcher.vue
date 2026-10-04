@@ -3,14 +3,23 @@
     panel in a slide-over; when a draft is applied, its values are written into
     the form underneath, which the person then reviews and saves as usual. Any
     notes on the draft are listed in a notice above the form until it is closed.
+
+    The menu beside the button carries one count: what is left to finish
+    plus the suggestions to review, amber while anything is left to finish
+    (that stops publishing), plain with only suggestions, none at 0. It lists
+    Finish this page and Review suggestions with their counts, each only
+    while it has one, then Ghostwriter's own items. The counts come from the
+    guides (Finish.vue and Suggest.vue, the same live lists as their docks)
+    as `ghostwriter.counts` events; the rows open them with
+    `ghostwriter.finish.show` and `ghostwriter.suggest.show`.
 -->
 <script>
 import ghost from '../icon.js';
-import { Alert, Button, ButtonGroup, Dropdown, DropdownItem, DropdownLabel, DropdownMenu, Stack } from '@statamic/cms/ui';
+import { Alert, Badge, Button, ButtonGroup, Dropdown, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator, Stack } from '@statamic/cms/ui';
 import Panel from './Panel.vue';
 
 export default {
-    components: { Alert, Button, ButtonGroup, Dropdown, DropdownItem, DropdownLabel, DropdownMenu, Panel, Stack },
+    components: { Alert, Badge, Button, ButtonGroup, Dropdown, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator, Panel, Stack },
 
     props: {
         collection: { type: String, required: true },
@@ -39,7 +48,14 @@ export default {
             // above the form until closed.
             notice: null,
             noticeSlot: null,
+            // The menu's counts, from the guides: { finish, suggestions, reviewing }.
+            counts: { finish: 0, suggestions: 0, reviewing: false },
         };
+    },
+
+    created() {
+        this.onCounts = (counts) => (this.counts = { ...this.counts, ...counts });
+        Statamic.$events.$on('ghostwriter.counts', this.onCounts);
     },
 
     mounted() {
@@ -68,6 +84,7 @@ export default {
     },
 
     beforeUnmount() {
+        Statamic.$events.$off('ghostwriter.counts', this.onCounts);
         this.slot?.remove();
         this.noticeSlot?.remove();
     },
@@ -77,6 +94,27 @@ export default {
 
         label() {
             return this.entry ? this.__('Edit with Ghostwriter') : this.__('Write with Ghostwriter');
+        },
+
+        total() {
+            return this.counts.finish + this.counts.suggestions;
+        },
+
+        // The count, read out: "10 items: 3 to finish, 7 suggestions".
+        totalLabel() {
+            const { finish, suggestions } = this.counts;
+            const toFinish = this.__(':count to finish', { count: finish });
+            const suggested = suggestions === 1 ? this.__('1 suggestion') : this.__(':count suggestions', { count: suggestions });
+
+            if (finish && suggestions) return this.__(':count items: :finish, :suggestions', { count: finish + suggestions, finish: toFinish, suggestions: suggested });
+
+            return finish ? toFinish : suggested;
+        },
+
+        menuLabel() {
+            const name = this.entry ? this.__('More ways to edit with Ghostwriter') : this.__('More from Ghostwriter');
+
+            return this.total ? `${name} (${this.totalLabel})` : name;
         },
     },
 
@@ -90,6 +128,11 @@ export default {
         // Suggest edits, from the menu: its confirm says what it costs first.
         suggest() {
             Statamic.$events.$emit('ghostwriter.suggest.open');
+        },
+
+        // "Finish this page" or "Review suggestions": that guide, open.
+        show(guide) {
+            Statamic.$events.$emit(`ghostwriter.${guide}.show`);
         },
 
         // On an existing entry, the conversation starts from the entry as
@@ -195,20 +238,34 @@ export default {
 <template>
     <div>
         <Teleport v-if="slot" :to="slot">
-            <!-- On a phone the header has no room for the label beside Save, so only the ghost shows. -->
-            <ButtonGroup v-if="entry">
-                <Button :icon="ghost" :text="label" :title="label" :loading="starting" class="max-sm:gap-0! max-sm:px-3! max-sm:[&>div]:sr-only!" @click="launch" />
+            <!-- On a phone or tablet the header has no room for the label beside Save, so only the ghost shows. -->
+            <ButtonGroup>
+                <Button :icon="ghost" :text="label" :title="label" :loading="starting" class="max-lg:gap-0! max-lg:px-3! max-lg:[&>div]:sr-only!" @click="launch" />
                 <Dropdown align="end">
                     <template #trigger>
-                        <Button icon="chevron-down" :aria-label="__('More ways to edit with Ghostwriter')" data-ghostwriter-menu />
+                        <!-- One button whatever the count, so the menu stays anchored to it. -->
+                        <Button icon-append="chevron-down" :aria-label="menuLabel" :title="total ? totalLabel : null" class="min-w-9 gap-1.5! px-2.5!" data-ghostwriter-menu>
+                            <Badge v-if="total" :text="total" :color="counts.finish ? 'amber' : 'default'" size="sm" pill role="img" :aria-label="totalLabel" class="tabular-nums" data-ghostwriter-menu-count />
+                        </Button>
                     </template>
                     <DropdownMenu>
-                        <DropdownItem :text="__('Suggest edits')" icon="checkmark" data-ghostwriter-suggest @click="suggest" />
-                        <DropdownLabel :text="__('Reads the page against your voice guide and checks each suggestion twice. Uses Ghostwriter.')" class="max-w-64 whitespace-normal!" />
+                        <template v-if="counts.finish || counts.suggestions || counts.reviewing">
+                            <DropdownItem v-if="counts.finish" icon="clipboard-check" data-ghostwriter-menu-finish @click="show('finish')">
+                                <span class="flex items-center justify-between gap-4">{{ __('Finish this page') }}<Badge :text="counts.finish" color="amber" size="sm" pill aria-hidden="true" class="tabular-nums" /></span>
+                            </DropdownItem>
+                            <DropdownItem v-if="counts.suggestions || counts.reviewing" icon="ai-chat-spark" data-ghostwriter-menu-review @click="show('suggest')">
+                                <span class="flex items-center justify-between gap-4">{{ __('Review suggestions') }}<Badge v-if="counts.suggestions" :text="counts.suggestions" size="sm" pill aria-hidden="true" class="tabular-nums" /><span v-else class="text-xs text-gray-500">{{ __('Reviewing…') }}</span></span>
+                            </DropdownItem>
+                            <DropdownSeparator />
+                        </template>
+                        <DropdownItem :text="label" :icon="ghost" @click="launch" />
+                        <template v-if="entry">
+                            <DropdownItem :text="__('Suggest edits')" icon="checkmark" data-ghostwriter-suggest @click="suggest" />
+                            <DropdownLabel :text="__('Reads the page against your voice guide and checks each suggestion twice. Uses Ghostwriter.')" class="max-w-64 whitespace-normal!" />
+                        </template>
                     </DropdownMenu>
                 </Dropdown>
             </ButtonGroup>
-            <Button v-else :icon="ghost" :text="label" :title="label" :loading="starting" class="max-sm:gap-0! max-sm:px-3! max-sm:[&>div]:sr-only!" @click="launch" />
         </Teleport>
 
         <div v-else class="fixed end-6 bottom-6 z-10">

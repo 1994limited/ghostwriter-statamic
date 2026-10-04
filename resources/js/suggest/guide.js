@@ -1,5 +1,5 @@
-// Suggest edits in the Finish this page guide: the same shell (the pill by
-// Save, the flying mark, the dock, the highlights and the keyboard), with
+// Suggest edits in the Finish this page guide: the same shell (the count on
+// the header menu, the flying mark, the dock, the highlights and the keyboard), with
 // a review's suggestions as its steps. Each step shows the category, the
 // reason and where it comes from, a before/after, and the actions for its
 // kind: Accept, Edit, Another version, Dismiss; a fact's answer box with
@@ -25,8 +25,9 @@ export class SuggestGuide extends FinishGuide {
      * @param {function} options.t
      * @param {function} options.onStart  Asks for a review (the confirm, then start).
      * @param {string} options.key
+     * @param {function} options.onCount  { count, running, label } on each paint, for the header menu.
      */
-    constructor({ adapter, api, t, onStart = () => {}, key = 'page' }) {
+    constructor({ adapter, api, t, onStart = () => {}, key = 'page', onCount = () => {} }) {
         const sadapter = adapter;
 
         super({
@@ -39,6 +40,7 @@ export class SuggestGuide extends FinishGuide {
             t,
             state: 'minimised',
             key: `suggest.${key}`,
+            onCount,
         });
 
         this.sadapter = sadapter;
@@ -53,13 +55,11 @@ export class SuggestGuide extends FinishGuide {
         this.status = 'idle';
     }
 
-    mount(pillHost) {
-        super.mount(pillHost);
+    mount() {
+        super.mount();
 
         this.root.classList.add('is-suggest');
         this.root.setAttribute('data-gw-suggest-guide', '');
-        this.pill.classList.add('gw-s-pill');
-        this.pill.onclick = () => this.openAt(this.steps.length ? this.nextOpen(-1) : 0);
         this.dock.classList.add('gw-s-dock');
         this.panel.setAttribute('aria-label', this.t('Suggested edits'));
         this.panel.querySelector('.gw-f-head strong').textContent = this.t('Suggested edits');
@@ -80,10 +80,15 @@ export class SuggestGuide extends FinishGuide {
 
     // -- The review, from the server ------------------------------------------
 
+    // From the header menu ("Review suggestions"): the first open suggestion.
+    openFromMenu() {
+        this.openAt(this.steps.length ? this.nextOpen(-1) : 0);
+    }
+
     /**
      * A new answer from the server: the free findings, or a review's
      * suggestions with their states. `open` brings the guide out (it was
-     * just asked for); a stored review shows only its pill.
+     * just asked for); a stored review shows only its count.
      */
     receive(data, { open = false, show = false } = {}) {
         const before = this.steps[this.index]?.id;
@@ -232,15 +237,10 @@ export class SuggestGuide extends FinishGuide {
         const numbers = counts(this.steps);
         const visible = this.shown && (this.steps.length > 0 || this.status !== 'idle');
         const label = this.pillLabel(numbers);
-        const done = !numbers.open && this.status !== 'running';
 
-        this.pill.hidden = !visible;
-        this.pill.classList.toggle('is-ready', done && this.steps.length > 0);
-        this.pill.classList.toggle('is-running', this.status === 'running');
-        this.pillText.textContent = label;
-        this.pillCount.textContent = numbers.open ? String(numbers.open) : '✓';
-        this.pill.setAttribute('aria-label', `${this.t('Suggested edits')}: ${label}`);
-        this.pill.title = this.t('Alt+Shift+G opens or minimises the guide');
+        // The header menu's count: the open suggestions, once the guide is out.
+        this.visible = visible;
+        this.onCount({ count: visible ? numbers.open : 0, running: visible && this.status === 'running', label });
 
         this.dock.hidden = !visible || !this.minimised;
         this.dock.setAttribute('aria-label', `${this.t('Suggested edits')}: ${label}`);

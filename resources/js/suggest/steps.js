@@ -78,7 +78,7 @@ export function filters(steps, chosen = 'all') {
     return list;
 }
 
-/** The numbers the pill, the dock and the end state show. */
+/** The numbers the header menu, the dock and the end state show. */
 export function counts(steps) {
     return {
         open: steps.filter(isOpen).length,

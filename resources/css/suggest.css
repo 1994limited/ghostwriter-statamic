@@ -35,13 +35,6 @@
     --gw-s-chip: #34304a;
 }
 
-/* -- The pill, indigo ---------------------------------------------------- */
-
-.gw-f-pill.gw-s-pill { border-color: var(--gw-s-indigo-line); background: var(--gw-s-indigo-fill); color: var(--gw-s-indigo-ink); margin-inline-end: 8px; }
-.gw-f-pill.gw-s-pill.is-ready { border-color: var(--gw-f-green-line); background: var(--gw-f-green-fill); color: var(--gw-f-green); }
-.gw-f-pill.gw-s-pill.is-running .gw-f-pill-mark { animation: gw-s-breathe 1.6s ease-in-out infinite; }
-@keyframes gw-s-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-
 /* -- Fields: indigo when open, 2px when current, green when done ---------- */
 
 [data-gw-suggest] {
@@ -156,7 +149,6 @@
 .gw-f.is-suggest .gw-f-foot .gw-s-all { color: var(--gw-s-indigo-ink); font-weight: 500; }
 
 @media (prefers-reduced-motion: reduce) {
-    .gw-f-pill.gw-s-pill.is-running .gw-f-pill-mark,
     .gw-s-spinner { animation: none; }
     [data-gw-suggest] { transition: none; }
 }

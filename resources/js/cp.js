@@ -64,7 +64,7 @@ Statamic.booting(() => {
             props: { collection: match[1], entry, form: container, baseUrl: config.url },
         });
 
-        // Finish this page: the count by Save, the highlights and the guide.
+        // Finish this page: the highlights and the guide; its count is on the launcher's menu.
         container.pushComponent('ghostwriter-finish', {
             props: { collection: match[1], entry, blueprint, form: container, baseUrl: config.url },
         });

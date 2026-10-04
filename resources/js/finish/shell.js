@@ -1,4 +1,4 @@
-// The Finish this page guide: the count by Save, the highlighted fields and
+// The Finish this page guide: the count on the header menu, the highlighted fields and
 // their numbered tags, the floating guide that walks through each gap, the
 // flying Ghostwriter mark, and the dock it minimises into. It has no
 // framework and knows no CMS: everything CMS-specific goes through the
@@ -49,11 +49,15 @@ export class FinishGuide {
      * @param {string} options.state  'open' or 'minimised', as the person last left it.
      * @param {function} options.onState  Called with the new state on minimise and restore.
      * @param {string} options.key  What skipped gaps are remembered under, for this page view.
+     * @param {function} options.onCount  Called with { count, label } on each paint: the header menu's count (0 while the guide isn't out).
      */
-    constructor({ adapter, t, state = 'minimised', onState = () => {}, key = 'page' }) {
+    constructor({ adapter, t, state = 'minimised', onState = () => {}, key = 'page', onCount = () => {} }) {
         this.adapter = adapter;
         this.t = t;
         this.onState = onState;
+        this.onCount = onCount;
+        // Whether the guide is out (its dock or panel): until then nothing is highlighted or counted.
+        this.visible = false;
         this.key = `ghostwriter.finish.${key}`;
         this.minimised = state !== 'open';
         this.steps = [];
@@ -72,18 +76,9 @@ export class FinishGuide {
         this.dismissed = new Set(this.load('dismissed'));
     }
 
-    // Puts the pill into `pillHost` (the header beside Save; floating when
-    // there is none) and the guide, dock, mark and live region into the page.
-    mount(pillHost) {
-        this.pill = el('button', { type: 'button', class: 'gw-f-pill', hidden: true, onclick: () => this.openAt(this.firstOpen()) }, [
-            el('span', { class: 'gw-f-pill-mark', html: MARK }),
-            (this.pillCount = el('span', { class: 'gw-f-pill-n', 'aria-hidden': 'true' })),
-            (this.pillText = el('span', { class: 'gw-f-pill-text' })),
-        ]);
-
-        (pillHost ?? document.body).append(this.pill);
-        if (!pillHost) this.pill.classList.add('is-floating');
-
+    // Puts the guide, dock, mark and live region into the page. Its count
+    // is on the header menu (onCount).
+    mount() {
         this.hintId = `gw-f-hint-${Math.random().toString(36).slice(2, 8)}`;
         this.root = el('div', { class: 'gw-f', 'data-gw-finish': true }, [
             (this.live = el('div', { class: 'gw-f-sr', 'aria-live': 'polite', 'aria-atomic': 'true' })),
@@ -144,7 +139,7 @@ export class FinishGuide {
         // The CMS re-renders fields as people type and sets move: put the
         // highlights back and follow the field, once a frame at most.
         this.observer = new MutationObserver((records) => {
-            if (records.some((record) => !this.root.contains(record.target) && !(record.target instanceof Element && record.target.closest('.gw-f-tag, .gw-f-pill')))) this.soon();
+            if (records.some((record) => !this.root.contains(record.target) && !(record.target instanceof Element && record.target.closest('.gw-f-tag')))) this.soon();
         });
         this.observer.observe(document.querySelector('[data-ghostwriter-form]') ?? document.body, { childList: true, subtree: true });
         this.resizes = new ResizeObserver(() => this.soon());
@@ -168,7 +163,11 @@ export class FinishGuide {
         this.phoneQuery?.removeEventListener('change', this.onPhone);
         this.unhighlight();
         this.root?.remove();
-        this.pill?.remove();
+    }
+
+    // From the header menu ("Finish this page"): the guide, on the first step still open.
+    openFromMenu() {
+        this.openAt(this.firstOpen());
     }
 
     // A new check. The steps are the live gaps and nothing else (state.js):
@@ -366,20 +365,16 @@ export class FinishGuide {
     // -- Drawing -----------------------------------------------------------
 
     paint({ focus = false, fly = false } = {}) {
-        // One live list for every number shown: the pill, the dock, "n of
+        // One live list for every number shown: the menu, the dock, "n of
         // total" and the bar all come from the same steps.
         const numbers = counts(this.steps, this.index);
         const count = numbers.count;
         const visible = this.shown && (this.steps.length > 0 || count > 0);
         const label = count ? (count === 1 ? this.t('1 thing to finish') : this.t(':count things to finish', { count })) : this.t('Ready to publish');
 
-        // The pill by Save: nothing until there was something to finish.
-        this.pill.hidden = !visible;
-        this.pill.classList.toggle('is-ready', !count);
-        this.pillText.textContent = label;
-        this.pillCount.textContent = count ? String(count) : '✓';
-        this.pill.setAttribute('aria-label', `${this.t('Finish this page')}: ${label}`);
-        this.pill.title = this.t('Alt+Shift+G opens or minimises the guide');
+        // The header menu's count: nothing until there was something to finish.
+        this.visible = visible;
+        this.onCount({ count: visible ? count : 0, label });
 
         // The dock, while minimised.
         this.dock.hidden = !visible || !this.minimised;
@@ -830,7 +825,7 @@ export class FinishGuide {
             // A CMS stack or dialog (a selector, License & replace) is on top:
             // the guide steps out of its way until it closes.
             this.root.classList.toggle('is-covered', this.covered());
-            if (!this.pill.hidden) this.highlight();
+            if (this.visible) this.highlight();
             this.follow();
         });
     }
@@ -866,12 +861,12 @@ export class FinishGuide {
     }
 
     shortcut(event) {
-        if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey || isTyping(event.target) || this.pill.hidden) return;
+        if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey || isTyping(event.target) || !this.visible) return;
 
         // Another guide on the page was opened last: the keys are its.
         const active = FinishGuide.active;
 
-        if (active && active !== this && FinishGuide.guides.has(active) && !active.pill.hidden) return;
+        if (active && active !== this && FinishGuide.guides.has(active) && active.visible) return;
 
         const act = { KeyN: () => (this.minimised ? this.restore() : this.next()), KeyP: () => (this.minimised ? this.restore() : this.back()), KeyG: () => (this.minimised ? this.restore() : this.minimise()) }[event.code];
 
