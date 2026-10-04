@@ -1,6 +1,6 @@
 # Ghostwriter documentation
 
-Ghostwriter learns how your site writes and what its pictures look like, then drafts and edits entries in that voice from a short brief and a conversation, beside the entry form in Statamic's Control Panel. It finds or makes images to match, and keeps a plan of what the site is missing.
+Ghostwriter learns how your site writes and how its pages are built, then drafts entries in that voice and fits them into your page layouts, from a short brief and a conversation, beside the entry form in Statamic's Control Panel. It links new pages to the rest of the site, finds or makes images to match, points out what's left to finish, suggests edits to older pages, and keeps a plan of what the site is missing.
 
 ## Setting up
 
@@ -12,7 +12,7 @@ Ghostwriter learns how your site writes and what its pictures look like, then dr
 
 ## Using Ghostwriter
 
-6. [Writing a new entry](writing.md): the brief, the conversation, the draft and **Use this draft**.
+6. [Writing a new entry](writing.md): the brief, the conversation, the draft, its layouts and preview, comments, links to your other pages and **Use this draft**.
 7. [Editing an existing entry](editing.md): changing an entry in conversation.
 8. [The voice guide and image style guide](guides.md): how your site sounds, and what its pictures look like.
 9. [Kinds of content](kinds.md): teaching Ghostwriter the things you write often.
@@ -28,6 +28,7 @@ Ghostwriter learns how your site writes and what its pictures look like, then dr
 16. [How Ghostwriter reads your fields](fields.md): fieldtypes, page builders and house style.
 17. [Privacy and data](privacy.md): what is sent where, and what is kept.
 18. [Troubleshooting](troubleshooting.md): common problems and fixes.
+19. [Scripted replies for end-to-end tests](testing.md): for Ghostwriter's own browser tests, on local sites only.
 
 ## Requirements
 
@@ -35,5 +36,5 @@ Ghostwriter learns how your site writes and what its pictures look like, then dr
 - Statamic 6.30 or later. Roles and permissions need Statamic Pro.
 - An API key for Anthropic, OpenAI or Google Gemini.
 - A queue worker, or PHP-FPM on the `sync` queue.
-- Laravel's scheduler, for the hourly stock photos cleanup and Content to revisit's daily pass.
+- Laravel's scheduler, for the hourly stock photos cleanup and the daily pass that keeps Content to revisit and the list of pages to link to current.
 - Optional: a Shutterstock API plan for paid stock photos, billed by Shutterstock to your account.
