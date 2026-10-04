@@ -125,6 +125,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('sessions/{session}/links', [GapsController::class, 'links'])->name('sessions.links');
     Route::post('sessions/{session}/apply', [SessionController::class, 'apply'])->name('sessions.apply');
     Route::post('sessions/{session}/preview', [PreviewController::class, 'store'])->name('sessions.preview');
+    Route::post('sessions/{session}/preview/outline', [PreviewController::class, 'outline'])->name('sessions.preview.outline');
     Route::patch('sessions/{session}/layout', [LayoutsController::class, 'choose'])->name('sessions.layout');
     Route::post('sessions/{session}/layouts/refresh', [LayoutsController::class, 'refresh'])->name('sessions.layouts.refresh');
     Route::patch('sessions/{session}/extras/{item}', [LayoutsController::class, 'editExtra'])->name('sessions.extras.update');

@@ -28,6 +28,8 @@ export default {
         counts: { type: Object, required: true },
         stock: { type: Object, default: () => ({ previews: 0 }) },
         revisit: { type: Object, default: null },
+        // For developers only: templates that print no main heading, or more than one (the SEO layer).
+        template_notes: { type: Array, default: () => [] },
     },
 
     data() {
@@ -192,6 +194,8 @@ export default {
         </Header>
 
         <SetupAlert v-if="!configured" :provider="provider" />
+
+        <Alert v-for="note in template_notes" :key="note.key" variant="warning" :heading="__('Page template')" :text="note.text" class="mb-6" />
 
         <!-- Get started, until it is complete; then a line saying so, until it is hidden -->
         <Panel v-if="!hiddenSetup && !setup.complete" class="mb-6">

@@ -88,6 +88,8 @@ export default {
             // The height of the draft's scrolling pane, when there is one.
             scrollerHeight: 0,
             renderedKey: null,
+            // The render already redone after its outline changed the template profile.
+            refittedKey: null,
             frameId: 0,
             // Each frame's height once fitted to its page, by entry id.
             fitted: {},
@@ -247,6 +249,29 @@ export default {
             }
         },
 
+        // The page's headings, for how the template prints them (the SEO layer's
+        // render profile). When the profile changes, the draft's headings are
+        // fitted again: render once more.
+        async postOutline(headings, key) {
+            if (!Array.isArray(headings)) return;
+
+            try {
+                const { data } = await this.$axios.post(`${this.baseUrl}/sessions/${this.session.id}/preview/outline`, {
+                    blueprint: this.blueprint,
+                    site: window.Statamic?.$config?.get?.('selectedSite') ?? null,
+                    outline: headings.slice(0, 200),
+                });
+
+                if (data?.changed && this.refittedKey !== key && key === this.renderKey) {
+                    this.refittedKey = key;
+                    this.renderedKey = null;
+                    this.render();
+                }
+            } catch {
+                // Only the profile is missed: the next render posts again.
+            }
+        },
+
         async render() {
             const key = this.renderKey;
 
@@ -371,6 +396,7 @@ export default {
             overlay?.setPicked(this.picked);
             this.flashNow();
             this.$emit('rendered', this.current);
+            if (overlay) this.postOutline(overlay.outline, entry.key);
 
             if (old) {
                 this.overlays.get(old.id)?.stop();

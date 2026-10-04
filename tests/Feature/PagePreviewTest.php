@@ -13,6 +13,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Preview\PreviewMarkers;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Field;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Kind;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
+use NineteenNinetyFour\Ghostwriter\Drafts\DraftLayouts;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Images\ContainerAssetSink;
 use NineteenNinetyFour\Ghostwriter\Preview\BardSetMarkers;
@@ -20,6 +21,7 @@ use NineteenNinetyFour\Ghostwriter\Preview\PagePreview;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntry;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntryRepository;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewPolicy;
+use NineteenNinetyFour\Ghostwriter\Storage\FileRenderProfiles;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\EntryRepository;
@@ -324,6 +326,29 @@ final class PagePreviewTest extends TestCase
         $this->assertSame(['14 benches'], $map['b2']['anchors']);
         $this->assertSame((new PreviewMarkers)->mark($data, $schema)->data, $marked->data);
         $this->assertSame((new PreviewMarkers)->mark($data, $schema)->hash, $marked->hash);
+    }
+
+    public function test_the_rendered_outline_is_kept_as_the_collections_render_profile(): void
+    {
+        $this->signInWith(['access ghostwriter', 'view journal entries', 'create journal entries']);
+        $session = $this->sessionWithDraft("title: Rain Gardens\nbody: |-\n  # Rain gardens\n\n  A shallow dip.\n\n  #### Where to put one\n\n  Downhill.");
+        $title = [['level' => 1, 'text' => 'Rain Gardens', 'field' => 'title', 'unit' => 'u1', 'inContent' => false], ['level' => 2, 'text' => 'Where to put one', 'field' => 'body', 'unit' => 'u2', 'inContent' => true]];
+        $none = [['level' => 2, 'text' => 'Where to put one', 'field' => 'body', 'unit' => 'u2', 'inContent' => true]];
+        $url = cp_route('ghostwriter.sessions.preview.outline', $session->id);
+
+        // What the preview and apply build is fitted: the title is the H1, and the field has only H2.
+        $type = app(TypeRepository::class)->find('journal');
+        $this->assertSame("## Rain gardens\n\nA shallow dip.\n\n**Where to put one.** Downhill.", app(DraftLayouts::class)->draft($this->sessions()->find($session->id), $type, Collection::findByHandle('journal')->entryBlueprint('post'))->data['body'] ?? null);
+
+        $this->postJson($url, ['blueprint' => 'post', 'outline' => $title])->assertOk()->assertJson(['changed' => false, 'h1' => 'title', 'renders' => 1]);
+        $this->postJson($url, ['blueprint' => 'post', 'outline' => $none])->assertOk()->assertJson(['changed' => false, 'h1' => 'title']);
+        $this->postJson($url, ['blueprint' => 'post', 'outline' => $none])->assertOk()->assertJson(['changed' => true, 'h1' => 'none', 'renders' => 2]);
+
+        $profile = app(FileRenderProfiles::class)->get('journal.post.default');
+        $this->assertSame('no-h1', $profile?->problem());
+        $this->assertStringContainsString('Pages in Journal print no main heading (H1)', (string) $profile?->note());
+
+        $this->postJson($url, ['blueprint' => 'post', 'outline' => 'nonsense'])->assertUnprocessable();
     }
 
     private function sessionWithDraft(string $draft): Session

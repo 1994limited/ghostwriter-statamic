@@ -16,11 +16,13 @@ use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
+use NineteenNinetyFour\Ghostwriter\Storage\FileRenderProfiles;
 use NineteenNinetyFour\Ghostwriter\Suggest\SuggestEdits;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Entry;
 use Statamic\Facades\Site;
+use Statamic\Facades\User;
 
 /**
  * The dashboard. Opening it never starts a model call: kinds are looked for
@@ -77,6 +79,8 @@ class DashboardController
                 'url' => $collection->createEntryUrl().'?ghostwriter=new',
             ])->values(),
             'sessions' => $summaries->take(30)->values(),
+            // Developers only: a template with no H1, a logo as the H1, or several (render profiles).
+            'template_notes' => User::current()?->isSuper() ? collect(app(FileRenderProfiles::class)->all())->filter(fn ($profile) => $profile->note() !== null)->map(fn ($profile) => ['key' => $profile->key, 'text' => $profile->note()])->values()->all() : [],
             'suggest_all_url' => cp_route('ghostwriter.kinds.suggest_all'),
             'stock' => app(Ledger::class)->overview(),
             'revisit' => $this->revisit(),

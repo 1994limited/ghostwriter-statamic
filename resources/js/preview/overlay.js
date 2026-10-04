@@ -25,7 +25,7 @@
 //   is inside its block's region. With `onGap`, chips are buttons that open
 //   the panel's gap popover; the frame itself never changes the draft.
 
-import { canRead, findMarkers, locate, measure, watch, words } from './locator.js';
+import { canRead, findMarkers, locate, measure, outline as headingOutline, watch, words } from './locator.js';
 import { countByRegion, markGaps, toPlainText } from './markers.js';
 import { findQuote, quoteOf } from './comments.js';
 
@@ -272,6 +272,8 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
     let marks = findMarkers(doc).marks;
     const titleInHead = titleKey !== null && marks.some((mark) => mark.key === titleKey && !doc.body?.contains(mark.element));
     let result = tighten(locate(doc, map, { marks }), marks, byKey);
+    // The page's headings, for the SEO layer's render profile: read before the chips change any text.
+    const headings = headingOutline(doc, map, result);
     // Then the gap markers as chips, inside the regions just found.
     let chips = markGaps(doc, { labels, onActivate: onGap });
 
@@ -738,6 +740,8 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
         },
         title: pageTitle(doc),
         titleInHead,
+        // The page's headings (core's locator outline()), posted after a render.
+        outline: headings,
         missing,
         partial: () => result.partial,
         // The gap chips on the page ({kind, hint, element}), and how many are in each block.

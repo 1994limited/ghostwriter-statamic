@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Blueprints;
 
+use NineteenNinetyFour\Ghostwriter\Core\Schema\HeadingLevels;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use Statamic\Facades\AssetContainer;
 use Statamic\Fields\Blueprint;
@@ -173,6 +174,8 @@ class SchemaReader
 
         if ($type === 'bard') {
             $spec['save_html'] = (bool) $field->get('save_html', false);
+            // The heading levels its toolbar offers (Statamic's default buttons when it sets none): the SEO pass never uses another.
+            $spec['headings'] = self::headingLevels($field);
         }
 
         if ($kind === 'rows' || $kind === 'group') {
@@ -180,6 +183,25 @@ class SchemaReader
         }
 
         return $spec;
+    }
+
+    /**
+     * The heading levels a Bard field's buttons offer: `h1`…`h6` among
+     * them, sorted. Without heading buttons Bard loads no heading node at
+     * all, so none. Statamic's own default buttons when the field sets
+     * none (h2 and h3).
+     *
+     * @return list<int>
+     */
+    public static function headingLevels(Field $field): array
+    {
+        $buttons = $field->get('buttons');
+
+        if (! is_array($buttons)) {
+            $buttons = (array) ($field->fieldtype()->config('buttons') ?? []);
+        }
+
+        return HeadingLevels::normalise(array_values(array_filter($buttons, fn ($button) => is_string($button) && preg_match('/^h[1-6]$/', $button) === 1)));
     }
 
     /**
