@@ -105,7 +105,7 @@ The panel follows the Control Panel's dark mode.
 - **Click a chip (or Tab to it and press Enter) to deal with it here**, in the draft, before you use it. A small box opens at the chip:
   - a fact to add: "Only you know this: adult ticket price", with a box for your answer, **Add it** and **Leave it for later**. Your answer goes into the draft exactly as you type it: no model is asked, and nothing is reworded;
   - a count to check: "Counted from ‘Northumberland, Durham and the Tyne Valley’. 3 areas, is that right?", with **Looks right**, **Change it** and **Remove it**;
-  - a link to choose: the pages its hint suggests ("Link to About"), or **Choose an entry** to find one by its title. A link in the writing points at the page's address; a button's link field gets the entry.
+  - a link to choose: the page Ghostwriter suggested for it first, then the pages its hint suggests ("Link to About"), or **Choose an entry** to find one by its title. A link in the writing points at the page's address; a button's link field gets the entry.
 
   The preview, the layouts, Blocks and Text follow at once, and in a [shared conversation](#sharing-conversations) everyone sees the change. A gap dealt with here is gone from the draft, so Finish this page won't ask about it after **Use this draft**; one you leave for later still shows there. Esc closes the box and puts you back on the chip.
 - **Links on the page do nothing**, so the preview never navigates away. Forms can't be sent, and third-party scripts (analytics, tag managers, chat widgets) don't run.

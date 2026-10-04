@@ -15,6 +15,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Suggest\IndexedParagraph;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\IndexRow;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\IndexScope;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\LinkIndex;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\LinkLookup;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\RowKind;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\Shingles;
 use NineteenNinetyFour\Ghostwriter\Storage\FileRevisitStore;
@@ -40,7 +41,7 @@ use Throwable;
  * the rows related() scores. No model, and nothing read from the Stache
  * when asked.
  */
-class FileEntryIndex implements EntryIndex, LinkIndex
+class FileEntryIndex implements EntryIndex, LinkIndex, LinkLookup
 {
     use JsonFiles;
 
@@ -118,6 +119,18 @@ class FileEntryIndex implements EntryIndex, LinkIndex
         $locale = self::locale($site);
 
         return LinkCandidates::rank($this->candidates($site, $text, $locale), $text, $group, $site, $except, $limit, $linked, $now, $locale);
+    }
+
+    /**
+     * The row a link already in a draft points at (`statamic://entry::abc`,
+     * `entry::abc`, or the page's address), so the writer's links to real
+     * pages are kept (LinkGuard).
+     */
+    public function linkRow(string $href, int|string|null $site = null): ?IndexRow
+    {
+        $site ??= Site::default()->handle();
+
+        return LinkCandidates::rowFor($this->rows($site), $href, $site);
     }
 
     /**

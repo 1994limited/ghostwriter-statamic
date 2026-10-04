@@ -11,7 +11,7 @@ import { bardEditor, editorAt, setCurrent } from './bard.js';
 import { ensure, stock } from '../stock/store.js';
 import { request } from '../stock/request.js';
 import { browseButton } from './fields.js';
-import { entryId, entryMeta, get, isLinkMeta, metaPath } from './links.js';
+import { bardHref, entryId, entryMeta, get, isLinkMeta, metaPath } from './links.js';
 
 const idOf = (dotted) => `field_${String(dotted).replace(/\./g, '_')}`;
 const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -312,7 +312,7 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
                     if (!fix.value) break;
 
                     if (gap.meta?.inline) {
-                        if (editorAt(gap.dotted)) return { fixed: bardEditor(gap.dotted).link(gap, `statamic://${fix.value}`) };
+                        if (editorAt(gap.dotted)) return { fixed: bardEditor(gap.dotted).link(gap, bardHref(fix.value)) };
 
                         const current = valueAt(gap.dotted);
                         const range = inString(current, gap);

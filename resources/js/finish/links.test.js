@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { entryId, entryMeta, isLinkMeta, metaPath } from './links.js';
+import { bardHref, entryId, entryMeta, isLinkMeta, metaPath } from './links.js';
 
 const linkMeta = { initialUrl: '#gw-link:contact-page', initialOption: 'url', types: { entry: { title: 'Entry', component: 'relationship', config: { type: 'entries' }, meta: null, metaLoaded: false, selected: [] } } };
 
@@ -33,4 +33,10 @@ test('entry IDs are read from link values and Bard hrefs', () => {
     assert.equal(entryId('statamic://entry::abc-123'), 'abc-123');
     assert.equal(entryId('#gw-link:contact-page'), null);
     assert.equal(entryId(null), null);
+});
+
+test('a Link to fix becomes one Bard href, whether a title match or the page the SEO pass suggested', () => {
+    assert.equal(bardHref('entry::abc'), 'statamic://entry::abc');
+    assert.equal(bardHref('statamic://entry::abc'), 'statamic://entry::abc', 'never statamic://statamic://');
+    assert.equal(bardHref('/contact'), '/contact');
 });
