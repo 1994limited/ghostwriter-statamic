@@ -21,7 +21,7 @@ import { Button } from '@statamic/cms/ui';
 import { debounce, gapLabels } from '../preview/overlay.js';
 import { markGaps } from '../preview/markers.js';
 import { canRead, locate, measure } from '../preview/locator.js';
-import { THUMB_HEIGHT, THUMB_RENDER_WIDTH, cardName, cardsFor, compareRemembered, moveTo, rememberCompare, sharedStart, startBlock, thumbOrder, thumbScale } from '../preview/layouts.js';
+import { THUMB_HEIGHT, THUMB_RENDER_WIDTH, cardName, cardsFor, changesText, compareRemembered, moveTo, rememberCompare, sharedStart, startBlock, thumbOrder, thumbScale } from '../preview/layouts.js';
 
 const storage = () => {
     try {
@@ -128,6 +128,8 @@ export default {
     },
 
     methods: {
+        changesText,
+
         name(card) {
             return cardName(card, (text, params) => this.__(text, params));
         },
@@ -245,8 +247,10 @@ export default {
                 @click="choose(card)"
                 @keydown="key($event, index)"
             >
-                <span class="truncate">{{ card.name }}</span>
+                <span class="shrink-0">{{ card.name }}</span>
                 <span v-if="card.suggested" class="shrink-0 rounded-full bg-[var(--gw-ink)] px-1.5 text-[10px] leading-4 font-medium text-white dark:bg-[var(--gw-accent)]! dark:text-gray-900!">{{ __('Suggested') }}</span>
+                <!-- What it changes against the writer's: "Quote moved up · Text blocks joined". -->
+                <span v-if="!card.stale && changesText(card)" class="min-w-0 truncate font-normal text-gray-500 dark:text-gray-400!" :title="changesText(card)" aria-hidden="true">{{ changesText(card) }}</span>
             </button>
         </div>
         <span v-if="row.planning" class="flex items-center gap-1.5 text-xs text-gray-500" role="status">
@@ -344,7 +348,10 @@ export default {
                     <span class="shrink-0 text-xs text-gray-500">{{ card.blocks === 1 ? __('1 block') : __(':count blocks', { count: card.blocks }) }}</span>
                 </span>
                 <span v-if="card.stale" class="mt-0.5 text-xs text-amber-700 dark:text-amber-400!">{{ __('Needs refreshing') }}</span>
-                <span v-else-if="card.description" class="mt-0.5 line-clamp-2 text-xs text-gray-500">{{ card.description }}</span>
+                <template v-else>
+                    <span v-if="changesText(card)" class="mt-0.5 line-clamp-2 text-xs font-medium text-gray-700 dark:text-gray-300!" aria-hidden="true">{{ changesText(card) }}</span>
+                    <span v-if="card.description" class="mt-0.5 line-clamp-2 text-xs text-gray-500">{{ card.description }}</span>
+                </template>
             </button>
 
             <div

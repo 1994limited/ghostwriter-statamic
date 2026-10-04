@@ -94,6 +94,11 @@ final class LayoutsTest extends TestCase
         $this->assertSame([false, true, false], array_column($cards, 'suggested'), 'the layout most like the site\'s pages');
         $this->assertSame('The numbers up top, then the visits', $cards[1]['description']);
         $this->assertSame(['Hero', 'Stats', 'Text', 'Call to action'], $cards[1]['outline']);
+        // What each changes against the writer's, and where: none for the writer's.
+        $this->assertSame([], $cards[0]['changes']);
+        $this->assertSame(['Stats added'], $cards[1]['changes']);
+        $this->assertSame([['field' => 'page_builder', 'block' => 1, 'section' => null]], $cards[1]['places']);
+        $this->assertSame(['Text split into 3 blocks'], $cards[2]['changes']);
         $this->assertSame('w', $detail['layouts']['chosen']);
         $this->assertFalse($detail['layouts']['planning']);
 

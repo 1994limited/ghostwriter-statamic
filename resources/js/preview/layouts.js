@@ -116,8 +116,53 @@ export function cardName(card, t = (text, params) => fill(text, params)) {
 
     const blocks = card.blocks === 1 ? t('1 block') : t(':count blocks', { count: card.blocks });
     const outline = card.outline?.length ? `: ${card.outline.join(', ')}` : '';
+    const changes = card.changes?.length ? ` ${t('Changes: :changes', { changes: card.changes.join(', ') })}.` : '';
 
-    return `${bits.join(', ')}, ${blocks}${outline}.${card.description ? ` ${card.description}.` : ''}`.replace(/\.\./g, '.');
+    return `${bits.join(', ')}, ${blocks}${outline}.${changes}${card.description ? ` ${card.description}.` : ''}`.replace(/\.\./g, '.');
+}
+
+/**
+ * What a layout changes against the writer's, on one line beside its chip
+ * or under its card: "Quote moved up · Text blocks joined". Empty for the
+ * writer's.
+ */
+export function changesText(card) {
+    return (card?.changes ?? []).join(' · ');
+}
+
+/**
+ * The preview's blocks to point at after switching to a layout: its
+ * `places` ({field, block, section}, as core's LayoutDiff counts them)
+ * found in the render's block map. A page builder's nth top-level block of
+ * that field, or the top-level field itself, and in it the nth section of
+ * rich text when the map has sections there (else the whole block). In
+ * page order, each once.
+ *
+ * @param {object[]} map The render's block map.
+ * @param {{field: string, block: ?number, section: ?number}[]} places
+ * @returns {string[]}
+ */
+export function keysForPlaces(map, places) {
+    if (!Array.isArray(map) || !Array.isArray(places)) return [];
+
+    const keys = [];
+
+    for (const place of places) {
+        const owner = place.block === null || place.block === undefined
+            ? map.find((entry) => entry.kind === 'field' && entry.type === place.field)
+            : map.filter((entry) => entry.kind === 'block' && !entry.parent && String(entry.path ?? '').split('/')[0] === place.field)[place.block];
+
+        if (!owner) continue;
+
+        const sections = map.filter((entry) => entry.kind === 'section' && entry.parent === owner.key);
+        const key = place.section !== null && place.section !== undefined && sections.length ? sections[place.section]?.key ?? owner.key : owner.key;
+
+        if (!keys.includes(key)) keys.push(key);
+    }
+
+    const order = map.map((entry) => entry.key);
+
+    return keys.sort((a, b) => order.indexOf(a) - order.indexOf(b));
 }
 
 /**
@@ -216,3 +261,28 @@ export function startBlock(map, n) {
 
     return blocks[n]?.key ?? null;
 }
+
+/**
+ * The same places in the draft's Blocks and Text views (core's
+ * DraftPreview nodes): a page builder's nth block, or a whole top-level
+ * field (rich text isn't split into its sections there).
+ *
+ * @returns {{fields: string[], blocks: Object<string, number[]>}}
+ */
+export function marksFor(places) {
+    const marks = { fields: [], blocks: {} };
+
+    for (const place of places ?? []) {
+        if (place.block === null || place.block === undefined) {
+            if (!marks.fields.includes(place.field)) marks.fields.push(place.field);
+        } else {
+            marks.blocks[place.field] ??= [];
+            if (!marks.blocks[place.field].includes(place.block)) marks.blocks[place.field].push(place.block);
+        }
+    }
+
+    return marks;
+}
+
+/** How long a switched-to layout's changes stay outlined, in ms. */
+export const SWITCH_HIGHLIGHT_MS = 2200;

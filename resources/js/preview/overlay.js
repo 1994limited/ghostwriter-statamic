@@ -51,10 +51,13 @@ const STYLE = `
 .changed.flash { animation: gw-flash 2.6s ease-out 1; }
 @keyframes gw-flash { 0% { box-shadow: inset 0 0 0 3px #2f9e6b, 0 0 0 8px rgba(47,158,107,.35); } 100% { box-shadow: inset 0 0 0 3px rgba(47,158,107,0), 0 0 0 8px rgba(47,158,107,0); } }
 @media (prefers-reduced-motion: reduce) { .changed.flash { animation: none; } }
+.switched { position: absolute; box-sizing: border-box; border-radius: calc(4px / var(--s)); pointer-events: none; animation: gw-switched 2.2s ease-out 1 forwards; }
+@keyframes gw-switched { 0%, 30% { box-shadow: inset 0 0 0 calc(3px / var(--s)) #5b4cf0, 0 0 0 calc(6px / var(--s)) rgba(91,76,240,.18); background: rgba(91,76,240,.06); } 100% { box-shadow: inset 0 0 0 calc(3px / var(--s)) rgba(91,76,240,0), 0 0 0 calc(6px / var(--s)) rgba(91,76,240,0); background: rgba(91,76,240,0); } }
+@media (prefers-reduced-motion: reduce) { .switched { animation: none; box-shadow: inset 0 0 0 calc(3px / var(--s)) #5b4cf0; } }
 .target { position: absolute; box-sizing: border-box; margin: 0; padding: 0; background: transparent; border: 0; opacity: 0; pointer-events: none; }
 .target:focus { opacity: 1; outline: calc(3px / var(--s)) solid #5b4cf0; outline-offset: calc(-3px / var(--s)); }
 .picked { position: absolute; box-sizing: border-box; border: calc(2px / var(--s)) solid #5b4cf0; border-radius: calc(3px / var(--s)); background: rgba(91, 76, 240, 0.06); pointer-events: none; }
-@media (forced-colors: active) { .pin, .changed, .picked { forced-color-adjust: none; border-color: Highlight; } .target:focus { outline-color: Highlight; } }
+@media (forced-colors: active) { .pin, .changed, .picked { forced-color-adjust: none; border-color: Highlight; } .switched { forced-color-adjust: none; animation: none; box-shadow: inset 0 0 0 3px Highlight; } .target:focus { outline-color: Highlight; } }
 `;
 
 /** The page's cursor while commenting: a style in the frame's own document (the preview only). */
@@ -250,6 +253,7 @@ export function debounce(callback, wait) {
  * `onEscape()` for Esc in comment mode. `commentLabels` are the targets'
  * and pins' words: {target(label, count), pin(number, state, label), click}.
  * The overlay then also has setComments({on, pins, changed}), flash(keys),
+ * highlight(keys, {smooth}) (a layout just switched to),
  * setPicked(key), focusPin(number), focusTarget(key?), scrollToKey(key),
  * pinRect(number) and toViewport(rect).
  *
@@ -312,7 +316,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
     cursor.textContent = COMMENTING_STYLE;
     (doc.head ?? doc.documentElement).append(cursor);
 
-    const comments = { on: false, pins: [], changed: [], flashing: new Set(), picked: null, target: null, scale: scale > 0 ? scale : 1 };
+    const comments = { on: false, pins: [], changed: [], flashing: new Set(), switched: [], picked: null, target: null, scale: scale > 0 ? scale : 1 };
     const pinButtons = new Map();
     const targetButtons = new Map();
     const t = {
@@ -356,7 +360,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
     const boxOf = (key) => state.boxes.find((candidate) => candidate.key === key) ?? null;
 
     // A point of the document to the top of the view.
-    const scrollTo = (top) => (reveal ? reveal(Math.max(0, top)) : win.scrollTo(0, Math.max(0, top)));
+    const scrollTo = (top, smooth = false) => (reveal ? reveal(Math.max(0, top), smooth) : win.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' }));
 
     // Document coordinates of a viewport rect in the frame.
     const docRect = (rect) => ({ left: rect.left + win.scrollX, top: rect.top + win.scrollY, width: rect.width, height: rect.height });
@@ -453,6 +457,18 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
             chip.className = 'chip';
             chip.textContent = t.changed;
             mark.append(chip);
+            marksLayer.append(mark);
+        }
+
+        // A layout just switched to: what it changes, outlined for a moment.
+        for (const key of comments.switched) {
+            const entry = boxOf(key);
+
+            if (!entry) continue;
+
+            const mark = doc.createElement('div');
+            mark.className = 'switched';
+            place(mark, entry.box);
             marksLayer.append(mark);
         }
 
@@ -780,6 +796,23 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
             setTimeout(() => {
                 keys.forEach((key) => comments.flashing.delete(key));
             }, 2700);
+        },
+        // A layout just switched to: its changed blocks outlined, fading over
+        // about two seconds (a still outline for that long under reduced
+        // motion), and the first brought into view.
+        highlight(keys, { smooth = true } = {}) {
+            clearTimeout(comments.unswitch);
+            comments.switched = keys.filter((key) => boxOf(key));
+            drawComments();
+
+            if (comments.switched.length) scrollTo(boxOf(comments.switched[0]).box.top - 60, smooth);
+
+            comments.unswitch = setTimeout(() => {
+                comments.switched = [];
+                drawComments();
+            }, 2200);
+
+            return comments.switched.length;
         },
         setPicked(key) {
             comments.picked = key ?? null;
