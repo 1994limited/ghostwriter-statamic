@@ -63,18 +63,24 @@ export function sayRect(side, x, y, label, height, size = 44) {
     return { left, top, right: left + label, bottom: top + height };
 }
 
-// Whether a box on screen sits on the page's text: a few points in it, each
-// over the words of the topmost element there that isn't `skip` (the mark's
-// own), or over a text box.
+// Whether a box on screen sits on the page's text: the topmost element that
+// isn't `skip` (the mark's own) at each of nine points in it, and whether any
+// of their words (or a text box) meet the box.
 export function coversText(rect, { skip = '', doc = document, win = window } = {}) {
-    const points = [[rect.left + 2, rect.top + 2], [rect.right - 2, rect.top + 2], [rect.left + 2, rect.bottom - 2], [rect.right - 2, rect.bottom - 2], [(rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2]];
+    const pad = 2;
+    const found = new Set();
 
-    return points.some(([px, py]) => {
-        if (px < 0 || py < 0 || px > win.innerWidth || py > win.innerHeight) return false;
+    [rect.left + 1, (rect.left + rect.right) / 2, rect.right - 1].forEach((px) => [rect.top + 1, (rect.top + rect.bottom) / 2, rect.bottom - 1].forEach((py) => {
+        if (px < 0 || py < 0 || px > win.innerWidth || py > win.innerHeight) return;
 
         const node = doc.elementsFromPoint(px, py).find((hit) => !skip || !hit.closest(skip));
 
-        if (!node || node === doc.body || node === doc.documentElement) return false;
+        if (node && node !== doc.body && node !== doc.documentElement) found.add(node);
+    }));
+
+    const meets = (box) => box.right > rect.left - pad && box.left < rect.right + pad && box.bottom > rect.top - pad && box.top < rect.bottom + pad;
+
+    return [...found].some((node) => {
         if (node.matches('input:not([type="checkbox"]):not([type="radio"]), textarea, select, [contenteditable="true"]')) return true;
 
         return [...node.childNodes].some((child) => {
@@ -83,7 +89,7 @@ export function coversText(rect, { skip = '', doc = document, win = window } = {
             const range = doc.createRange();
             range.selectNodeContents(child);
 
-            return [...range.getClientRects()].some((box) => px >= box.left && px <= box.right && py >= box.top && py <= box.bottom);
+            return [...range.getClientRects()].some(meets);
         });
     });
 }
