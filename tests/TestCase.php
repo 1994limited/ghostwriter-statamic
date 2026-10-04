@@ -317,7 +317,7 @@ abstract class TestCase extends AddonTestCase
     }
 
     /** What a writer may do, Ghostwriter aside: the Statamic permissions the tests lean on. */
-    protected const WRITER_PERMISSIONS = ['view articles entries', 'edit articles entries', 'create articles entries', 'edit other authors articles entries', 'view pages entries', 'edit pages entries', 'create pages entries', 'view stories entries', 'edit stories entries', 'create stories entries', 'upload assets assets'];
+    protected const WRITER_PERMISSIONS = ['view suggest_pages entries', 'edit suggest_pages entries', 'view articles entries', 'edit articles entries', 'create articles entries', 'edit other authors articles entries', 'view pages entries', 'edit pages entries', 'create pages entries', 'view stories entries', 'edit stories entries', 'create stories entries', 'upload assets assets'];
 
     protected function signIn(bool $permitted = true): \Statamic\Contracts\Auth\User
     {

@@ -10,7 +10,9 @@ import ImageDialog from './components/ImageDialog.vue';
 import StockPanel from './components/StockPanel.vue';
 import StockFieldtype from './components/StockFieldtype.vue';
 import Finish from './components/Finish.vue';
+import Suggest from './components/Suggest.vue';
 import { extension as finishMarks } from './finish/bard.js';
+import { extension as suggestMarks } from './suggest/bard.js';
 import { previewIn, put } from './stock/store.js';
 import ghost from './icon.js';
 import { request } from './stock/request.js';
@@ -28,10 +30,15 @@ Statamic.booting(() => {
     Statamic.$components.register('ghostwriter-stock-panel', StockPanel);
     Statamic.$components.register('ghostwriter_stock-fieldtype', StockFieldtype);
     Statamic.$components.register('ghostwriter-finish', Finish);
+    Statamic.$components.register('ghostwriter-suggest', Suggest);
 
     // Finish this page: Ghostwriter's markers inside every Bard field are
     // underlined, and the guide can select and replace them.
     Statamic.$bard.addExtension(finishMarks);
+
+    // Suggest edits: each suggestion's words underlined in Bard, and changed
+    // through the editor.
+    Statamic.$bard.addExtension(suggestMarks);
 
     // A preview inserted from the image dialog shows on its field at once.
     Statamic.$events.$on('ghostwriter.stock', put);
@@ -59,6 +66,14 @@ Statamic.booting(() => {
         container.pushComponent('ghostwriter-finish', {
             props: { collection: match[1], entry, blueprint, form: container, baseUrl: config.url },
         });
+
+        // Suggest edits, on an existing entry: the menu item's confirm, the
+        // review and its guide.
+        if (entry) {
+            container.pushComponent('ghostwriter-suggest', {
+                props: { collection: match[1], entry, blueprint, form: container, baseUrl: config.url },
+            });
+        }
 
         // The dialog behind the image button on every assets field of this form.
         container.pushComponent('ghostwriter-image-dialog', {

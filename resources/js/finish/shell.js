@@ -10,12 +10,12 @@
 // guide minimises it, Alt+Shift+N / P / G step and open it from anywhere but
 // a text field, and nothing moves under prefers-reduced-motion.
 
-const MARK = '<svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path class="gw-f-body" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"/><path class="gw-f-fold" d="M9 10H11.5L9 12.5Z"/></svg>';
+export const MARK = '<svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path class="gw-f-body" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"/><path class="gw-f-fold" d="M9 10H11.5L9 12.5Z"/></svg>';
 
 const PHONE = '(max-width: 639px)';
 const STILL = '(prefers-reduced-motion: reduce)';
 
-function el(tag, attrs = {}, children = []) {
+export function el(tag, attrs = {}, children = []) {
     const node = document.createElement(tag);
 
     Object.entries(attrs).forEach(([key, value]) => {
@@ -36,6 +36,12 @@ import { counts, currentAfter, fieldStates, firstOpen, nextOpen, stepsFrom, tagT
 const isTyping = (target) => target instanceof Element && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
 export class FinishGuide {
+    /** Every guide on the page (Finish this page, Suggest edits): one is open at a time. */
+    static guides = new Set();
+
+    /** The guide shortcuts act on: the one opened last. */
+    static active = null;
+
     /**
      * @param {object} options
      * @param {object} options.adapter  { locate(gap), reveal(gap), select(gap), run(gap, fix, value), recheck() }
@@ -112,6 +118,7 @@ export class FinishGuide {
         ]);
 
         document.body.append(this.root);
+        FinishGuide.guides.add(this);
 
         this.onKey = (event) => this.shortcut(event);
         this.onMove = () => this.follow();
@@ -149,6 +156,8 @@ export class FinishGuide {
     }
 
     destroy() {
+        FinishGuide.guides.delete(this);
+        if (FinishGuide.active === this) FinishGuide.active = null;
         this.clearTimers();
         this.observer?.disconnect();
         this.resizes?.disconnect();
@@ -308,6 +317,9 @@ export class FinishGuide {
     }
 
     restore(fromDraft = false) {
+        FinishGuide.active = this;
+        FinishGuide.guides.forEach((other) => other !== this && other.stepAside());
+
         if (!this.minimised) {
             this.paint({ focus: true, fly: true });
 
@@ -332,6 +344,18 @@ export class FinishGuide {
             this.paint({ focus: true, fly: true });
             this.later(() => this.panel.classList.remove('is-unfurling'), 600);
         }, 450);
+    }
+
+    // Another guide opened: this one goes to its dock, quietly (the
+    // person's choice of open or minimised isn't changed by it).
+    stepAside() {
+        if (this.minimised) return;
+
+        this.minimised = true;
+        this.adapter.highlight?.(null);
+        this.panel.hidden = true;
+        this.flyer.hidden = true;
+        this.paint();
     }
 
     toggleSheet(open = !this.sheetOpen) {
@@ -843,6 +867,11 @@ export class FinishGuide {
 
     shortcut(event) {
         if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey || isTyping(event.target) || this.pill.hidden) return;
+
+        // Another guide on the page was opened last: the keys are its.
+        const active = FinishGuide.active;
+
+        if (active && active !== this && FinishGuide.guides.has(active) && !active.pill.hidden) return;
 
         const act = { KeyN: () => (this.minimised ? this.restore() : this.next()), KeyP: () => (this.minimised ? this.restore() : this.back()), KeyG: () => (this.minimised ? this.restore() : this.minimise()) }[event.code];
 

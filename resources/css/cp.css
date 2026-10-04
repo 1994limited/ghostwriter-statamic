@@ -1,5 +1,6 @@
 @import "@statamic/cms/tailwind.css";
 @import "./finish.css";
+@import "./suggest.css";
 
 @source '../**/*.vue';
 
