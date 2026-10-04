@@ -163,6 +163,10 @@ button[data-ui-group-target]:has(svg[data-ghostwriter-stock-badge])::after {
 .gw-writer.is-narrow .gw-layout-row { overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 0.5rem; margin-inline: -0.25rem; padding-inline: 0.25rem; }
 .gw-writer.is-narrow .gw-layout-card { flex: 0 0 min(15rem, 75%); scroll-snap-align: start; }
 
+/* Compact layouts: the chosen chip in the accent. */
+.gw-layout-chip.is-chosen { border-color: var(--gw-accent); box-shadow: 0 0 0 1px var(--gw-accent); background: color-mix(in srgb, var(--gw-accent) 10%, transparent); }
+.gw-layout-chip:focus-visible { outline: 2px solid var(--gw-accent); outline-offset: 1px; }
+
 /* Comments in the Preview: the sidebar beside the page from about 980 px of
    draft pane (it stays in view while the page scrolls), under it below that. */
 .gw-review { display: flex; flex-direction: column; gap: 0.75rem; }
