@@ -280,7 +280,7 @@ export default {
                 <ul v-else class="space-y-1" :aria-label="__('Suggested pages')">
                     <li v-for="entry in suggestions" :key="entry.value">
                         <button type="button" class="w-full rounded-md border border-gray-200 px-2 py-1.5 text-start hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!" :disabled="busy" @click="choose(entry)">
-                            <span class="block font-medium">{{ __('Link to :title', { title: entry.title }) }}</span>
+                            <span class="block font-medium wrap-anywhere">{{ __('Link to :title', { title: entry.title }) }}</span>
                             <span v-if="entry.url" class="block truncate text-xs text-gray-500">{{ entry.url }}</span>
                         </button>
                     </li>
@@ -301,7 +301,7 @@ export default {
                 <ul v-if="results && results.length" class="mt-2 max-h-48 space-y-1 overflow-y-auto">
                     <li v-for="entry in results" :key="entry.value">
                         <button type="button" class="w-full rounded-md border border-gray-200 px-2 py-1.5 text-start hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!" :disabled="busy" @click="choose(entry)">
-                            <span class="block font-medium">{{ entry.title }}</span>
+                            <span class="block font-medium wrap-anywhere">{{ entry.title }}</span>
                             <span v-if="entry.url" class="block truncate text-xs text-gray-500">{{ entry.url }}</span>
                         </button>
                     </li>

@@ -219,7 +219,8 @@ class EntryGaps
             $out['label'] = self::place($gap->label);
             $out['message'] = $this->text($gap->message());
             $out['speech'] = $this->text(new Message($gap->kind->speech()));
-            $out['fixes'] = array_map(fn (Fix $fix) => ['label' => $this->text($fix->label)] + $fix->toArray(), $gap->fixes);
+            // The name in a label ("Link to :title"), so the guide can cut just that short.
+            $out['fixes'] = array_map(fn (Fix $fix) => ['label' => $this->text($fix->label), 'name' => isset($fix->label->params['title']) ? (string) $fix->label->params['title'] : null] + $fix->toArray(), $gap->fixes);
             $out['tab'] = $tabs[$gap->path->handle()] ?? null;
             // Facts already say only the editor knows them; a link left for a
             // person is the other place the reason helps.

@@ -32,6 +32,11 @@ export function el(tag, attrs = {}, children = []) {
 }
 
 import { counts, currentAfter, fieldStates, firstOpen, nextOpen, stepsFrom, tagText } from './state.js';
+import { inlineSpot, labelParts, pinnedBottom, saySide } from './place.js';
+
+// What is pinned over the top of the form: Statamic's header and a Bard
+// toolbar stuck under it. The mark and its words never go under them.
+const CHROME = 'header.bg-global-header-bg, .bard-fixed-toolbar';
 
 const isTyping = (target) => target instanceof Element && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
@@ -41,6 +46,10 @@ export class FinishGuide {
 
     /** The guide shortcuts act on: the one opened last. */
     static active = null;
+
+    // The field's tag, and the current gap's words in its editor (bard.js's decoration).
+    tagSelector = '.gw-f-tag';
+    inlineSelector = '.gw-gap-mark.is-current';
 
     /**
      * @param {object} options
@@ -516,13 +525,13 @@ export class FinishGuide {
             if (fix.action === 'change') {
                 const input = el('input', { type: 'text', class: 'gw-f-answer', 'aria-label': fix.label, autocomplete: 'off' });
                 const wrap = el('label', { class: 'gw-f-answer-wrap', hidden: true }, [el('span', { class: 'gw-f-sr', text: fix.label }), input]);
-                const open = el('button', { type: 'button', class: 'gw-f-btn', disabled: this.busy === gap.id, onclick: () => {
+                const open = this.fixButton(fix.label, { disabled: this.busy === gap.id, onclick: () => {
                     open.hidden = true;
                     wrap.hidden = false;
                     input.value = fix.value ?? gap.hint ?? '';
                     input.focus();
                     input.select();
-                } }, [el('span', { text: fix.label })]);
+                } });
 
                 input.addEventListener('keydown', (event) => {
                     if (event.key === 'Enter') {
@@ -544,20 +553,36 @@ export class FinishGuide {
                 return;
             }
 
-            const model = fix.cost === 'model';
-            box.append(el('button', {
-                type: 'button',
-                class: `gw-f-btn${fix.primary ? ' is-primary' : ''}`,
-                disabled: this.busy === gap.id,
-                onclick: () => this.run(gap, fix),
-            }, [
-                fix.primary ? el('span', { class: 'gw-f-btn-mark', html: MARK }) : null,
-                el('span', { text: fix.label }),
-                model ? el('small', { text: this.t('uses Ghostwriter') }) : null,
-            ]));
+            box.append(this.fixButton(fix.label, { name: fix.name, primary: fix.primary, model: fix.cost === 'model', disabled: this.busy === gap.id, onclick: () => this.run(gap, fix) }));
         });
 
         return box;
+    }
+
+    // A fix's button. The label stays on one line inside the guide: the name
+    // in it (an entry's title) is cut short with an ellipsis when there's no
+    // room, so "Link to" always shows, and the whole label is its tooltip and
+    // accessible name. "uses Ghostwriter" is kept apart from it.
+    fixButton(label, { name = null, primary = false, model = false, disabled = false, onclick = null } = {}) {
+        const parts = labelParts(label, name);
+        const uses = this.t('uses Ghostwriter');
+
+        return el('button', {
+            type: 'button',
+            class: `gw-f-btn${primary ? ' is-primary' : ''}`,
+            title: label,
+            'aria-label': model ? `${label} (${uses})` : label,
+            disabled,
+            onclick,
+        }, [
+            primary ? el('span', { class: 'gw-f-btn-mark', html: MARK }) : null,
+            el('span', { class: 'gw-f-btn-text' }, [
+                parts.lead ? el('span', { class: 'gw-f-btn-keep', text: parts.lead }) : null,
+                el('span', { class: 'gw-f-btn-name', text: parts.name }),
+                parts.tail ? el('span', { class: 'gw-f-btn-keep', text: parts.tail }) : null,
+            ]),
+            model ? el('small', { text: uses }) : null,
+        ]);
     }
 
     async run(gap, fix, value = null) {
@@ -699,22 +724,107 @@ export class FinishGuide {
 
         const shown = await this.adapter.reveal(step.gap);
 
+        // Words inline in an editor go to the middle of it, clear of the
+        // header and its toolbar, and are tinted for a moment.
+        const inline = shown ? this.inline(step) : null;
+
+        if (inline) {
+            const box = inline.getBoundingClientRect();
+            const top = this.chromeBottom(inline) + 60;
+
+            if (box.top < top || box.bottom > window.innerHeight - (this.phone ? 260 : 40)) {
+                inline.scrollIntoView({ block: 'center', behavior: this.still ? 'auto' : 'smooth' });
+                await new Promise((resolve) => setTimeout(resolve, this.still ? 0 : 350));
+            }
+
+            this.tint(step);
+        }
+
         this.later(() => this.fly(step, shown), this.still ? 0 : 120);
     }
 
+    // The step's field in the form.
+    fieldFor(step) {
+        return step ? this.adapter.locate(step.gap) : null;
+    }
+
+    // The step's words in its field's editor (a link, a marker, a quote):
+    // where the mark points. Null when they aren't inline.
+    inline(step) {
+        const field = this.fieldFor(step);
+
+        return field?.offsetParent ? field.querySelector(this.inlineSelector) : null;
+    }
+
+    // The bottom of what's pinned over the form, and of the editor's own
+    // toolbar when pointing into it.
+    chromeBottom(inline = null) {
+        const own = inline?.closest('.bard-fieldtype, .bard-fieldtype-wrapper')?.querySelector('.bard-fixed-toolbar');
+
+        return pinnedBottom([...document.querySelectorAll(CHROME)].map((element) => element.getBoundingClientRect()), own?.getBoundingClientRect() ?? null, window.innerHeight);
+    }
+
+    // Where the mark goes for a step: beside its words in the editor, else
+    // just past the tag beside the field's name. Null when it can't be seen.
     target(step) {
-        const field = step ? this.adapter.locate(step.gap) : null;
+        const field = this.fieldFor(step);
 
         if (!field || !field.offsetParent) return null;
 
-        const tag = field.querySelector('.gw-f-tag');
+        const inline = field.querySelector(this.inlineSelector);
+        const top = this.chromeBottom(inline);
+
+        if (inline) {
+            const line = inline.getClientRects()[0];
+
+            return line ? inlineSpot(line, { top, width: window.innerWidth, height: window.innerHeight, mirror: document.dir === 'rtl' }) : null;
+        }
+
+        const tag = field.querySelector(this.tagSelector);
         const r = field.getBoundingClientRect();
         const t = tag?.getBoundingClientRect();
 
-        if (r.bottom < 0 || r.top > window.innerHeight) return null;
+        if (r.bottom < top || r.top > window.innerHeight) return null;
 
         // Just past the tag beside the field's name, above the field.
-        return { x: t?.width ? Math.min(t.right + 8, window.innerWidth - 60) : r.right - 170, y: Math.max(8, r.top - 46) };
+        return { x: t?.width ? Math.min(t.right + 8, window.innerWidth - 60) : r.right - 170, y: Math.max(top + 4, r.top - 46) };
+    }
+
+    // A tint over the step's words that fades, so the eye finds them; still
+    // under reduced motion, then gone.
+    tint(step) {
+        this.flashing?.remove();
+
+        const flashing = el('div', { class: 'gw-f-flash', 'aria-hidden': 'true' });
+
+        this.flashing = flashing;
+        this.flashingStep = step;
+        this.root.append(flashing);
+        this.placeTint();
+        setTimeout(() => flashing.remove(), 1800);
+    }
+
+    // The tint over the words where they are now: moved, not drawn again,
+    // as the page scrolls, so its fade carries on.
+    placeTint() {
+        if (!this.flashing?.isConnected) return;
+
+        const marks = [...(this.fieldFor(this.flashingStep)?.querySelectorAll(this.inlineSelector) ?? [])];
+        const rects = marks.flatMap((mark) => [...mark.getClientRects()]);
+        const lines = [...this.flashing.children];
+
+        lines.slice(rects.length).forEach((line) => line.remove());
+        rects.forEach((rect, i) => {
+            const line = lines[i] ?? this.flashing.appendChild(el('span', { class: 'gw-f-flash-line' }));
+
+            Object.assign(line.style, { left: `${rect.left - 3}px`, top: `${rect.top - 2}px`, width: `${rect.width + 6}px`, height: `${rect.height + 4}px` });
+        });
+    }
+
+    // The mark at x, y, its words on whichever side fits in the window.
+    place(x, y) {
+        this.flyer.style.transform = `translate(${x}px, ${y}px)`;
+        this.flyer.dataset.say = saySide(x, this.say.offsetWidth, window.innerWidth, { prefer: 'left' });
     }
 
     // A CMS dialog or stack is on top: the mark keeps out of its way.
@@ -743,10 +853,10 @@ export class FinishGuide {
         const tilt = this.lastX === undefined ? 0 : to.x < this.lastX ? -12 : 12;
 
         this.tilt.style.transform = this.still ? '' : `rotate(${tilt}deg)`;
-        this.flyer.style.transform = `translate(${to.x}px, ${to.y}px)`;
         // The tag beside the field already says what it needs; the mark just
         // says hello.
         this.say.textContent = this.greeting(step);
+        this.place(to.x, to.y);
         this.lastX = to.x;
         this.flying = step;
 
@@ -779,8 +889,9 @@ export class FinishGuide {
         this.flyer.hidden = false;
         this.flyer.classList.remove('is-arrived');
         this.flyer.classList.toggle('is-home', toDock);
-        this.flyer.style.transform = `translate(${x}px, ${y}px)${toDock && !this.still ? ' scale(.6) rotate(360deg)' : ''}`;
         this.say.textContent = toDock ? '' : this.done() ? this.t('All done!') : this.t('Over here');
+        this.place(x, y);
+        if (toDock && !this.still) this.flyer.style.transform += ' scale(.6) rotate(360deg)';
         this.flying = null;
 
         if (!toDock) this.later(() => this.flyer.classList.add('is-arrived'), this.still ? 0 : 900);
@@ -792,6 +903,7 @@ export class FinishGuide {
         if (this.panel.hidden || this.phone || this.minimised) return;
 
         this.flyer.classList.toggle('is-covered', this.covered());
+        this.placeTint();
 
         // The field wasn't there when the mark set off (the form was still
         // drawing it): fly to it now it is.
@@ -805,13 +917,13 @@ export class FinishGuide {
 
         const to = this.target(this.flying);
 
-        // Its field scrolled out of sight: the mark fades until it's back.
+        // Its field (or its words) scrolled out of sight: the mark fades until it's back.
         this.flyer.classList.toggle('is-away', !to);
 
         if (!to) return;
 
         this.flyer.classList.add('is-following');
-        this.flyer.style.transform = `translate(${to.x}px, ${to.y}px)`;
+        this.place(to.x, to.y);
         this.lastX = to.x;
         cancelAnimationFrame(this.unfollow);
         this.unfollow = requestAnimationFrame(() => requestAnimationFrame(() => this.flyer.classList.remove('is-following')));

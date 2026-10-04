@@ -10,7 +10,7 @@
 // one exception is alt text, saved to the asset after its own confirm.
 // Decisions are shared through the server (api), and kept as the page's
 // history.
-import { FinishGuide, MARK, el } from '../finish/shell.js';
+import { FinishGuide, el } from '../finish/shell.js';
 import { counts as finishCounts } from '../finish/state.js';
 import { counts, fieldStates, fillFact, filters, following, isOpen, nextOpen, previous, stepsFrom, tagText, versionsOf, wordingFixes } from './steps.js';
 import { plain } from './markdown.js';
@@ -371,7 +371,7 @@ export class SuggestGuide extends FinishGuide {
         const buttons = el('div', { class: 'gw-f-fixes' }, [
             this.steps.length ? el('button', { type: 'button', class: 'gw-f-btn', text: this.t('Go through again'), onclick: () => this.again() }) : null,
             left ? el('button', { type: 'button', class: 'gw-f-btn', text: left === 1 ? this.t('1 thing still to finish') : this.t(':count things still to finish', { count: left }), onclick: () => finish.openAt(finish.firstOpen()) }) : null,
-            this.status !== 'running' && this.data.configured ? el('button', { type: 'button', class: 'gw-f-btn', onclick: () => this.onStart() }, [el('span', { text: this.t('Review again') }), el('small', { text: this.t('uses Ghostwriter') })]) : null,
+            this.status !== 'running' && this.data.configured ? this.button(this.t('Review again'), () => this.onStart(), { model: true }) : null,
         ]);
 
         const last = this.last ? el('p', { class: 'gw-s-last' }, [
@@ -479,11 +479,7 @@ export class SuggestGuide extends FinishGuide {
     }
 
     button(label, onclick, { primary = false, model = false, disabled = false } = {}) {
-        return el('button', { type: 'button', class: `gw-f-btn${primary ? ' is-primary' : ''}`, disabled: disabled || this.busy === true, onclick }, [
-            primary ? el('span', { class: 'gw-f-btn-mark', html: MARK }) : null,
-            el('span', { text: label }),
-            model ? el('small', { text: this.t('uses Ghostwriter') }) : null,
-        ]);
+        return this.fixButton(label, { primary, model, disabled: disabled || this.busy === true, onclick });
     }
 
     wordingStep(step) {
@@ -1006,19 +1002,9 @@ export class SuggestGuide extends FinishGuide {
         if (field.dataset.gwSuggestNote) document.getElementById(field.dataset.gwSuggestNote)?.remove();
     }
 
-    target(step) {
-        const field = step ? this.sadapter.locate(step) : null;
-
-        if (!field || !field.offsetParent) return null;
-
-        const tag = field.querySelector('.gw-s-tag');
-        const r = field.getBoundingClientRect();
-        const t = tag?.getBoundingClientRect();
-
-        if (r.bottom < 0 || r.top > window.innerHeight) return null;
-
-        return { x: t?.width ? Math.min(t.right + 8, window.innerWidth - 60) : r.right - 170, y: Math.max(8, r.top - 46) };
-    }
+    // The suggestion's tag, and its words in Bard (suggest/bard.js's decoration).
+    tagSelector = '.gw-s-tag';
+    inlineSelector = '.gw-suggest-mark.is-current';
 
     greeting(step) {
         return step?.speech ?? this.t(SPEECH[Math.max(0, this.steps.indexOf(step)) % SPEECH.length]);
