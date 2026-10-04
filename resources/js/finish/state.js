@@ -62,7 +62,7 @@ export function nextOpen(steps, from) {
 
 /**
  * The numbers every part of the guide shows, from the one live list:
- * `count` for the pill and the dock (what blocks or is required), `total`
+ * `count` for the header menu and the dock (what blocks or is required), `total`
  * for "n of total" (the same gaps), and the step's own number.
  */
 export function counts(steps, index) {

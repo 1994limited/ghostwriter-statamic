@@ -28,20 +28,11 @@ export default {
     },
 
     data() {
-        return { slot: null, timer: null, asked: 0 };
+        return { timer: null, asked: 0 };
     },
 
     mounted() {
         const config = Statamic.$config.get('ghostwriter')?.finish ?? {};
-        const save = document.querySelector('header[data-ui-header] [data-ui-button-group]')?.parentElement;
-
-        if (save?.parentElement) {
-            this.slot = document.createElement('div');
-            this.slot.dataset.ghostwriter = 'finish';
-            this.slot.className = 'flex items-center';
-            save.parentElement.insertBefore(this.slot, save);
-        }
-
         const t = (text, params = {}) => __(text, params);
 
         this.guide = new FinishGuide({
@@ -50,14 +41,20 @@ export default {
             state: config.guide,
             key: `${this.collection}.${this.entry ?? 'new'}`,
             onState: (state) => request(`${this.baseUrl}/finish/guide`, { method: 'POST', body: { state } }).catch(() => {}),
-        }).mount(this.slot);
+            // The count on the header menu (Launcher.vue).
+            onCount: ({ count }) => Statamic.$events.$emit('ghostwriter.counts', { finish: count }),
+        }).mount();
+
+        // "Finish this page" in the header menu.
+        this.show = () => this.guide.openFromMenu();
+        Statamic.$events.$on('ghostwriter.finish.show', this.show);
 
         this.openAfterDraft = config.open_after_draft !== false;
         this.applied = ({ report }) => this.guide.update(report, { open: this.openAfterDraft });
         Statamic.$events.$on('ghostwriter.finish', this.applied);
 
         // Chips under plain text inputs whose value has a gap marker.
-        this.inputs = watchInputs(this.slot?.closest('main') ?? document.querySelector('main') ?? document.body, { labels: gapLabels(t) });
+        this.inputs = watchInputs(document.querySelector('main') ?? document.body, { labels: gapLabels(t) });
 
         this.$watch(() => unref(this.form.values), () => {
             this.inputs.refresh();
@@ -72,9 +69,10 @@ export default {
     beforeUnmount() {
         clearTimeout(this.timer);
         Statamic.$events.$off('ghostwriter.finish', this.applied);
+        Statamic.$events.$off('ghostwriter.finish.show', this.show);
+        Statamic.$events.$emit('ghostwriter.counts', { finish: 0 });
         this.guide?.destroy();
         this.inputs?.stop();
-        this.slot?.remove();
     },
 
     methods: {

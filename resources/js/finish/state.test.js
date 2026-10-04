@@ -6,12 +6,12 @@ import { counts, currentAfter, fieldStates, stepsFrom, tagText } from './state.j
 const t = (text, params = {}) => Object.entries(params).reduce((out, [key, value]) => out.replace(`:${key}`, value), text);
 const gap = (id, dotted, kind = 'ask', severity = 'blocks', speech = 'Fill this in') => ({ id, dotted, kind, severity, speech });
 
-test('one live list gives the pill, the guide total and the bar the same number', () => {
+test('one live list gives the menu, the guide total and the bar the same number', () => {
     const report = { count: 3, gaps: [gap('a', 'title', 'required', 'required', 'Empty!'), gap('b', 'body'), gap('s', 'summary', 'expected', 'suggestion', 'Empty!'), gap('c', 'image', 'image-placeholder', 'blocks', 'Swap me')] };
     const steps = stepsFrom(report);
     const n = counts(steps, 1);
 
-    assert.equal(n.count, 3, 'the pill');
+    assert.equal(n.count, 3, 'the menu');
     assert.equal(n.total, 3, '"n of 3"');
     assert.equal(steps.filter((step) => step.gap.severity !== 'suggestion').length, 3, 'the bar');
     assert.equal(n.number, 2);

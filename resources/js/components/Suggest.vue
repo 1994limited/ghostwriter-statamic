@@ -34,7 +34,7 @@ export default {
     },
 
     data() {
-        return { slot: null, confirming: false, starting: false, info: null, error: null };
+        return { confirming: false, starting: false, info: null, error: null };
     },
 
     computed: {
@@ -42,15 +42,6 @@ export default {
     },
 
     mounted() {
-        const save = document.querySelector('header[data-ui-header] [data-ui-button-group]')?.parentElement;
-
-        if (save?.parentElement) {
-            this.slot = document.createElement('div');
-            this.slot.dataset.ghostwriter = 'suggest';
-            this.slot.className = 'flex items-center';
-            save.parentElement.insertBefore(this.slot, save);
-        }
-
         const t = (text, params = {}) => __(text, params);
         // Finish this page's adapter, for what Suggest edits shares with it:
         // a Link field pointed at an entry, or its own picker opened.
@@ -68,10 +59,16 @@ export default {
             t,
             onStart: () => this.ask(),
             key: `${this.collection}.${this.entry}`,
-        }).mount(this.slot);
+            // The count on the header menu (Launcher.vue).
+            onCount: ({ count, running }) => Statamic.$events.$emit('ghostwriter.counts', { suggestions: count, reviewing: running }),
+        }).mount();
 
         this.open = () => this.ask();
         Statamic.$events.$on('ghostwriter.suggest.open', this.open);
+
+        // "Review suggestions" in the header menu.
+        this.show = () => this.guide.openFromMenu();
+        Statamic.$events.$on('ghostwriter.suggest.show', this.show);
 
         // The form changed: each suggestion's words are looked for again.
         this.$watch(() => unref(this.form.values), () => {
@@ -94,10 +91,11 @@ export default {
         clearTimeout(this.timer);
         clearTimeout(this.typing);
         Statamic.$events.$off('ghostwriter.suggest.open', this.open);
+        Statamic.$events.$off('ghostwriter.suggest.show', this.show);
+        Statamic.$events.$emit('ghostwriter.counts', { suggestions: 0, reviewing: false });
         document.removeEventListener('visibilitychange', this.onVisible);
         this.stopEditors?.();
         this.guide?.destroy();
-        this.slot?.remove();
     },
 
     methods: {
@@ -148,7 +146,7 @@ export default {
                 } else if (data.running) {
                     this.guide.receive(data, { show: true });
                 } else if (review && review.status === 'ready' && data.suggestions.some((s) => s.state === 'open')) {
-                    // A stored review: its pill, the guide minimised (it
+                    // A stored review: its count, the guide minimised (it
                     // wasn't just asked for).
                     this.guide.receive(data, { show: true });
                 } else {

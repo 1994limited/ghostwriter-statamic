@@ -33,7 +33,7 @@ Everything is found from the entry's values and its blueprint, as you type. Find
 
 ## On the entry's form
 
-When an entry has something to finish, a count appears beside **Save** ("5 things to finish"), and the fields are highlighted:
+When an entry has something to finish, a count appears on the menu beside **Edit with Ghostwriter** (amber: it stops the page going live), and the fields are highlighted. The menu's **Finish this page**, with the same count, opens the guide:
 
 - **amber**: still to do (or skipped for now);
 - **purple**: the one the guide is on;
@@ -70,7 +70,7 @@ If the list has changed since (in your answers, your messages or the draft), the
 
 > I counted 3 areas from "…", but that list has changed since. It now has 4. Use "4 areas" instead?
 
-When no list like it is there any more, it asks whether the count is still right, with **Change it** and **Remove it**; when the number was edited by hand and no longer matches its list, it offers the list's own count. Each is counted beside Save, tagged "Check me" on its field, underlined in Bard like a fact to add, and [blocks publishing](#publishing) until it's resolved.
+When no list like it is there any more, it asks whether the count is still right, with **Change it** and **Remove it**; when the number was edited by hand and no longer matches its list, it offers the list's own count. Each is counted on the menu, tagged "Check me" on its field, underlined in Bard like a fact to add, and [blocks publishing](#publishing) until it's resolved.
 
 ![The guide on a count to check: Looks right, Change it, Remove it](images/finish-check.png)
 
@@ -88,7 +88,7 @@ The count and the highlights follow your typing: the form is checked again a mom
 - The guide is a labelled region that never traps focus, so the form stays usable. Each step, each fix and opening or closing it are announced. Highlighted fields carry a hidden "Ghostwriter: needs a link" note, and every tag is a button.
 - With **Reduce motion** on in your system, nothing moves: no flight, no bobbing, no animations when it opens or closes.
 
-On a phone the guide is a sheet along the bottom of the screen that folds down to one line ("2 of 5 · Needs a link · Next"), and the count beside Save shows just the number. It follows Statamic's dark mode.
+On a phone the guide is a sheet along the bottom of the screen that folds down to one line ("2 of 5 · Needs a link · Next"), and the button beside Save shows just the ghost and the count. It follows Statamic's dark mode.
 
 ## Publishing
 
