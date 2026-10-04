@@ -23,10 +23,29 @@ export function isLinkSentinel(href) {
     return typeof href === 'string' && href.includes(LINK_PREFIX);
 }
 
+// A `#gw-link:` hint as core reads it (Markers::linkHintFrom()): decoded,
+// spaces and all ("Winter%20structure" and "Winter structure" alike).
+export function hintFrom(written) {
+    let hint = String(written ?? '');
+
+    try {
+        hint = decodeURIComponent(hint);
+    } catch {
+        // A stray `%`: keep it as written.
+    }
+
+    return hint.replace(/\s+/g, ' ').trim();
+}
+
 export function linkHint(href) {
     if (!isLinkSentinel(href)) return null;
 
-    return decodeURIComponent(href.slice(href.indexOf(LINK_PREFIX) + LINK_PREFIX.length));
+    return hintFrom(href.slice(href.indexOf(LINK_PREFIX) + LINK_PREFIX.length));
+}
+
+// Markdown links still to choose, as core finds them: `[words](#gw-link:hint)`.
+export function links(text) {
+    return [...text.matchAll(make(patterns.link))].map((m) => ({ index: m.index, length: m[0].length, match: m[0], words: m[1], hint: hintFrom(m[2]) }));
 }
 
 // A hint as core compares them: lower case, words only.
