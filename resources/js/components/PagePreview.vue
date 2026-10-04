@@ -492,6 +492,7 @@ export default {
                             :aria-hidden="entry === current ? null : 'true'"
                             :data-ghostwriter-preview="entry === current ? 'current' : 'next'"
                             @load="loaded(entry, $event)"
+                            @focus="entry === current && commenting && currentOverlay()?.focusTarget()"
                         />
                     </template>
                     <div v-if="!current && loading" class="absolute inset-0 flex items-center justify-center gap-2 bg-white text-sm text-gray-500 dark:bg-gray-900!" data-ghostwriter-updating>

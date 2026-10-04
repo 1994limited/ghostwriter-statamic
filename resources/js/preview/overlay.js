@@ -664,6 +664,10 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
         // The composer opens where the click was.
         if (hit) onPick?.({ key: hit.key, quote: null, rect: { left: x, top: y, width: 1, height: 1 }, keyboard: false });
     });
+    // In comment mode the page's own links and fields take no focus: the blocks do.
+    listen(doc, 'focusin', (event) => {
+        if (comments.on && !fromOverlay(event)) setTimeout(() => targetButtons.get(comments.target)?.focus(), 0);
+    });
     listen(doc, 'keydown', (event) => {
         if (!comments.on) return;
 
