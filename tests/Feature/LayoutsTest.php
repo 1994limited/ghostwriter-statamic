@@ -17,6 +17,7 @@ use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Layouts and extras in the writing panel (core's Arrange, design §3): the
@@ -291,6 +292,84 @@ final class LayoutsTest extends TestCase
 
         $entry->set('page_builder', [['id' => 'st', 'type' => 'stats', 'enabled' => true, 'items' => [['id' => 'r', 'value' => '3', 'label' => 'areas']]]])->save();
         $this->assertNotNull(Entry::find($entry->id()));
+        $this->ai->assertNothingSent();
+    }
+
+    public function test_a_gap_is_resolved_from_its_chip_in_the_draft_without_a_model(): void
+    {
+        $session = $this->firstDraft();
+        $this->patchJson(cp_route('ghostwriter.sessions.layout', $session->id), ['plan' => 'p1'])->assertOk();
+
+        $stored = $this->sessions()->find($session->id);
+        $data = Yaml::parse($stored->draft);
+        $data['page_builder'][0]['intro'] = '[[ask: visits a winter]] visits, and the garden is ready for spring.';
+        $data['page_builder'][1]['body'] = str_replace(
+            ['We visit four times', 'Cut back, mulch and protect the borders.'],
+            ['We visit [[ask: visits a winter]] times', 'Cut back, mulch and [protect the borders](#gw-link:lawns-page).'],
+            $data['page_builder'][1]['body'],
+        );
+        $stored->draft = Yaml::dump($data, 20, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK);
+        $this->sessions()->save($stored);
+        $this->ai->reset();
+
+        $gap = fn (array $body) => $this->patchJson(cp_route('ghostwriter.sessions.gap', $session->id), $body);
+
+        // From the preview: the second chip with that hint, answered exactly as typed.
+        $gap(['kind' => 'ask', 'hint' => 'Visits a  winter', 'occurrence' => 1, 'value' => 'four (*weather allowing*)'])->assertOk();
+        $draft = $this->sessions()->find($session->id)->draft;
+        $this->assertStringContainsString('We visit four (*weather allowing*) times', $draft);
+        $this->assertSame('[[ask: visits a winter]] visits, and the garden is ready for spring.', Yaml::parse($draft)['page_builder'][0]['intro']);
+
+        // From the Text tab: by its path.
+        $gap(['kind' => 'ask', 'hint' => 'visits a winter', 'path' => ['page_builder', '0', 'intro'], 'value' => 'Four'])->assertOk();
+        $this->assertSame('Four visits, and the garden is ready for spring.', Yaml::parse($this->sessions()->find($session->id)->draft)['page_builder'][0]['intro']);
+        $gap(['kind' => 'ask', 'hint' => 'visits a winter', 'value' => 'x'])->assertStatus(422);
+
+        // A count in an extra: confirmed in its text and its number, and the layout keeps it.
+        $list = 'Northumberland, Durham and the Tyne Valley';
+        $gap(['kind' => 'check', 'hint' => '3', 'list' => $list, 'value' => '3'])
+            ->assertOk()
+            ->assertJsonPath('extras.0.items.0.text', '3 areas')
+            ->assertJsonPath('extras.0.items.0.parts.value', '3')
+            ->assertJsonPath('extras.0.items.0.state', null)
+            ->assertJsonPath('layouts.chosen', 'p1')
+            ->assertJsonPath('layouts.stale', false);
+
+        // A link: suggestions by its hint, then pointed at one.
+        $entries = $this->getJson(cp_route('ghostwriter.sessions.links', $session->id).'?q=lawns+page')->assertOk()->json('entries');
+        $this->assertSame('Lawns', $entries[0]['title']);
+        $this->assertStringStartsWith('entry::', $entries[0]['value']);
+        $gap(['kind' => 'link', 'hint' => 'lawns page', 'value' => $entries[0]['url']])->assertOk();
+        $this->assertStringContainsString('Cut back, mulch and [protect the borders](/services/lawns).', $this->sessions()->find($session->id)->draft);
+
+        // A link field the draft doesn't hold: kept by its hint, for wherever the house style puts its sentinel.
+        $gap(['kind' => 'link', 'hint' => 'button link', 'value' => '/services/lawns', 'reference' => $entries[0]['value']])->assertOk();
+        $this->assertSame(['button link' => ['link' => $entries[0]['value'], 'url' => '/services/lawns']], Yaml::parse($this->sessions()->find($session->id)->draft)['gw_links']);
+        $gap(['kind' => 'link', 'hint' => 'button link', 'path' => ['title'], 'value' => '/x'])->assertStatus(422);
+
+        // Use this draft: nothing left to finish.
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->assertOk()->json('values');
+        $this->assertSame('3', collect($values['page_builder'])->firstWhere('type', 'stats')['items'][0]['value']);
+        $this->assertStringNotContainsString('[[', json_encode($values));
+        $this->assertStringNotContainsString('gw-link', json_encode($values));
+        $gaps = $this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'services', 'blueprint' => 'service', 'session' => $session->id, 'values' => $values])->assertOk()->json('gaps');
+        $this->assertSame([], array_values(array_filter($gaps, fn (array $gap) => in_array($gap['kind'], ['ask', 'check', 'link'], true))));
+
+        $this->ai->assertNothingSent();
+    }
+
+    public function test_a_gap_left_for_later_is_still_in_finish_this_page(): void
+    {
+        $session = $this->firstDraft();
+        $stored = $this->sessions()->find($session->id);
+        $stored->draft = str_replace('Get in touch', 'Get in touch [[ask: phone number]]', $stored->draft);
+        $this->sessions()->save($stored);
+        $this->ai->reset();
+
+        $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->json('values');
+        $kinds = array_column($this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'services', 'blueprint' => 'service', 'session' => $session->id, 'values' => $values])->json('gaps'), 'kind');
+
+        $this->assertContains('ask', $kinds);
         $this->ai->assertNothingSent();
     }
 

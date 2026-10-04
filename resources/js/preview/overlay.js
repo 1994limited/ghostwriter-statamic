@@ -22,7 +22,8 @@
 // - Gap markers the site's templates print as they are (`[[ask: …]]`,
 //   `[[check: …]]`, `#gw-link:` links) are shown as chips once the locator
 //   has placed the blocks (core's markers.js, copied as it is), so each chip
-//   is inside its block's region. Display only: nothing is saved.
+//   is inside its block's region. With `onGap`, chips are buttons that open
+//   the panel's gap popover; the frame itself never changes the draft.
 
 import { canRead, findMarkers, locate, measure, watch, words } from './locator.js';
 import { countByRegion, markGaps, toPlainText } from './markers.js';
@@ -160,14 +161,17 @@ export function depthOf(block, byKey) {
     return depth;
 }
 
-/** Cancels a click on a link (or anything inside one) in the frame. */
+/**
+ * Cancels a click on a link (or anything inside one) in the frame. A link
+ * to choose that is a gap chip still gets its click, to open the popover.
+ */
 export function cancelLinks(event) {
     const target = event.target;
     const link = target?.closest ? target.closest('a[href], area[href]') : null;
 
     if (link) {
         event.preventDefault();
-        event.stopPropagation();
+        if (link.getAttribute?.('data-gw-gap-active') == null) event.stopPropagation();
 
         return true;
     }
@@ -217,9 +221,10 @@ export function debounce(callback, wait) {
  * readable. Returns null when the frame can't be read (cross-origin, or
  * refused); otherwise {result, title, missing, partial, gaps(),
  * gapCounts(), measureAll(), setScale(), boxes(), hover(), nearestTop(),
- * scrollToBlock(), stop()}. `labels` are the gap chips' words (gapLabels()).
+ * scrollToBlock(), stop()}. `labels` are the gap chips' words (gapLabels());
+ * with `onGap(chip)`, a chip clicked (or Enter on it) calls it.
  */
-export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, onChange = () => {} } = {}) {
+export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, onChange = () => {}, onGap = null } = {}) {
     if (!canRead(frame)) return null;
 
     const doc = frame.contentDocument;
@@ -231,7 +236,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
     const titleInHead = titleKey !== null && marks.some((mark) => mark.key === titleKey && !doc.body?.contains(mark.element));
     let result = tighten(locate(doc, map, { marks }), marks, byKey);
     // Then the gap markers as chips, inside the regions just found.
-    let chips = markGaps(doc, { labels });
+    let chips = markGaps(doc, { labels, onActivate: onGap });
 
     const state = { hovered: null, boxes: [], stopped: false };
     const cleanups = [];
@@ -338,7 +343,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
     const watcher = watch(doc, (found) => {
         marks = [...marks, ...found];
         result = tighten(locate(doc, map, { marks }), marks, byKey);
-        chips = markGaps(doc, { labels });
+        chips = markGaps(doc, { labels, onActivate: onGap });
         later();
     });
     cleanups.push(() => watcher.stop());

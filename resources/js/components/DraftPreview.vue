@@ -6,10 +6,20 @@
     it; Escape puts back what was there, and Enter finishes a one-line field.
     Rich text stays rich. In the "text" view only the writing is shown, read
     straight through, without the blocks around it.
+
+    In the "text" view, writing that holds a gap marker shows it as a chip
+    (core's markers.js), and a chip opens the gap popover (`gap`). Clicking
+    the words, or Enter, starts editing them as stored, raw markers and
+    all (textchips.js), so nothing saved ever holds a chip.
 -->
 <script>
+import { gapLabels } from '../preview/overlay.js';
+import { chipsDirective, editKey, editPress, isPainted, readBack } from '../preview/textchips.js';
+
 export default {
     name: 'DraftPreview',
+
+    directives: { gwChips: chipsDirective },
 
     props: {
         nodes: { type: Array, required: true },
@@ -19,7 +29,12 @@ export default {
         editable: { type: Boolean, default: false },
     },
 
-    emits: ['edit'],
+    // `gap`: a chip activated, {kind, hint, list?, value?, match, occurrence, element, host, path}.
+    emits: ['edit', 'gap'],
+
+    created() {
+        this.labels = gapLabels((text) => this.__(text));
+    },
 
     computed: {
         shown() {
@@ -39,25 +54,59 @@ export default {
             return this.editable && node.editable;
         },
 
-        // What the element holds now: HTML for rich text, the plain words otherwise.
+        // What the element holds now: HTML for rich text, the plain words otherwise. Never a chip.
         read(node, element) {
-            return node.kind === 'html' ? element.innerHTML : element.innerText.replace(/\n$/, '');
+            return readBack(element, node.kind === 'html');
+        },
+
+        raw(node) {
+            return node.kind === 'html' ? node.html : node.text;
+        },
+
+        // The chips in the Text tab's read view.
+        chips(node) {
+            return {
+                raw: this.raw(node),
+                html: node.kind === 'html',
+                on: this.view === 'text',
+                labels: this.labels,
+                gap: this.editable ? (found, host) => this.$emit('gap', { ...found, host, path: node.editable ? node.path : null }) : null,
+            };
+        },
+
+        // A read view's words clicked, or a key on it: editing starts.
+        press(node, event) {
+            if (this.canEdit(node)) editPress(event, event.currentTarget, this.raw(node), node.kind === 'html');
+        },
+
+        keyed(node, event) {
+            if (this.canEdit(node)) editKey(event, event.currentTarget, this.raw(node), node.kind === 'html');
         },
 
         // Noted on the way in, so leaving can tell whether anything changed
-        // and Escape can put it back.
+        // and Escape can put it back. Not in a read view: nothing is being edited.
         enter(node, event) {
+            if (isPainted(event.target)) return;
+
             event.target.dataset.was = this.read(node, event.target);
         },
 
         leave(node, event) {
             const element = event.target;
+
+            if (isPainted(element)) return;
+
             const was = element.dataset.was;
             const value = this.read(node, element);
 
             delete element.dataset.was;
 
-            if (was === undefined || value === was) return;
+            if (was === undefined || value === was) {
+                // Unchanged: back to the read view.
+                this.$forceUpdate();
+
+                return;
+            }
 
             this.$emit('edit', {
                 path: node.path,
@@ -71,6 +120,8 @@ export default {
         cancel(node, event) {
             const element = event.target;
 
+            if (isPainted(element)) return;
+
             if (element.dataset.was !== undefined) {
                 if (node.kind === 'html') element.innerHTML = element.dataset.was;
                 else element.innerText = element.dataset.was;
@@ -82,7 +133,7 @@ export default {
         // Enter finishes a one-line field; in anything longer it is a new line.
         enterKey(node, event) {
             // Not while an input method is still composing a character.
-            if (node.kind === 'html' || node.multiline || event.shiftKey || event.isComposing) return;
+            if (event.defaultPrevented || isPainted(event.target) || node.kind === 'html' || node.multiline || event.shiftKey || event.isComposing) return;
 
             event.preventDefault();
             event.target.blur();
@@ -105,6 +156,9 @@ export default {
                 :role="canEdit(node) ? 'textbox' : null"
                 :aria-multiline="canEdit(node) ? 'true' : null"
                 :aria-label="canEdit(node) ? node.label : null"
+                v-gw-chips="chips(node)"
+                @mousedown="press(node, $event)"
+                @keydown="keyed(node, $event)"
                 @focus="enter(node, $event)"
                 @blur="leave(node, $event)"
                 @keydown.esc.stop.prevent="cancel(node, $event)"
@@ -122,7 +176,7 @@ export default {
                         <span v-if="!block.known" class="text-red-600">{{ __('Unknown block, will be left out') }}</span>
                     </div>
                     <div v-if="block.fields.length" :class="view === 'text' ? '' : 'p-3'">
-                        <DraftPreview :nodes="block.fields" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" />
+                        <DraftPreview :nodes="block.fields" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" @gap="$emit('gap', $event)" />
                     </div>
                     <div v-else-if="block.known && view === 'blocks'" class="px-3 py-2 text-sm text-gray-500">{{ __('Uses its usual settings.') }}</div>
                 </div>
@@ -130,12 +184,12 @@ export default {
 
             <div v-else-if="node.kind === 'rows'" class="space-y-2">
                 <div v-for="(row, index) in node.items" :key="index" :class="view === 'text' ? '' : 'rounded-md border border-gray-200 p-2.5 dark:border-gray-700!'">
-                    <DraftPreview :nodes="row" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" />
+                    <DraftPreview :nodes="row" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" @gap="$emit('gap', $event)" />
                 </div>
             </div>
 
             <div v-else-if="node.kind === 'group'" :class="view === 'text' ? '' : 'border-s-2 border-gray-200 ps-3 dark:border-gray-700!'">
-                <DraftPreview :nodes="node.fields" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" />
+                <DraftPreview :nodes="node.fields" :view="view" :editable="editable" nested @edit="$emit('edit', $event)" @gap="$emit('gap', $event)" />
             </div>
 
             <!-- Plain text: edited in place as plain words. -->
@@ -147,6 +201,9 @@ export default {
                 :role="canEdit(node) ? 'textbox' : null"
                 :aria-multiline="canEdit(node) ? String(Boolean(node.multiline)) : null"
                 :aria-label="canEdit(node) ? node.label : null"
+                v-gw-chips="chips(node)"
+                @mousedown="press(node, $event)"
+                @keydown="keyed(node, $event)"
                 @focus="enter(node, $event)"
                 @blur="leave(node, $event)"
                 @keydown.esc.stop.prevent="cancel(node, $event)"

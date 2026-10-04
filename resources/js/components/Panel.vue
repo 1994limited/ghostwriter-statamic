@@ -15,6 +15,7 @@ import { Alert, Button, Heading, Subheading, Textarea } from '@statamic/cms/ui';
 import BriefCard from './BriefCard.vue';
 import DraftPreview from './DraftPreview.vue';
 import ExtrasList from './ExtrasList.vue';
+import GapPopover from './GapPopover.vue';
 import LayoutCards from './LayoutCards.vue';
 import PagePreview from './PagePreview.vue';
 import LearnForm from './LearnForm.vue';
@@ -22,7 +23,7 @@ import SetupAlert from './SetupAlert.vue';
 import { useLabel } from '../preview/layouts.js';
 
 export default {
-    components: { Alert, BriefCard, Button, DraftPreview, ExtrasList, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
+    components: { Alert, BriefCard, Button, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -87,6 +88,11 @@ export default {
             previewLoaded: false,
             // It failed: the cards show their blocks instead of thumbnails.
             previewFailed: false,
+            // The gap chip whose popover is open, and whether its answer is being saved.
+            gap: null,
+            gapBusy: false,
+            // A gap resolved in the Preview: focus goes into the page once it has rendered again.
+            refocusPreview: false,
             timer: null,
         };
     },
@@ -203,6 +209,15 @@ export default {
     },
 
     watch: {
+        // A popover belongs to the chip it was opened from: another tab, or Edit YAML, closes it.
+        view() {
+            this.gap = null;
+        },
+
+        editing() {
+            this.gap = null;
+        },
+
         // Count from the message being answered, so reopening the panel
         // mid-turn shows how long it has really been.
         working: {
@@ -340,6 +355,7 @@ export default {
             const filled = data.stage === 'proposed' && data.id === this.session?.id && (this.session?.stage !== 'proposed' || data.brief?.attempt !== this.session?.brief?.attempt);
 
             if (data.id !== this.session?.id) {
+                this.gap = null;
                 this.$emit('session', data.id);
                 this.sessionView = this.failedBefore(data.id) ? 'blocks' : null;
                 this.previewLoaded = false;
@@ -512,6 +528,17 @@ export default {
             this.previewLoaded = true;
             this.previewFailed = false;
 
+            // After a gap resolved there: the next chip on the page, or the page.
+            if (this.refocusPreview) {
+                this.refocusPreview = false;
+                this.$nextTick(() => {
+                    const frame = this.$el.querySelector('iframe[data-ghostwriter-preview="current"]');
+                    const chip = frame?.contentDocument?.querySelector('.gw-gap[tabindex], a.gw-gap');
+
+                    (chip ?? frame)?.focus();
+                });
+            }
+
             try {
                 if (this.session?.id) sessionStorage.removeItem(`ghostwriter.preview-failed.${this.session.id}`);
             } catch (error) {
@@ -537,6 +564,63 @@ export default {
             } catch (error) {
                 this.fail(error);
                 revert?.();
+            }
+        },
+
+        // A gap chip clicked in the Preview or the Text tab: its popover.
+        openGap(gap) {
+            if (this.working) return;
+
+            this.gap = gap;
+        },
+
+        // Closed: focus back on the chip (or, once it has gone, where it was).
+        closeGap({ refocus = true } = {}) {
+            const gap = this.gap;
+
+            this.gap = null;
+
+            if (!refocus || !gap) return;
+
+            this.$nextTick(() => {
+                if (gap.element?.isConnected) gap.element.focus();
+                else if (gap.host?.isConnected) (gap.host.querySelector('.gw-gap[tabindex], a.gw-gap') ?? gap.host).focus();
+                else (this.$el.querySelector('iframe[data-ghostwriter-preview="current"]') ?? this.$refs.draftPane)?.focus?.();
+            });
+        },
+
+        // Written into the draft as typed: no model. Saved like any draft
+        // edit, under the piece's lock; the Preview, layouts, Blocks and Text follow.
+        async resolveGap({ value, reference }) {
+            const gap = this.gap;
+
+            if (!gap) return;
+
+            this.gapBusy = true;
+
+            try {
+                const { data } = await this.$axios.patch(this.url(`sessions/${this.session.id}/gap`), {
+                    kind: gap.kind,
+                    hint: gap.hint,
+                    list: gap.list ?? null,
+                    occurrence: gap.occurrence ?? 0,
+                    path: gap.path ? gap.path.map(String) : null,
+                    value,
+                    reference,
+                });
+
+                this.receive(data);
+                this.refocusPreview = Boolean(gap.frame);
+                this.announce({
+                    ask: this.__('Added to the draft.'),
+                    check: value === '' ? this.__('Count removed from the draft.') : this.__('Count confirmed in the draft.'),
+                    link: this.__('Link chosen in the draft.'),
+                }[gap.kind]);
+                this.closeGap();
+            } catch (error) {
+                this.fail(error);
+            } finally {
+                this.gapBusy = false;
             }
         },
 
@@ -770,8 +854,9 @@ export default {
             </div>
 
             <!-- The conversation and the draft -->
-            <div v-else class="grid h-full gap-6 max-lg:grid-cols-1 lg:grid-cols-5">
-                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 max-lg:min-h-[80vh] lg:col-span-2 dark:border-gray-700!">
+            <!-- Side by side from lg; stacked below it, each as tall as it needs (at least most of the screen), never overlapping. -->
+            <div v-else class="grid gap-6 max-lg:grid-cols-1 lg:h-full lg:grid-cols-5">
+                <div class="flex min-h-0 min-w-0 flex-col rounded-lg border border-gray-200 max-lg:min-h-[80vh]! lg:col-span-2 dark:border-gray-700!">
                     <div class="sr-only" aria-live="polite" aria-atomic="true">{{ announcement }}</div>
                     <div ref="chat" class="flex-1 space-y-3 overflow-y-auto p-4">
                         <!-- A piece from before the brief card: its brief, as text. -->
@@ -913,7 +998,7 @@ export default {
                         </div>
                     </div>
 
-                    <div class="flex-1 overflow-y-auto p-4">
+                    <div ref="draftPane" class="relative flex-1 overflow-y-auto p-4" tabindex="-1">
                         <div v-if="!session.draft" class="py-24 text-center text-gray-500">
                             <template v-if="working">
                                 <svg class="mx-auto mb-3 size-6 animate-spin motion-reduce:animate-none" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -968,13 +1053,26 @@ export default {
                                     @failed="previewFailedFor"
                                     @rendered="previewRendered"
                                     @blocks="setView('blocks')"
+                                    @gap="openGap"
                                 />
                                 <template v-if="view !== 'preview'">
                                     <p v-if="!working" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
-                                    <DraftPreview :nodes="session.preview" :view="view" :editable="!working" @edit="editField" />
-                                    <ExtrasList v-if="view === 'text'" :extras="session.extras ?? []" :editable="!working" @edit="editExtra" @remove="removeExtra" />
+                                    <DraftPreview :nodes="session.preview" :view="view" :editable="!working" @edit="editField" @gap="openGap" />
+                                    <ExtrasList v-if="view === 'text'" :extras="session.extras ?? []" :editable="!working" @edit="editExtra" @remove="removeExtra" @gap="openGap" />
                                 </template>
                             </div>
+
+                            <GapPopover
+                                v-if="gap"
+                                :key="`${gap.kind}:${gap.hint}:${gap.occurrence}`"
+                                :gap="gap"
+                                :container="$refs.draftPane"
+                                :base-url="baseUrl"
+                                :session-id="session.id"
+                                :busy="gapBusy"
+                                @resolve="resolveGap"
+                                @close="closeGap"
+                            />
                         </template>
                     </div>
                 </div>

@@ -2,10 +2,12 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Drafts;
 
+use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\MarkerResolver;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
 use NineteenNinetyFour\Ghostwriter\Core\Images\AssetSink;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
@@ -85,6 +87,23 @@ class DraftValues
 
         $data = $this->images->place(['title' => $draft->title()] + $data, $session, $specs);
 
+        // Links chosen from the preview for fields the draft doesn't hold
+        // (a button's link): kept in the session's draft by hint, put in
+        // wherever the house style's sentinel for it turned up.
+        $data = MarkerResolver::withChosenLinks($data, self::chosenLinks($session));
+
         return new BuiltValues($data, $notes, $left, $specs, $schema);
+    }
+
+    /**
+     * @return array<string, array{link?: mixed, url?: string}>
+     */
+    private static function chosenLinks(Session $session): array
+    {
+        try {
+            return $session->draft === null ? [] : MarkerResolver::chosenLinks(Draft::parse($session->draft)->data);
+        } catch (InvalidArgumentException) {
+            return [];
+        }
     }
 }

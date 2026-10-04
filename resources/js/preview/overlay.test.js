@@ -54,6 +54,11 @@ test('a click on a link, or inside one, is cancelled; others are not', () => {
     assert.ok(onLink.prevented && onLink.stopped);
     assert.equal(cancelLinks(elsewhere), false);
     assert.equal(elsewhere.prevented, false);
+
+    // A link to choose that is a gap chip: never followed, but its own click still opens the popover.
+    const chip = event({ getAttribute: (name) => (name === 'data-gw-gap-active' ? '' : null) });
+    assert.equal(cancelLinks(chip), true);
+    assert.ok(chip.prevented && !chip.stopped);
 });
 
 test('renders wait for the edits to settle', async () => {

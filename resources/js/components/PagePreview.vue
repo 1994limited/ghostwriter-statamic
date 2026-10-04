@@ -17,8 +17,9 @@
       core's locator). Links in the frame do nothing.
     - Gap markers show as chips, not raw text: an amber chip for a fact to
       add, a dotted underline for a count to check, a dashed underline for
-      a link to choose, each with a tooltip (core's markers.js). They are
-      only shown: the draft keeps its markers.
+      a link to choose, each with a tooltip (core's markers.js). A chip is a
+      button (`gap`): the panel opens a small popover at it, to resolve the
+      gap in the draft itself. The frame never changes the draft.
 -->
 <script>
 import { Button } from '@statamic/cms/ui';
@@ -43,7 +44,8 @@ export default {
     },
 
     // `failed`: this render failed; `rendered`: one has swapped in.
-    emits: ['failed', 'rendered', 'blocks'],
+    // `gap`: a chip in the page clicked, {kind, hint, list?, value?, match, occurrence, element, frame, scale}.
+    emits: ['failed', 'rendered', 'blocks', 'gap'],
 
     data() {
         return {
@@ -236,7 +238,14 @@ export default {
             }
 
             const anchor = this.current ? this.overlays.get(this.current.id)?.nearestTop() : null;
-            const overlay = entry.sameOrigin ? attach(frame, entry.map, { titleKey: entry.titleKey, scale: this.frameBox.scale, labels: gapLabels((text) => this.__(text)) }) : null;
+            const overlay = entry.sameOrigin
+                ? attach(frame, entry.map, {
+                    titleKey: entry.titleKey,
+                    scale: this.frameBox.scale,
+                    labels: gapLabels((text) => this.__(text)),
+                    onGap: (found) => this.$emit('gap', { ...found, frame, scale: this.frameBox.scale }),
+                })
+                : null;
 
             if (entry.sameOrigin && !overlay) {
                 this.next = null;
@@ -333,7 +342,7 @@ export default {
                         </svg>
                         {{ __('Updating preview…') }}
                     </span>
-                    <span class="shrink-0 rounded-full bg-amber-100 px-2 py-px font-medium whitespace-nowrap text-amber-800 dark:bg-amber-500/20! dark:text-amber-300!">{{ __('Preview · not saved') }}</span>
+                    <span class="shrink-0 rounded-full bg-amber-100 px-2 py-px font-medium whitespace-nowrap text-amber-800 dark:bg-amber-500/20! dark:text-amber-300!">{{ frameBox.outer < 360 ? __('Not saved') : __('Preview · not saved') }}</span>
                 </div>
                 <div class="relative overflow-hidden" :style="{ height: `${frameHeight}px` }" :aria-busy="loading ? 'true' : 'false'">
                     <template v-for="entry in [current, next].filter(Boolean)" :key="entry.id">
