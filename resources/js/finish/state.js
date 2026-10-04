@@ -5,12 +5,20 @@
 // - Steps are the gaps the last check found, nothing else: a gap that has
 //   gone is no longer a step, and a fix that makes a new gap (a placeholder
 //   swapped for a stock preview) gives a new, open step.
-// - Gaps that count (they block, or the CMS requires them) come first; the
+// - Gaps that count (they block, prompt, or the CMS requires them) come first; the
 //   suggestions follow and are numbered separately.
 // - A field is "fixed" only when it had gaps in this view and the last check
 //   found none left in it.
 
 export const isSuggestion = (gap) => gap.severity === 'suggestion';
+
+/**
+ * Whether a check brings the guide out on its own: something blocks
+ * publishing, or an image the page looks like it needs is empty (severity
+ * `prompt`, which core raises only once the entry has content or a draft
+ * was applied). A required field Statamic reports itself never does.
+ */
+export const bringsOut = (steps) => steps.some((step) => step.gap.severity === 'blocks' || step.gap.severity === 'prompt');
 
 /**
  * The steps for a new check: the live gaps, counted ones first, each open
@@ -65,9 +73,8 @@ export function firstToDo(steps) {
 /**
  * What is left to finish as everything outside the guide says it: the
  * header menu's badge and row, and Suggest edits' "1 thing still to
- * finish". Nothing until the guide is out (a required field left empty
- * doesn't bring it out on its own), so no count points at a guide that
- * isn't there.
+ * finish". Nothing until the guide is out (bringsOut()), so no count
+ * points at a guide that isn't there.
  */
 export function published(steps, index, shown) {
     return shown ? counts(steps, index).count : 0;

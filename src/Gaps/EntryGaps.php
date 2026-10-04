@@ -19,16 +19,21 @@ use NineteenNinetyFour\Ghostwriter\Core\Gaps\Message;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\PublishReadiness;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Readiness;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
+use NineteenNinetyFour\Ghostwriter\Core\Layout\FillRates;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Links\StatamicLinks;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Pattern;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\EntryData;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\RenderProfile;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\FormBaseline;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
+use NineteenNinetyFour\Ghostwriter\Seo\HeadingProfiles;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
+use NineteenNinetyFour\Ghostwriter\Storage\FileRenderProfiles;
 use Statamic\Contracts\Entries\Entry;
+use Statamic\Facades\Collection;
 use Statamic\Fields\Blueprint;
 use Throwable;
 
@@ -41,8 +46,10 @@ use Throwable;
  */
 class EntryGaps
 {
-    /** How long a collection's fill rates are kept between checks. */
-    private const PATTERN_SECONDS = 600;
+    /** How long a collection's fill rates are kept at most; saving an entry in it forgets them sooner (forgetRates()). */
+    private const PATTERN_SECONDS = 86400;
+
+    private const RATES_KEY = 'ghostwriter.gaps.filled.';
 
     public function __construct(
         private SchemaReader $reader,
@@ -78,6 +85,8 @@ class EntryGaps
             pattern: $collection !== null ? $this->pattern($schema, $collection, $blueprint->handle()) : null,
             session: $session ?? new SessionGaps,
             sources: $sources ?? [],
+            group: $collection !== null ? HeadingProfiles::label($collection) : '',
+            profile: $collection !== null ? $this->profile($collection, $blueprint->handle(), $site) : null,
         );
     }
 
@@ -207,7 +216,7 @@ class EntryGaps
      * message, speech label and fixes translated, and the tab its field
      * is on.
      *
-     * @return array{count: int, blocking: int, suggestions: int, gaps: list<array<string, mixed>>}
+     * @return array{count: int, blocking: int, prompting: int, suggestions: int, gaps: list<array<string, mixed>>}
      */
     public function present(GapReport $report, Blueprint $blueprint): array
     {
@@ -298,17 +307,53 @@ class EntryGaps
     }
 
     /**
-     * How often a collection's entries fill each place, kept a while: it
-     * reads every published entry, and the guide checks as people type.
+     * How often a collection's newest published entries of this blueprint
+     * fill each place, and how many there were (core's FillRates, over at
+     * most 20): kept until an entry in the collection is saved, as the
+     * guide checks as people type.
      */
     private function pattern(Schema $schema, string $collection, ?string $blueprint): ?Pattern
     {
         try {
-            $filled = Cache::remember('ghostwriter.gaps.filled.'.$collection.'.'.$blueprint, self::PATTERN_SECONDS, fn () => $this->layouts->pattern($schema, $collection, $blueprint)->filled);
+            $rates = Cache::remember(self::RATES_KEY.$collection.'.'.$blueprint, self::PATTERN_SECONDS, function () use ($schema, $collection, $blueprint): array {
+                $pattern = FillRates::pattern($schema, $this->layouts->newest($collection, $blueprint, FillRates::SIBLINGS));
+
+                return ['entries' => $pattern->entries, 'filled' => $pattern->filled];
+            });
         } catch (Throwable) {
             return null;
         }
 
-        return new Pattern(filled: is_array($filled) ? $filled : []);
+        return is_array($rates) && is_array($rates['filled'] ?? null) ? new Pattern(entries: (int) ($rates['entries'] ?? 0), filled: $rates['filled']) : null;
+    }
+
+    /**
+     * After an entry is saved: its collection's fill rates are counted
+     * again on the next check.
+     */
+    public static function forgetRates(Entry $entry): void
+    {
+        $collection = (string) $entry->collectionHandle();
+        $blueprints = Collection::findByHandle($collection)?->entryBlueprints()->map(fn (Blueprint $blueprint) => $blueprint->handle())->all() ?? [];
+
+        foreach ([...$blueprints, ''] as $blueprint) {
+            Cache::forget(self::RATES_KEY.$collection.'.'.$blueprint);
+        }
+    }
+
+    /**
+     * The collection's render profile for this blueprint, when a preview
+     * has shown one: the set the template prints the `h1` from is the hero.
+     * Only what is stored; nothing is rendered or studied for it.
+     */
+    private function profile(string $collection, string $blueprint, ?string $site): ?RenderProfile
+    {
+        try {
+            $profile = app(FileRenderProfiles::class)->for($collection, $blueprint, $site);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $profile !== null && $profile->rendered() ? $profile : null;
     }
 }

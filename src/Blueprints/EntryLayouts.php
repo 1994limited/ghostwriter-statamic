@@ -177,6 +177,17 @@ class EntryLayouts
      *
      * @return Collection<int, Entry>
      */
+    /**
+     * The newest published entries of a collection (and blueprint), read:
+     * what Finish this page counts fill rates over.
+     *
+     * @return array<int, EntryData>
+     */
+    public function newest(string $collection, ?string $blueprint, int $limit): array
+    {
+        return $this->published($collection, $blueprint)->take($limit)->map(fn (Entry $entry) => self::entryData($entry, parent: false))->values()->all();
+    }
+
     private function published(string $collection, ?string $blueprint): Collection
     {
         return Entries::query()

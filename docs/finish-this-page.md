@@ -18,9 +18,11 @@ It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 | **An image placeholder** | Ghostwriter's striped placeholder (`ghostwriter/image-placeholder.png` in the field's container), in an assets field or inline in Bard. See [Images](images.md#placeholders). | Yes |
 | **A stock preview not licensed** | A paid library's preview. See [Stock photos](stock-photos.md). | Yes |
 | **Template text** | A placeholder such as `[[item]]` left in the text. | Yes |
-| **A required field left empty** | | Statamic's own validation does |
-| **An image or link field left empty** that most entries like this fill | | No: it's counted, not enforced |
+| **An image the page looks like it needs, left empty**: it's required, it's the page's hero (the set the template prints the H1 from, or a hero image when there are too few published entries to go by), or at least 70% of the collection's 20 newest published entries have one. The step says which: "Hero image is required. Add one?", "Hero image is empty, but most Journal entries have one. Add one?" | | No: it's counted and brings the guide out, but only Statamic enforces required. Not on a new entry until a draft is put in or it has some text. |
+| **A link field left empty** that most entries like this fill | | No: it's counted, not enforced |
 | **A field most entries fill, left empty**, and text such as `TBC`, `[insert date]` or `lorem ipsum` | | No: a suggestion only |
+
+A required text, date or select field left empty isn't listed: Statamic's own validation says so when you save.
 
 Everything is found from the entry's values and its blueprint, as you type. Finding them never asks a model and never saves anything.
 

@@ -38,7 +38,12 @@ class ContentToRevisitTest extends TestCase
             ['handle' => 'body', 'field' => ['type' => 'bard', 'display' => 'Body', 'buttons' => ['bold', 'link']]],
         ]])->save();
 
-        Entry::make()->id('show-garden')->collection('revisit_pages')->slug('show-garden')->published(true)->data(['title' => 'Our show garden'])->save();
+        // Written in full, as Services is: half the pages leaving a field empty makes it "expected".
+        Entry::make()->id('show-garden')->collection('revisit_pages')->slug('show-garden')->published(true)->data([
+            'title' => 'Our show garden',
+            'eyebrow' => 'Open every weekend',
+            'body' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Walk round the beds we plant each spring.']]]],
+        ])->save();
         $this->services();
     }
 
