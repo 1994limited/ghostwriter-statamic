@@ -8,7 +8,8 @@
     plus the suggestions to review, amber while anything is left to finish
     (that stops publishing), plain with only suggestions, none at 0. It lists
     Finish this page and Review suggestions with their counts, each only
-    while it has one, then Ghostwriter's own items. The counts come from the
+    while it has one, then Suggest edits (the button itself isn't repeated;
+    with nothing in the menu, the chevron goes). The counts come from the
     guides (Finish.vue and Suggest.vue, the same live lists as their docks)
     as `ghostwriter.counts` events; the rows open them with
     `ghostwriter.finish.show` and `ghostwriter.suggest.show`.
@@ -94,6 +95,11 @@ export default {
 
         label() {
             return this.entry ? this.__('Edit with Ghostwriter') : this.__('Write with Ghostwriter');
+        },
+
+        // Whether the menu has a count row to show.
+        rows() {
+            return !!(this.counts.finish || this.counts.suggestions || this.counts.reviewing);
         },
 
         total() {
@@ -241,7 +247,8 @@ export default {
             <!-- On a phone or tablet the header has no room for the label beside Save, so only the ghost shows. -->
             <ButtonGroup>
                 <Button :icon="ghost" :text="label" :title="label" :loading="starting" class="max-lg:gap-0! max-lg:px-3! max-lg:[&>div]:sr-only!" @click="launch" />
-                <Dropdown align="end">
+                <!-- With nothing in the menu (a new entry with nothing to count) the button stands alone. -->
+                <Dropdown v-if="entry || rows" align="end">
                     <template #trigger>
                         <!-- One button whatever the count, so the menu stays anchored to it. -->
                         <Button icon-append="chevron-down" :aria-label="menuLabel" :title="total ? totalLabel : null" class="min-w-9 gap-1.5! px-2.5!" data-ghostwriter-menu>
@@ -249,16 +256,15 @@ export default {
                         </Button>
                     </template>
                     <DropdownMenu>
-                        <template v-if="counts.finish || counts.suggestions || counts.reviewing">
+                        <template v-if="rows">
                             <DropdownItem v-if="counts.finish" icon="clipboard-check" data-ghostwriter-menu-finish @click="show('finish')">
                                 <span class="flex items-center justify-between gap-4">{{ __('Finish this page') }}<Badge :text="counts.finish" color="amber" size="sm" pill aria-hidden="true" class="tabular-nums" /></span>
                             </DropdownItem>
                             <DropdownItem v-if="counts.suggestions || counts.reviewing" icon="ai-chat-spark" data-ghostwriter-menu-review @click="show('suggest')">
                                 <span class="flex items-center justify-between gap-4">{{ __('Review suggestions') }}<Badge v-if="counts.suggestions" :text="counts.suggestions" size="sm" pill aria-hidden="true" class="tabular-nums" /><span v-else class="text-xs text-gray-500">{{ __('Reviewing…') }}</span></span>
                             </DropdownItem>
-                            <DropdownSeparator />
+                            <DropdownSeparator v-if="entry" />
                         </template>
-                        <DropdownItem :text="label" :icon="ghost" @click="launch" />
                         <template v-if="entry">
                             <DropdownItem :text="__('Suggest edits')" icon="checkmark" data-ghostwriter-suggest @click="suggest" />
                             <DropdownLabel :text="__('Reads the page against your voice guide and checks each suggestion twice. Uses Ghostwriter.')" class="max-w-64 whitespace-normal!" />
