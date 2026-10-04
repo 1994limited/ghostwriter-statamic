@@ -13,6 +13,8 @@
 <script>
 import { Alert, Button, Heading, Subheading, Textarea } from '@statamic/cms/ui';
 import BriefCard from './BriefCard.vue';
+import CommentComposer from './CommentComposer.vue';
+import CommentsSidebar from './CommentsSidebar.vue';
 import DraftPreview from './DraftPreview.vue';
 import ExtrasList from './ExtrasList.vue';
 import GapPopover from './GapPopover.vue';
@@ -21,12 +23,20 @@ import PagePreview from './PagePreview.vue';
 import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
 import { useLabel } from '../preview/layouts.js';
+import { pendingPins, runOutcome, toSend } from '../preview/comments.js';
+import CommentItem from './CommentItem.vue';
 
 // The panel's content width below which it is one column (measure()).
 const NARROW = 900;
 
+// The draft pane’s width from which the comments sit beside the preview (the page keeps about 700 px); below it, under it.
+const BESIDE = 980;
+
+// While commenting, the piece is fetched this often for comments others sent (E7).
+const COMMENTS_POLL = 10000;
+
 export default {
-    components: { Alert, BriefCard, Button, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
+    components: { Alert, BriefCard, Button, CommentComposer, CommentItem, CommentsSidebar, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, PagePreview, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -102,6 +112,17 @@ export default {
             pane: 'conversation',
             // The draft changed while the conversation was showing (narrow only).
             draftFresh: false,
+            // Comments: comment mode; the editor's pins not sent yet (kept in
+            // this browser); the composer open on a pick (or on a pin being
+            // edited); the request in flight; the comment a pin points at;
+            // and the blocks a run changed (to flash once).
+            commenting: false,
+            pending: [],
+            composer: null,
+            commentBusy: null,
+            focusedComment: null,
+            flash: null,
+            draftWide: true,
             timer: null,
         };
     },
@@ -184,6 +205,7 @@ export default {
         // What is probably going on, going by how long it has been.
         progress() {
             if (this.stage === 'filling') return this.__('Filling in the brief…');
+            if (this.applyingComments) return this.__('Applying the comments…');
             if (this.waited < 8) return this.session.draft ? this.__('Reading your message…') : this.__('Reading the brief…');
             if (this.waited < 30) return this.session.draft ? this.__('Revising the draft…') : this.__('Thinking it through…');
 
@@ -200,6 +222,52 @@ export default {
             return this.view !== 'preview' || this.previewLoaded;
         },
 
+        // The comments sent in the conversation (the server's), and the next pin's number.
+        comments() {
+            return this.session?.comments ?? null;
+        },
+
+        sentPins() {
+            return this.comments?.pins ?? [];
+        },
+
+        // The editor's pins not sent yet, numbered after the sent ones.
+        pendingList() {
+            return pendingPins(this.pending, this.comments?.next ?? 1);
+        },
+
+        // Every pin on the page: the editor's own and those sent.
+        allPins() {
+            return [...this.sentPins, ...this.pendingList];
+        },
+
+        // The amber count on the Comment toggle: not sent, and sent but not resolved.
+        openCount() {
+            return this.pending.length + this.sentPins.filter((pin) => pin.status !== 'resolved').length;
+        },
+
+        // Comments are made in the Preview, on a rendered draft.
+        canComment() {
+            return Boolean(this.comments && this.session?.draft && this.session?.page_preview && this.view === 'preview' && !this.editing && !this.session.draft_problem);
+        },
+
+        // The run going now is Apply's.
+        applyingComments() {
+            return this.working && this.sentPins.some((pin) => pin.status === 'sending');
+        },
+
+        // Sent pins by the editor's message (m…) and by Ghostwriter's answer (a…), for the chat.
+        pinsByMessage() {
+            const out = {};
+
+            for (const pin of this.sentPins) {
+                (out[`m${pin.message}`] ??= []).push(pin);
+                if (pin.answer !== null) (out[`a${pin.answer}`] ??= []).push(pin);
+            }
+
+            return out;
+        },
+
         elapsed() {
             return `${Math.floor(this.waited / 60)}:${String(this.waited % 60).padStart(2, '0')}`;
         },
@@ -209,6 +277,7 @@ export default {
         this.measure();
         this.sizer = new ResizeObserver(() => this.measure());
         this.sizer.observe(this.$el);
+        document.addEventListener('keydown', this.shortcut);
 
         await this.load();
 
@@ -229,6 +298,32 @@ export default {
 
         editing() {
             this.gap = null;
+        },
+
+        // Comment mode is the Preview's: leaving it (or a draft that can't be shown) leaves the mode.
+        canComment(can) {
+            if (!can && this.commenting) this.setCommenting(false);
+        },
+
+        commenting(on) {
+            clearInterval(this.commentsPoll);
+
+            if (on) this.commentsPoll = setInterval(() => this.pollComments(), COMMENTS_POLL);
+        },
+
+        // The editor's pins not sent yet are kept in this browser, per piece, until applied.
+        pending: {
+            deep: true,
+            handler(pending) {
+                if (!this.session?.id) return;
+
+                try {
+                    const key = `ghostwriter.pending-comments.${this.session.id}`;
+                    pending.length ? localStorage.setItem(key, JSON.stringify(pending.map(({ error, ...pin }) => pin))) : localStorage.removeItem(key);
+                } catch (error) {
+                    // Private windows and the like: kept until the panel closes.
+                }
+            },
         },
 
         // Count from the message being answered, so reopening the panel
@@ -252,7 +347,9 @@ export default {
     beforeUnmount() {
         clearTimeout(this.timer);
         clearInterval(this.ticker);
+        clearInterval(this.commentsPoll);
         this.sizer?.disconnect();
+        document.removeEventListener('keydown', this.shortcut);
     },
 
     methods: {
@@ -268,6 +365,7 @@ export default {
             const width = this.$el.clientWidth - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0);
 
             this.narrow = width > 0 && width < NARROW;
+            this.draftWide = (this.$refs.draftPane?.clientWidth ?? 0) >= BESIDE;
         },
 
         // Conversation or Draft, in a narrow panel.
@@ -395,12 +493,24 @@ export default {
         receive(data) {
             const changed = data.draft !== this.session?.draft;
 
+            // An Apply has finished: flash what changed, and say what came back.
+            if (data.id === this.session?.id && this.session?.comments && data.comments) {
+                const before = this.session.comments.pins ?? [];
+
+                if (before.some((pin) => pin.status === 'sending') && !(data.comments.pins ?? []).some((pin) => pin.status === 'sending')) {
+                    this.$nextTick(() => this.reportRun(before, data.comments.pins));
+                }
+            }
+
             // The brief card has just been filled in (or filled in again):
             // say so, and take keyboard focus to it.
             const filled = data.stage === 'proposed' && data.id === this.session?.id && (this.session?.stage !== 'proposed' || data.brief?.attempt !== this.session?.brief?.attempt);
 
             if (data.id !== this.session?.id) {
                 this.gap = null;
+                this.composer = null;
+                this.focusedComment = null;
+                this.pending = this.storedPending(data.id);
                 this.pane = data.draft ? 'draft' : 'conversation';
                 this.draftFresh = false;
                 this.$emit('session', data.id);
@@ -784,6 +894,245 @@ export default {
             }
         },
 
+        // -- Comments ----------------------------------------------------------
+
+        setCommenting(on) {
+            this.commenting = on;
+            this.composer = null;
+            this.focusedComment = null;
+            this.$nextTick(() => this.measure());
+
+            if (on) {
+                this.gap = null;
+                if (this.narrow) this.pane = 'draft';
+                this.announce(this.__('Comment mode on. Click a block to comment, or Tab to the blocks on the page.'));
+            } else {
+                this.announce(this.__('Comment mode off.'));
+            }
+        },
+
+        // Alt+Shift+C toggles comment mode, away from text boxes (WCAG 2.1.4).
+        shortcut(event) {
+            if (!(event.altKey && event.shiftKey && event.code === 'KeyC') || !this.canComment) return;
+            if (event.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+
+            event.preventDefault();
+            this.setCommenting(!this.commenting);
+        },
+
+        // The pins this browser kept for a piece.
+        storedPending(id) {
+            try {
+                const stored = JSON.parse(localStorage.getItem(`ghostwriter.pending-comments.${id}`) ?? '[]');
+
+                return Array.isArray(stored) ? stored.filter((pin) => pin && typeof pin.body === 'string' && pin.id) : [];
+            } catch (error) {
+                return [];
+            }
+        },
+
+        // A block clicked, or words selected in one, in the Preview: a new pin.
+        pick(pick) {
+            if (!this.commenting) return;
+
+            this.composer = { ...pick, body: '', editing: null };
+        },
+
+        composerAnchor() {
+            return this.$refs.preview?.pageRect(this.composer?.rect) ?? null;
+        },
+
+        closeComposer(refocus = true) {
+            const key = this.composer?.key;
+
+            this.composer = null;
+
+            if (refocus) this.$nextTick(() => this.$refs.preview?.focusTarget(key));
+        },
+
+        // The composer's words: a new pin not sent yet, or a pin's words changed. No request.
+        savePin(body) {
+            const composer = this.composer;
+
+            if (!composer) return;
+
+            if (composer.editing) {
+                this.pending = this.pending.map((pin) => (pin.id === composer.editing ? { ...pin, body, error: null } : pin));
+                this.announce(this.__('Comment changed. Not sent yet.'));
+            } else {
+                this.pending = [...this.pending, {
+                    id: `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+                    kind: composer.kind,
+                    units: composer.units,
+                    label: composer.label,
+                    path: composer.path,
+                    planPath: composer.planPath,
+                    quote: composer.quote,
+                    body,
+                }];
+                this.announce(this.__('Comment :number added to :label. :count not sent yet.', { number: (this.comments?.next ?? 1) + this.pending.length - 1, label: composer.label, count: this.pending.length }));
+            }
+
+            this.closeComposer();
+        },
+
+        // A pin not sent yet, opened again to change its words.
+        editPin(pin) {
+            const rect = this.$refs.preview?.pinRect(pin.number);
+
+            this.focusedComment = pin.number;
+            this.composer = { ...pin, quote: pin.kind === 'text' ? { exact: pin.quote } : null, rect: rect ?? null, editing: pin.id, body: pin.body };
+        },
+
+        removePin(pin) {
+            this.pending = this.pending.filter((candidate) => candidate.id !== pin.id);
+            if (this.composer?.editing === pin.id) this.composer = null;
+            this.announce(this.__('Comment :number deleted.', { number: pin.number }));
+        },
+
+        pageComment({ body, done }) {
+            this.pending = [...this.pending, { id: `p${Date.now().toString(36)}`, kind: 'page', units: [], label: null, body }];
+            done();
+            this.announce(this.__('Comment added on the whole page. Not sent yet.'));
+        },
+
+        // A request about comments; the piece comes back as it is now.
+        async commentRequest(action, number, request) {
+            this.commentBusy = { action, number };
+
+            try {
+                const { data } = await request();
+
+                this.receive(data);
+
+                return data;
+            } catch (error) {
+                this.fail(error);
+
+                return null;
+            } finally {
+                this.commentBusy = null;
+            }
+        },
+
+        commentUrl(path) {
+            return this.url(`sessions/${this.session.id}/comments/${path}`);
+        },
+
+        // **Apply N comments**: one message in the conversation, and Ghostwriter's turn.
+        async applyComments() {
+            const sending = this.pending.slice(0, 12);
+
+            if (!sending.length) return;
+
+            this.commentBusy = { action: 'apply', number: null };
+            this.pending = this.pending.map((pin) => ({ ...pin, error: null }));
+
+            try {
+                const { data } = await this.$axios.post(this.commentUrl('apply'), { comments: toSend(sending) });
+                const ids = sending.map((pin) => pin.id);
+
+                this.pending = this.pending.filter((pin) => !ids.includes(pin.id));
+                this.receive(data);
+                this.announce(this.__n('Ghostwriter is revising the block from your comment.|Ghostwriter is revising the blocks from your :count comments.', sending.length));
+            } catch (error) {
+                // Each refusal goes next to its pin, in words.
+                const errors = error.response?.status === 422 ? error.response.data?.errors ?? {} : {};
+                const byPin = {};
+
+                for (const [field, messages] of Object.entries(errors)) {
+                    const match = field.match(/^comments\.(\d+)/);
+                    if (match) byPin[Number(match[1])] ??= messages[0];
+                }
+
+                if (Object.keys(byPin).length) {
+                    this.pending = this.pending.map((pin, index) => (byPin[index] ? { ...pin, error: byPin[index] } : pin));
+                    this.announce(this.__('Some comments couldn’t be sent. The reason is next to each.'));
+                } else {
+                    this.fail(error);
+                }
+            } finally {
+                this.commentBusy = null;
+            }
+        },
+
+        resolveComment(pin, resolved = true) {
+            return this.commentRequest(resolved ? 'resolve' : 'reopen', pin.number, () => this.$axios.post(this.commentUrl(`${pin.answer}/${pin.number}/resolve`), { resolved }))
+                .then((data) => data && this.announce(resolved ? this.__('Comment :number resolved.', { number: pin.number }) : this.__('Comment :number reopened.', { number: pin.number })));
+        },
+
+        putBack(pin) {
+            return this.commentRequest('putBack', pin.number, () => this.$axios.post(this.commentUrl(`${pin.answer}/${pin.number}/put-back`)))
+                .then((data) => data && this.announce(this.__('Put back as it was before comment :number.', { number: pin.number })));
+        },
+
+        // A pin clicked on the page: the editor's own opens to edit; a sent one shows in the list.
+        showPin(number) {
+            const own = this.pendingList.find((pin) => pin.number === number);
+
+            if (!this.commenting) this.setCommenting(true);
+
+            if (own) return this.$nextTick(() => this.editPin(own));
+
+            this.focusedComment = null;
+            this.$nextTick(() => (this.focusedComment = number));
+        },
+
+        // "Show on page", from the list or the chat.
+        showComment(number) {
+            if (this.view !== 'preview') this.setView('preview');
+            if (this.narrow) this.pane = 'draft';
+            if (!this.commenting && this.canComment) this.setCommenting(true);
+
+            this.focusedComment = number;
+            this.$nextTick(() => {
+                if (!this.$refs.preview?.showThread(number)) this.announce(this.__('That comment has no place on this page.'));
+            });
+        },
+
+        // What a run did: the changed blocks flash, and anything not applied is said, with why.
+        reportRun(before, after) {
+            const outcome = runOutcome(before, after);
+            const lines = [];
+
+            if (outcome.changed.length) {
+                this.flash = { numbers: outcome.changed, nonce: Date.now() };
+                lines.push(this.__n(':count block changed.|:count blocks changed.', outcome.changed.length));
+            }
+
+            if (outcome.replied.length) lines.push(this.__n('Ghostwriter replied to :count comment.|Ghostwriter replied to :count comments.', outcome.replied.length));
+
+            const skipped = outcome.back.filter((item) => item.skipped);
+            const refused = outcome.back.filter((item) => !item.skipped);
+
+            if (skipped.length) {
+                const text = this.__n('Comment :numbers was skipped: someone changed its block while Ghostwriter worked. Apply again to use the new version.|Comments :numbers were skipped: someone changed their blocks while Ghostwriter worked. Apply again to use the new version.', skipped.length, { numbers: skipped.map((item) => item.number).join(', ') });
+                lines.push(text);
+                this.$toast.info(text);
+            }
+
+            for (const item of refused) {
+                const text = this.__('Comment :number wasn’t applied: :reason', { number: item.number, reason: item.reason });
+                lines.push(text);
+                this.$toast.info(text);
+            }
+
+            if (lines.length) this.announce(`${lines.join(' ')} ${this.__('Ghostwriter’s answer is in the conversation.')}`);
+        },
+
+        // Comments others sent, while commenting (only while the page is on show).
+        async pollComments() {
+            if (!this.session?.id || this.working || this.composer || this.commentBusy || document.visibilityState === 'hidden') return;
+
+            try {
+                const { data } = await this.$axios.get(this.url(`sessions/${this.session.id}`));
+
+                if (data.messages?.length !== this.session.messages?.length || data.draft !== this.session.draft || data.status !== this.session.status || JSON.stringify(data.comments) !== JSON.stringify(this.session.comments)) this.receive(data);
+            } catch {
+                // The next poll tries again.
+            }
+        },
+
         startOver() {
             clearTimeout(this.timer);
 
@@ -957,8 +1306,37 @@ export default {
                         </div>
 
                         <template v-for="(entry, index) in conversation" :key="entry.index ?? index">
+                        <!-- The editor's comments, sent as one message: each pin's label and words; a click shows it on the page. -->
+                        <div v-if="entry.role === 'user' && entry.comments?.items" class="ms-8 rounded-lg bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800!" data-ghostwriter-comments-message>
+                            <span v-if="entry.from" class="mb-1 block text-xs font-medium text-gray-500">{{ entry.mine ? __('You') : entry.from }}</span>
+                            <p class="font-medium">{{ __n(':count comment|:count comments', entry.comments.items.length) }}</p>
+                            <ol class="mt-1 space-y-1">
+                                <li v-for="item in entry.comments.items" :key="item.number">
+                                    <button type="button" class="flex w-full items-start gap-1.5 rounded px-1 text-start hover:bg-gray-200! dark:hover:bg-gray-700!" :title="__('Show on page')" @click="showComment(item.number)">
+                                        <span class="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full rounded-bl-sm bg-gray-300 text-[10px] font-semibold text-gray-800 dark:bg-gray-600! dark:text-gray-100!" aria-hidden="true">{{ item.number }}</span>
+                                        <span class="min-w-0"><span class="text-xs text-gray-500">{{ item.scope?.kind === 'page' ? __('On the whole page') : item.scope?.label || __('On a block') }}<span class="sr-only">, {{ __('comment :number', { number: item.number }) }}</span></span><span class="block break-words whitespace-pre-wrap">{{ item.body }}</span></span>
+                                    </button>
+                                </li>
+                            </ol>
+                        </div>
+                        <!-- Ghostwriter's answer: a result per comment, with Put back and Resolve. -->
+                        <div v-else-if="entry.role === 'assistant' && entry.comments?.results" class="me-8 space-y-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700!" data-ghostwriter-comments-answer>
+                            <div class="gw-prose gw-reply whitespace-normal" v-html="entry.html"></div>
+                            <CommentItem
+                                v-for="pin in pinsByMessage[`a${entry.index}`] ?? []"
+                                :key="pin.number"
+                                :pin="pin"
+                                :words="false"
+                                :pending="commentBusy"
+                                :working="working"
+                                @show="showComment"
+                                @put-back="putBack"
+                                @resolve="resolveComment"
+                                @reopen="(pin) => resolveComment(pin, false)"
+                            />
+                        </div>
                         <div
-                            v-if="entry.step !== 'card' || !session.brief || session.brief.agreed !== true"
+                            v-else-if="entry.step !== 'card' || !session.brief || session.brief.agreed !== true"
                             class="rounded-lg px-3 py-2 text-sm whitespace-pre-wrap"
                             :class="[
                                 entry.role === 'user' ? 'ms-8 bg-gray-100 dark:bg-gray-800!' : 'me-8 border',
@@ -1073,6 +1451,21 @@ export default {
                                 <button type="button" class="px-2 py-0.5" :class="previewWidth === 'desktop' ? 'bg-gray-100 font-medium text-gray-900 dark:bg-gray-800! dark:text-gray-100!' : ''" :aria-pressed="previewWidth === 'desktop' ? 'true' : 'false'" @click="previewWidth = 'desktop'">{{ __('Desktop') }}</button>
                                 <button type="button" class="px-2 py-0.5" :class="previewWidth === 'phone' ? 'bg-gray-100 font-medium text-gray-900 dark:bg-gray-800! dark:text-gray-100!' : ''" :aria-pressed="previewWidth === 'phone' ? 'true' : 'false'" @click="previewWidth = 'phone'">{{ __('Phone') }}</button>
                             </div>
+                            <button
+                                v-if="canComment"
+                                type="button"
+                                class="flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs"
+                                :class="commenting ? 'border-indigo-500 bg-indigo-50 font-medium text-indigo-800 dark:border-indigo-400! dark:bg-indigo-500/20! dark:text-indigo-200!' : 'border-gray-200 dark:border-gray-700!'"
+                                :aria-pressed="commenting ? 'true' : 'false'"
+                                :title="__('Comment on the page (Alt+Shift+C)')"
+                                aria-keyshortcuts="Alt+Shift+C"
+                                data-ghostwriter-comment-toggle
+                                @click="setCommenting(!commenting)"
+                            >
+                                <svg class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /></svg>
+                                {{ __('Comment') }}
+                                <span v-if="openCount" class="rounded-full bg-amber-400 px-1.5 text-[10px] font-semibold text-gray-900">{{ openCount }}<span class="sr-only"> {{ __('open') }}</span></span>
+                            </button>
                         </div>
                         <div v-if="session.draft" class="flex flex-wrap gap-2">
                             <template v-if="editing">
@@ -1134,21 +1527,51 @@ export default {
                                 @refresh="refreshLayouts"
                             />
 
-                            <div v-if="!editing && !session.draft_problem" id="gw-draft-view" role="tabpanel" :aria-labelledby="`gw-tab-${view}`">
+                            <div v-if="!editing && !session.draft_problem" id="gw-draft-view" role="tabpanel" :aria-labelledby="`gw-tab-${view}`" :class="commenting && canComment ? (draftWide ? 'gw-review is-beside' : 'gw-review') : ''">
                                 <PagePreview
                                     v-if="session.page_preview && session.id"
                                     v-show="view === 'preview'"
+                                    ref="preview"
                                     :key="session.id"
+                                    class="min-w-0"
                                     :session="session"
                                     :base-url="baseUrl"
                                     :blueprint="blueprint"
                                     :form-values="formValues"
                                     :width="previewWidth"
                                     :active="view === 'preview'"
+                                    :commenting="commenting && canComment"
+                                    :threads="allPins"
+                                    :picked="composer?.key ?? null"
+                                    :flash="flash"
                                     @failed="previewFailedFor"
                                     @rendered="previewRendered"
                                     @blocks="setView('blocks')"
                                     @gap="openGap"
+                                    @pick="pick"
+                                    @pin="showPin"
+                                    @escape="composer ? closeComposer() : setCommenting(false)"
+                                />
+                                <CommentsSidebar
+                                    v-if="commenting && canComment"
+                                    class="gw-review__side"
+                                    :pending="pendingList"
+                                    :sent="sentPins"
+                                    :working="working"
+                                    :applying="applyingComments"
+                                    :elapsed="elapsed"
+                                    :waiting-on="session.waiting_on"
+                                    :busy="commentBusy"
+                                    :focused="focusedComment"
+                                    @apply="applyComments"
+                                    @show="showComment"
+                                    @edit="editPin"
+                                    @remove="removePin"
+                                    @page="pageComment"
+                                    @put-back="putBack"
+                                    @resolve="resolveComment"
+                                    @reopen="(pin) => resolveComment(pin, false)"
+                                    @close="setCommenting(false)"
                                 />
                                 <template v-if="view !== 'preview'">
                                     <p v-if="!working" class="mb-3 text-sm text-gray-500">{{ __('Click any writing (or Tab to it) to change it. It’s saved when you leave it; Esc puts it back.') }}</p>
@@ -1156,6 +1579,21 @@ export default {
                                     <ExtrasList v-if="view === 'text'" :extras="session.extras ?? []" :editable="!working" @edit="editExtra" @remove="removeExtra" @gap="openGap" />
                                 </template>
                             </div>
+
+                            <CommentComposer
+                                v-if="composer && commenting"
+                                :key="`${composer.key}:${composer.rect?.top}:${composer.quote?.exact ?? ''}`"
+                                :anchor="composerAnchor"
+                                :container="$refs.draftPane"
+                                :frame="$refs.preview?.frame()"
+                                :label="composer.label"
+                                :quote="composer.quote?.exact ?? null"
+                                :editing="!!composer.editing"
+                                :initial="composer.body"
+                                @post="savePin"
+                                @remove="removePin(pendingList.find((pin) => pin.id === composer.editing))"
+                                @cancel="closeComposer()"
+                            />
 
                             <GapPopover
                                 v-if="gap"

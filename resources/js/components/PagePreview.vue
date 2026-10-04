@@ -20,10 +20,16 @@
       a link to choose, each with a tooltip (core's markers.js). A chip is a
       button (`gap`): the panel opens a small popover at it, to resolve the
       gap in the draft itself. The frame never changes the draft.
+    - Comments (`commenting`, `threads`): numbered pins on the blocks that
+      hold each thread's words in this render, whatever the layout; in
+      comment mode a click on a block, or words selected in one, is a
+      `pick` for the panel's composer, and gap chips wait. Blocks a run
+      changed carry a Changed mark (and flash once, `flash`).
 -->
 <script>
 import { Button } from '@statamic/cms/ui';
-import { attach, debounce, gapLabels, previewError } from '../preview/overlay.js';
+import { attach, debounce, gapLabels, labelFor, previewError } from '../preview/overlay.js';
+import { changedKeys, coverOf, placePins, planPaths } from '../preview/comments.js';
 
 const PHONE_WIDTH = 390;
 const DESKTOP_MIN = 1024;
@@ -41,11 +47,19 @@ export default {
         width: { type: String, default: 'desktop' },
         // Whether the tab is showing: renders wait for it.
         active: { type: Boolean, default: true },
+        // Comment mode, and the threads to pin (the session's review).
+        commenting: { type: Boolean, default: false },
+        threads: { type: Array, default: () => [] },
+        // The block a composer is open on.
+        picked: { type: String, default: null },
+        // {numbers, nonce}: threads a run just changed, to flash once.
+        flash: { type: Object, default: null },
     },
 
     // `failed`: this render failed; `rendered`: one has swapped in.
     // `gap`: a chip in the page clicked, {kind, hint, list?, value?, match, occurrence, element, frame, scale}.
-    emits: ['failed', 'rendered', 'blocks', 'gap'],
+    // `pick`: {key, label, units, path, kind, quote, rect, keyboard}; `pin`: a pin's number; `escape`: Esc in comment mode.
+    emits: ['failed', 'rendered', 'blocks', 'gap', 'pick', 'pin', 'escape'],
 
     data() {
         return {
@@ -130,6 +144,28 @@ export default {
 
         renderKey() {
             this.schedule();
+        },
+
+        commenting() {
+            this.drawComments();
+        },
+
+        threads: {
+            deep: true,
+            handler() {
+                this.drawComments();
+            },
+        },
+
+        picked(key) {
+            this.currentOverlay()?.setPicked(key);
+        },
+
+        flash(flash) {
+            if (!flash?.numbers?.length) return;
+
+            this.pendingFlash = flash.numbers;
+            this.flashNow();
         },
 
         active(active) {
@@ -246,12 +282,32 @@ export default {
             }
 
             const anchor = this.current ? this.overlays.get(this.current.id)?.nearestTop() : null;
+            const map = entry.map ?? [];
+            const byKey = Object.fromEntries(map.map((block) => [block.key, block]));
+            const places = planPaths(map);
             const overlay = entry.sameOrigin
-                ? attach(frame, entry.map, {
+                ? attach(frame, map, {
                     titleKey: entry.titleKey,
                     scale: this.frameBox.scale,
                     labels: gapLabels((text) => this.__(text)),
-                    onGap: (found) => this.$emit('gap', { ...found, frame, scale: this.frameBox.scale }),
+                    // A chip waits while commenting: a click there is a comment.
+                    onGap: (found) => !this.commenting && this.$emit('gap', { ...found, frame, scale: this.frameBox.scale }),
+                    onPick: (pick) => this.$emit('pick', {
+                        ...pick,
+                        label: labelFor(byKey[pick.key], byKey),
+                        units: coverOf(pick.key, map),
+                        path: byKey[pick.key]?.path ?? null,
+                        planPath: places[pick.key] ?? places[byKey[pick.key]?.parent] ?? null,
+                        kind: pick.quote ? 'text' : 'block',
+                    }),
+                    onPin: (number) => this.$emit('pin', number),
+                    onEscape: () => this.$emit('escape'),
+                    commentLabels: {
+                        target: (label, count) => (count ? this.__n(':label block, :count comment. Add a comment.|:label block, :count comments. Add a comment.', count, { label }) : this.__(':label block. Add a comment.', { label })),
+                        pin: (number, state, label) => this.__('Comment :number, :state, on :label', { number, state: this.__(state), label }),
+                        click: this.__('click to comment'),
+                        changed: this.__('Changed'),
+                    },
                 })
                 : null;
 
@@ -262,6 +318,7 @@ export default {
             }
 
             this.overlays.set(entry.id, overlay);
+            this.current && this.overlays.get(this.current.id)?.setComments({ on: false });
             // For tests and debugging from the CP page: what the locator found.
             Object.defineProperty(frame, 'ghostwriterOverlay', { value: overlay, configurable: true });
             overlay?.scrollToBlock(anchor);
@@ -272,12 +329,80 @@ export default {
             this.next = null;
             this.problem = null;
             this.partial = Boolean(overlay?.partial());
+            this.drawComments();
+            overlay?.setPicked(this.picked);
+            this.flashNow();
             this.$emit('rendered', this.current);
 
             if (old) {
                 this.overlays.get(old.id)?.stop();
                 this.overlays.delete(old.id);
             }
+        },
+
+        currentOverlay() {
+            return this.current ? this.overlays.get(this.current.id) ?? null : null;
+        },
+
+        // The pins and Changed marks for this render's blocks.
+        drawComments() {
+            const overlay = this.currentOverlay();
+
+            if (!overlay) return;
+
+            const map = this.current.map ?? [];
+            const located = overlay.boxes().map((entry) => entry.key);
+
+            overlay.setComments({ on: this.commenting, pins: placePins(this.threads, map, located), changed: changedKeys(this.threads, map, located) });
+        },
+
+        // The blocks a run changed flash once, on the render that shows the change.
+        flashNow() {
+            const overlay = this.currentOverlay();
+
+            if (!overlay || !this.pendingFlash?.length || this.loading) return;
+
+            const map = this.current.map ?? [];
+            const located = overlay.boxes().map((entry) => entry.key);
+            const keys = changedKeys(this.threads.filter((thread) => this.pendingFlash.includes(thread.number)), map, located);
+
+            if (keys.length) {
+                overlay.flash(keys);
+                this.pendingFlash = null;
+            }
+        },
+
+        /** "Show on page": scrolls to a thread's pin and focuses it. False when it has none here. */
+        showThread(number) {
+            return Boolean(this.currentOverlay()?.focusPin(number));
+        },
+
+        /** Where a pin is, in the frame's document: for the composer, opened on it again. */
+        pinRect(number) {
+            return this.currentOverlay()?.pinRect(number) ?? null;
+        },
+
+        /** Back to the blocks, for the keyboard (after a composer closes). */
+        focusTarget(key = null) {
+            this.currentOverlay()?.focusTarget(key);
+        },
+
+        /** A rect in the frame's document, in the CP page's coordinates now. */
+        pageRect(rect) {
+            const overlay = this.currentOverlay();
+            const frame = this.frame();
+
+            if (!overlay || !frame || !rect) return null;
+
+            const view = overlay.toViewport(rect);
+            const outer = frame.getBoundingClientRect();
+            const scale = this.frameBox.scale;
+
+            return { left: outer.left + view.left * scale, top: outer.top + view.top * scale, right: outer.left + (view.left + view.width) * scale, bottom: outer.top + (view.top + view.height) * scale };
+        },
+
+        frame() {
+            return this.$el?.querySelector?.('iframe[data-ghostwriter-preview="current"]') ?? null;
         },
 
         slow() {
@@ -315,7 +440,7 @@ export default {
 
 <template>
     <div class="space-y-3">
-        <p class="text-sm text-gray-500">{{ __('Rendered with the site’s own templates. Hover to see the blocks. Nothing is saved until you use the draft.') }}</p>
+        <p class="text-sm text-gray-500">{{ commenting ? __('Click a block, or select words in it, to comment. Tab moves to the blocks; arrows move between them; Enter comments.') : __('Rendered with the site’s own templates. Hover to see the blocks. Nothing is saved until you use the draft.') }}</p>
 
         <div v-if="problem && !problem.slow" class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-500/60! dark:bg-amber-950/40!" role="alert">
             <p class="font-medium text-amber-900 dark:text-amber-200!">
