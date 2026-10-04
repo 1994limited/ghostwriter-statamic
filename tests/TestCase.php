@@ -67,6 +67,8 @@ abstract class TestCase extends AddonTestCase
             // Only the test's own keys, whatever is in the environment.
             'ghostwriter.keys' => ['anthropic' => 'test-key', 'openai' => null, 'gemini' => null],
             'ai.providers' => [],
+            // Content to revisit's save hook, on only where a test is about it.
+            'ghostwriter.revisit.on_save' => false,
         ]);
 
         // The addon's settings live in a file the test app keeps between

@@ -305,6 +305,42 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Suggest edits and Content to revisit
+    |--------------------------------------------------------------------------
+    |
+    | Suggest edits reads a page against the voice guide when someone asks.
+    | Content to revisit ranks published pages by free checks (no model):
+    | dates, links, alt text, empty fields and age. The settings screen sets
+    | the three switches; anything set here wins and locks it there.
+    |
+    | - claims: flag counts and claims as facts to check (on).
+    | - external_links: check links to other sites once a week (off).
+    | - age_in_full: dated collections where age counts in full.
+    | - language: the language the phrase checks read ("New for 2024",
+    |   "applications close"): en, de, fr, nl or es. Null uses each
+    |   site's own.
+    |
+    | Reviews are kept in edit_reviews_path, the list in revisit_path (both
+    | beside the sessions when null).
+    |
+    */
+
+    'suggest' => [
+        'claims' => env('GHOSTWRITER_SUGGEST_CLAIMS'),
+        'language' => env('GHOSTWRITER_CONTENT_LANGUAGE'),
+    ],
+
+    'revisit' => [
+        'external_links' => env('GHOSTWRITER_REVISIT_EXTERNAL_LINKS'),
+        'age_in_full' => null,
+    ],
+
+    'edit_reviews_path' => null,
+
+    'revisit_path' => null,
+
+    /*
+    |--------------------------------------------------------------------------
     | Page preview
     |--------------------------------------------------------------------------
     |

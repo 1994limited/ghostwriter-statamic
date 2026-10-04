@@ -48,6 +48,9 @@ class Settings
         'stock_include_editorial' => 'ghostwriter.stock.include_editorial',
         'openrouter_writing_model' => 'ghostwriter.openrouter.models.writing',
         'openrouter_quick_model' => 'ghostwriter.openrouter.models.quick',
+        'revisit_external_links' => 'ghostwriter.revisit.external_links',
+        'revisit_age_in_full' => 'ghostwriter.revisit.age_in_full',
+        'suggest_claims' => 'ghostwriter.suggest.claims',
     ];
 
     /** When a page holding an unlicensed preview is published. */
@@ -393,6 +396,38 @@ class Settings
     /**
      * Whether collections are checked for kinds of content by themselves.
      */
+    /**
+     * Content to revisit: whether links to other sites are checked once a
+     * week. Off unless a manager turns it on; links to the site's own
+     * entries are always checked, with no request.
+     */
+    public function checksExternalLinks(): bool
+    {
+        return filter_var($this->value('revisit_external_links') ?? false, FILTER_VALIDATE_BOOL);
+    }
+
+    /**
+     * Collections with a date field where age counts in full, as in any
+     * other: a manager's switch per collection. Everywhere else with a
+     * date field (a journal, news), age and past years weigh a quarter.
+     *
+     * @return array<int, string>
+     */
+    public function ageInFull(): array
+    {
+        return $this->handles($this->value('revisit_age_in_full') ?? []);
+    }
+
+    /**
+     * Suggest edits: whether claims and counts about the organisation
+     * ("team of 6", "award-winning") are flagged as facts to check. On
+     * unless switched off.
+     */
+    public function checksClaims(): bool
+    {
+        return filter_var($this->value('suggest_claims') ?? true, FILTER_VALIDATE_BOOL);
+    }
+
     public function suggestsKinds(): bool
     {
         return (bool) ($this->value('suggest_kinds') ?? true);

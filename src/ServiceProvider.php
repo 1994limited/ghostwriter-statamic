@@ -35,6 +35,8 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\ModelInputGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImages;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImageStore;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\AssetAlt;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\SeoFields;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Ports\LibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Core\Images\PhotoFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
@@ -44,8 +46,18 @@ use NineteenNinetyFour\Ghostwriter\Core\Layout\Links\StatamicLinks;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\Vocabulary;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\EntrySource;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\ExternalLinkCheck;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\HttpLinkProbe;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\LinkProbe;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitIndex;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitScanner;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitStore;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\StudioOptions;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\EditReviews;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\EditReviewStore;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\EntryIndex;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntrySimplifier;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
@@ -56,14 +68,21 @@ use NineteenNinetyFour\Ghostwriter\Http\Middleware\StockPreviewsInLivePreview;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntry;
 use NineteenNinetyFour\Ghostwriter\Stock\EncryptedLibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
+use NineteenNinetyFour\Ghostwriter\Storage\FileEditReviewStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileGuideStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileImageRequestStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileKindStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileLock;
 use NineteenNinetyFour\Ghostwriter\Storage\FilePlanStore;
+use NineteenNinetyFour\Ghostwriter\Storage\FileRevisitStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileSessionStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileStockImageStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileWaitingStore;
+use NineteenNinetyFour\Ghostwriter\Suggest\EntryChecks;
+use NineteenNinetyFour\Ghostwriter\Suggest\FileEntryIndex;
+use NineteenNinetyFour\Ghostwriter\Suggest\StatamicAssetAlt;
+use NineteenNinetyFour\Ghostwriter\Suggest\StatamicEntrySource;
+use NineteenNinetyFour\Ghostwriter\Suggest\StatamicSeoFields;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Addons\SettingsRepository;
 use Statamic\Events\AddonSettingsSaving;
@@ -212,6 +231,23 @@ class ServiceProvider extends AddonServiceProvider
         // The sync queue runs work itself, after the response: nothing to wait for.
         $this->app->bind(Waiting::class, fn ($app) => new Waiting($app->make(WaitingStore::class), $app->make(DomainOptions::class), runsItself: config('queue.default') === 'sync', clock: $clock));
 
+        // Suggest edits and Content to revisit: reviews and the list in
+        // JSON files beside the sessions, the entry index beside the list,
+        // alt text from the asset container's blueprint, SEO Pro or plain
+        // SEO fields, and core's HTTP probe for the weekly check of links
+        // to other sites (only ever run when a manager turns it on).
+        $this->app->bindIf(EditReviewStore::class, FileEditReviewStore::class);
+        $this->app->bindIf(RevisitStore::class, FileRevisitStore::class);
+        $this->app->bindIf(EntryIndex::class, FileEntryIndex::class);
+        $this->app->bindIf(EntrySource::class, StatamicEntrySource::class);
+        $this->app->bindIf(AssetAlt::class, StatamicAssetAlt::class);
+        $this->app->bindIf(SeoFields::class, StatamicSeoFields::class);
+        $this->app->bindIf(LinkProbe::class, fn ($app) => new HttpLinkProbe($app->make(HttpClients::class)));
+        $this->app->bind(EditReviews::class, fn ($app) => new EditReviews($app->make(EditReviewStore::class), $app->make(Lock::class), $app->make(CoreStudio::class), logger: Log::channel(config('ghostwriter.log_channel'))));
+        $this->app->bind(RevisitScanner::class, fn ($app) => new RevisitScanner($app->make(EntryChecks::class)->age(), ownHosts: EntryChecks::ownHosts()));
+        $this->app->bind(RevisitIndex::class, fn ($app) => new RevisitIndex($app->make(RevisitScanner::class), $app->make(RevisitStore::class)));
+        $this->app->bind(ExternalLinkCheck::class, fn ($app) => new ExternalLinkCheck($app->make(LinkProbe::class), $app->make(RevisitScanner::class), logger: Log::channel(config('ghostwriter.log_channel'))));
+
         // Core's layout algorithms, as Statamic stores entries: Bard for rich
         // text, `entry::id` links, and new sets and rows with IDs of their own.
         // A link the house style can't settle points at `#gw-link:<hint>`,
@@ -268,6 +304,11 @@ class ServiceProvider extends AddonServiceProvider
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('ghostwriter:stock-cleanup')->hourly()->withoutOverlapping();
+
+        // Content to revisit, with no model: daily, and links to other
+        // sites weekly (the command does nothing unless that's turned on).
+        $schedule->command('ghostwriter:revisit')->dailyAt('03:00')->withoutOverlapping();
+        $schedule->command('ghostwriter:check-links')->weeklyOn(0, '04:00')->withoutOverlapping();
     }
 
     public function bootAddon(): void

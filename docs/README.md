@@ -19,14 +19,15 @@ Ghostwriter learns how your site writes and what its pictures look like, then dr
 10. [Images](images.md): finding and making images, ranking, alt text and placeholders.
 11. [Stock photos](stock-photos.md): paid libraries, previews, License & replace, the publish rule and the Stock images screen.
 12. [Finish this page](finish-this-page.md): facts to add, links to choose and images to pick, the guide, and the publish rule.
-13. [The content plan](content-plan.md): ideas for what to write next.
-14. [The Overview and widget](dashboard.md): what is in progress, at a glance.
+13. [Suggest edits and Content to revisit](suggest-edits.md): pages worth a look, ranked by free checks, and suggested edits to step through.
+14. [The content plan](content-plan.md): ideas for what to write next.
+15. [The Overview and widget](dashboard.md): what is in progress, at a glance.
 
 ## Reference
 
-15. [How Ghostwriter reads your fields](fields.md): fieldtypes, page builders and house style.
-16. [Privacy and data](privacy.md): what is sent where, and what is kept.
-17. [Troubleshooting](troubleshooting.md): common problems and fixes.
+16. [How Ghostwriter reads your fields](fields.md): fieldtypes, page builders and house style.
+17. [Privacy and data](privacy.md): what is sent where, and what is kept.
+18. [Troubleshooting](troubleshooting.md): common problems and fixes.
 
 ## Requirements
 
@@ -34,5 +35,5 @@ Ghostwriter learns how your site writes and what its pictures look like, then dr
 - Statamic 6.30 or later. Roles and permissions need Statamic Pro.
 - An API key for Anthropic, OpenAI or Google Gemini.
 - A queue worker, or PHP-FPM on the `sync` queue.
-- Laravel's scheduler, for the hourly stock photos cleanup.
+- Laravel's scheduler, for the hourly stock photos cleanup and Content to revisit's daily pass.
 - Optional: a Shutterstock API plan for paid stock photos, billed by Shutterstock to your account.
