@@ -5,6 +5,7 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
+use NineteenNinetyFour\Ghostwriter\Ai\StudioInputs;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Conflict;
@@ -270,11 +271,21 @@ class CollectionController
         ];
 
         if ($tree = $collection->structure()?->in($collection->sites()->first())) {
-            return $tree->flattenedPages()
+            $listed = $tree->flattenedPages()
                 ->filter(fn ($page) => $entries->has($page->reference()))
                 ->take(200)
                 ->map(fn ($page) => $present($entries->get($page->reference()), max(0, (int) $page->depth() - 1)))
                 ->values();
+
+            // The newest published, which the brief may tick, are always listed.
+            $newest = $entries
+                ->filter(fn (Entry $entry) => $entry->published())
+                ->sortByDesc(fn (Entry $entry) => $entry->date()?->timestamp ?? $entry->lastModified()?->timestamp ?? 0)
+                ->take(StudioInputs::BRIEF_TITLES)
+                ->reject(fn (Entry $entry) => $listed->contains('id', $entry->id()))
+                ->map(fn (Entry $entry) => $present($entry));
+
+            return $listed->concat($newest->values())->values();
         }
 
         return $entries

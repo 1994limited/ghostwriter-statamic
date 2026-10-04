@@ -663,6 +663,41 @@ class WritingTest extends TestCase
         $this->postJson(cp_route('ghostwriter.sessions.message', $id), ['message' => 'Go on.'])->assertStatus(409);
     }
 
+    public function test_with_nothing_ticked_the_brief_ticks_entries_to_model_it_on(): void
+    {
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
+        $this->signIn();
+        Entry::make()->collection('articles')->slug('unpublished')->published(false)->data(['title' => 'Unpublished'])->save();
+        $ids = Entry::query()->where('collection', 'articles')->get()->keyBy->slug()->map->id();
+
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'any:articles'), ['details' => 'A February jobs guide.'])->json('id');
+        $this->assertSame([], $this->sessions()->find($id)->examples);
+
+        $this->ai->respond('brief-filler', "<title>February jobs</title>\n<brief>\nsubject: February jobs.\n</brief>\n<examples>{$ids['two']}, {$ids['unpublished']}, nowhere</examples>");
+        $this->runJob(new FillBrief($id));
+
+        // The published entries are offered by ID; drafts by title only.
+        $this->ai->assertSent('brief-filler', fn (TextRequest $request) => str_contains($request->instructions, "[id: {$ids['two']}]") && preg_match('/^- Unpublished$/m', $request->instructions) === 1);
+        $this->ai->assertSent('brief-filler', fn (TextRequest $request) => ! str_contains($request->instructions, "[id: {$ids['unpublished']}]") && str_contains($request->prompt, 'choose for them'));
+
+        // Only a published entry of the collection is ticked.
+        $this->getJson(cp_route('ghostwriter.sessions.show', $id))->assertJsonPath('brief.examples', [$ids['two']]);
+        $this->assertSame([$ids['two']], $this->sessions()->find($id)->examples);
+    }
+
+    public function test_the_persons_ticks_win_over_the_briefs_choice(): void
+    {
+        Bus::fake([RunSessionTurn::class, FillBrief::class]);
+        $this->signIn();
+        $ids = Entry::query()->where('collection', 'articles')->get()->keyBy->slug()->map->id();
+
+        $id = $this->postJson(cp_route('ghostwriter.sessions.store', 'any:articles'), ['examples' => [$ids['one']], 'details' => 'A February jobs guide.'])->json('id');
+        $this->ai->respond('brief-filler', "<title>February jobs</title>\n<brief>\nsubject: February jobs.\n</brief>\n<examples>{$ids['two']}</examples>");
+        $this->runJob(new FillBrief($id));
+
+        $this->getJson(cp_route('ghostwriter.sessions.show', $id))->assertJsonPath('brief.examples', [$ids['one']]);
+    }
+
     public function test_try_again_keeps_the_answers_the_person_changed(): void
     {
         Bus::fake([RunSessionTurn::class, FillBrief::class]);

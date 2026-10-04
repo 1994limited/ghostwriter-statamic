@@ -37,7 +37,29 @@ export default {
         },
     },
 
+    watch: {
+        modelValue() {
+            this.$nextTick(() => this.reveal());
+        },
+    },
+
+    mounted() {
+        this.reveal();
+    },
+
     methods: {
+        // Ticked entries further down the list (chosen for the person) are
+        // scrolled into view, unless one already shows.
+        reveal() {
+            const list = this.$refs.list;
+            const ticked = [...(list?.querySelectorAll('[data-ticked]') ?? [])];
+            if (!ticked.length) return;
+
+            const top = list.scrollTop;
+            const showing = ticked.some((row) => row.offsetTop >= top && row.offsetTop + row.offsetHeight <= top + list.clientHeight);
+            if (!showing) list.scrollTop = Math.max(0, ticked[0].offsetTop - 8);
+        },
+
         toggle(id, on) {
             this.$emit('update:modelValue', on ? [...this.modelValue, id].slice(0, this.max) : this.modelValue.filter((picked) => picked !== id));
         },
@@ -48,10 +70,11 @@ export default {
 <template>
     <div>
         <Input v-if="entries.length > 8" v-model="search" :placeholder="__('Filter…')" :aria-label="__('Filter entries')" class="mb-2" />
-        <div class="max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-gray-200 p-3 dark:border-gray-700!">
+        <div ref="list" class="relative max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-gray-200 p-3 dark:border-gray-700!">
             <div
                 v-for="entry in visible"
                 :key="entry.id"
+                :data-ticked="modelValue.includes(entry.id) ? '' : null"
                 :style="nested && entry.depth ? { paddingInlineStart: `${entry.depth * 1.5}rem` } : null"
             >
                 <Checkbox
