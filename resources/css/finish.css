@@ -119,6 +119,7 @@
     [data-gw-gap="current"] { outline: 2px solid Highlight; }
     .gw-gap-mark { border-bottom: 2px dashed Mark; }
     .gw-gap-mark.is-current { border-bottom-color: Highlight; }
+    .gw-f-flash-line { background: none; box-shadow: none; outline: 2px solid Highlight; }
 }
 
 /* -- The guide ----------------------------------------------------------- */
@@ -171,11 +172,14 @@
 .gw-f-reason { margin: 0 0 10px; color: var(--gw-f-muted); font-size: 12px; }
 .gw-f-fixed { margin: 0 0 6px; color: var(--gw-f-green); font-weight: 600; font-size: 12px; }
 
-.gw-f-fixes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.gw-f-fixes { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; max-width: 100%; margin-top: 10px; }
 .gw-f-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
     padding: 5px 10px;
     border-radius: 8px;
     border: 1px solid var(--gw-f-surface-line);
@@ -187,7 +191,13 @@
 }
 .gw-f-btn:hover { border-color: var(--gw-f-muted); }
 .gw-f-btn.is-primary { background: var(--gw-f-purple); border-color: var(--gw-f-purple); color: #fff; }
-.gw-f-btn small { opacity: 0.75; font-size: 11px; }
+.gw-f-btn small { flex: none; opacity: 0.75; font-size: 11px; }
+.gw-f-btn-mark { flex: none; }
+/* One line inside the guide: the name in a label (an entry's title) gives
+   way with an ellipsis; the words around it and "uses Ghostwriter" don't. */
+.gw-f-btn-text { display: flex; min-width: 0; overflow: hidden; }
+.gw-f-btn-keep { flex: none; white-space: pre; }
+.gw-f-btn-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .gw-f-btn[disabled] { opacity: 0.6; cursor: progress; }
 .gw-f-btn-mark svg { width: 14px; height: 14px; display: block; }
 .gw-f-btn.is-primary .gw-f-body { stroke: none; }
@@ -302,6 +312,16 @@
 }
 .gw-f-say:empty { display: none; }
 .gw-f-flyer.is-arrived .gw-f-say { opacity: 1; transform: none; }
+/* The words on whichever side fits in the window (shell.js place()). */
+.gw-f-flyer[data-say="right"] .gw-f-say { right: auto; left: 46px; }
+.gw-f-flyer[data-say^="below"] .gw-f-say { top: 46px; }
+.gw-f-flyer[data-say="below-left"] .gw-f-say { right: 0; left: auto; }
+.gw-f-flyer[data-say="below-right"] .gw-f-say { right: auto; left: 0; }
+
+/* The step's words, tinted for a moment as the mark arrives. */
+.gw-f-flash { position: fixed; inset: 0; z-index: 28; pointer-events: none; }
+.gw-f-flash-line { position: fixed; border-radius: 4px; background: rgb(91 76 240 / 0.2); box-shadow: 0 0 0 2px var(--gw-f-purple); animation: gw-f-flash 1.8s ease-out forwards; }
+@keyframes gw-f-flash { 0%, 45% { opacity: 1; } 100% { opacity: 0; } }
 
 .gw-f-wisp { position: fixed; z-index: 31; width: 9px; height: 9px; border-radius: 50%; background: var(--gw-f-paper); box-shadow: 0 0 0 1px var(--gw-f-fold); pointer-events: none; animation: gw-f-wisp 0.6s ease-out forwards; }
 
@@ -335,6 +355,7 @@
     .gw-f-tilt { transition: none; }
     .gw-f-bob,
     .gw-f-trail,
+    .gw-f-flash-line,
     .gw-f-dock-mark,
     .gw-f-dock:hover .gw-f-dock-mark svg,
     .gw-f-guide.is-sucking,
