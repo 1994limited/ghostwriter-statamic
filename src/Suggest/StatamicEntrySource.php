@@ -3,9 +3,12 @@
 namespace NineteenNinetyFour\Ghostwriter\Suggest;
 
 use DateTimeInterface;
+use Illuminate\Support\Carbon;
 use NineteenNinetyFour\Ghostwriter\Core\Revisit\EntrySnapshot;
 use NineteenNinetyFour\Ghostwriter\Core\Revisit\EntrySource;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\EditReviews;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EntryRef;
+use NineteenNinetyFour\Ghostwriter\Core\Suggest\Quieted;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\Entry;
@@ -74,12 +77,23 @@ class StatamicEntrySource implements EntrySource
                 EntryChecks::ref($entry),
                 (string) ($entry->get('title') ?? $entry->slug() ?? $entry->id()),
                 $entry->editUrl(),
-                $this->checks->context($entry),
+                // Decisions keep their findings off the list too: "It's still
+                // right" for 12 months, or until the passage is edited.
+                $this->checks->context($entry, quieted: $this->quieted($entry)),
                 $entry->published() && $entry->status() !== 'draft',
             );
         } catch (Throwable $exception) {
             report($exception);
 
+            return null;
+        }
+    }
+
+    private function quieted(EntryContract $entry): ?Quieted
+    {
+        try {
+            return app(EditReviews::class)->quieted(EntryChecks::ref($entry), Carbon::now()->toDateTimeImmutable());
+        } catch (Throwable) {
             return null;
         }
     }

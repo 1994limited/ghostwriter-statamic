@@ -1,0 +1,182 @@
+/*
+    Suggest edits in the Finish this page guide, from the approved mockup:
+    indigo for open suggestions, so a field with a suggestion never looks
+    like a Finish gap (amber); green is done in both. The guide, dock, mark
+    and phone sheet are Finish's own (finish.css); this adds the indigo
+    states, the filters, the before/after, the answer box and the confirm.
+    Tokens have light and dark values (Statamic 6's .dark).
+*/
+
+:root {
+    --gw-s-indigo: #5b4cf0;
+    --gw-s-indigo-ink: #3f30c9;
+    --gw-s-indigo-fill: rgb(91 76 240 / 0.07);
+    --gw-s-indigo-line: rgb(91 76 240 / 0.45);
+    --gw-s-indigo-tag: #e6e2ff;
+    --gw-s-indigo-tag-ink: #2c2190;
+    --gw-s-del: #b42318;
+    --gw-s-del-fill: rgb(239 107 107 / 0.12);
+    --gw-s-ins: #137a4b;
+    --gw-s-ins-fill: rgb(76 195 138 / 0.14);
+    --gw-s-chip: #f0eefc;
+}
+
+.dark {
+    --gw-s-indigo: #7d70ff;
+    --gw-s-indigo-ink: #cfc9ff;
+    --gw-s-indigo-fill: rgb(107 92 245 / 0.10);
+    --gw-s-indigo-line: rgb(125 112 255 / 0.5);
+    --gw-s-indigo-tag: #3a3550;
+    --gw-s-indigo-tag-ink: #cfc9ff;
+    --gw-s-del: #ff8f8f;
+    --gw-s-del-fill: rgb(239 107 107 / 0.16);
+    --gw-s-ins: #6fd8a6;
+    --gw-s-ins-fill: rgb(76 195 138 / 0.14);
+    --gw-s-chip: #34304a;
+}
+
+/* -- The pill, indigo ---------------------------------------------------- */
+
+.gw-f-pill.gw-s-pill { border-color: var(--gw-s-indigo-line); background: var(--gw-s-indigo-fill); color: var(--gw-s-indigo-ink); margin-inline-end: 8px; }
+.gw-f-pill.gw-s-pill.is-ready { border-color: var(--gw-f-green-line); background: var(--gw-f-green-fill); color: var(--gw-f-green); }
+.gw-f-pill.gw-s-pill.is-running .gw-f-pill-mark { animation: gw-s-breathe 1.6s ease-in-out infinite; }
+@keyframes gw-s-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* -- Fields: indigo when open, 2px when current, green when done ---------- */
+
+[data-gw-suggest] {
+    position: relative;
+    scroll-margin-top: 96px;
+    border-radius: 8px;
+    outline: 1px solid var(--gw-s-indigo-line);
+    outline-offset: 4px;
+    background: var(--gw-s-indigo-fill);
+    transition: outline-color 0.25s, background 0.25s;
+}
+[data-gw-suggest="current"] { outline: 2px solid var(--gw-s-indigo); }
+[data-gw-suggest="done"] { outline-color: var(--gw-f-green-line); background: var(--gw-f-green-fill); }
+/* A Finish gap in the same field keeps its own look. */
+[data-gw-gap][data-gw-suggest="open"],
+[data-gw-gap][data-gw-suggest="done"] { outline-color: var(--gw-f-amber-line); background: var(--gw-f-amber-fill); }
+
+.gw-f-tag.gw-s-tag { background: var(--gw-s-indigo-tag); color: var(--gw-s-indigo-tag-ink); }
+[data-gw-suggest="current"] .gw-f-tag.gw-s-tag { background: var(--gw-s-indigo); color: #fff; }
+[data-gw-suggest="done"] .gw-f-tag.gw-s-tag { background: var(--gw-f-green); color: #fff; }
+.dark [data-gw-suggest="done"] .gw-f-tag.gw-s-tag { color: #06301c; }
+
+/* Inside Bard: a dotted indigo underline on each range, the current one filled. */
+.gw-suggest-mark { border-bottom: 1.5px dotted var(--gw-s-indigo); border-radius: 3px; padding: 0 1px; }
+.gw-suggest-mark.is-current { background: rgb(107 92 245 / 0.22); }
+
+@media (forced-colors: active) {
+    [data-gw-suggest] { outline: 1px dashed Mark; }
+    [data-gw-suggest="current"] { outline: 2px solid Highlight; }
+    .gw-suggest-mark { border-bottom: 2px dotted Mark; }
+    .gw-suggest-mark.is-current { border-bottom-color: Highlight; }
+}
+
+/* -- The guide ----------------------------------------------------------- */
+
+.gw-f.is-suggest .gw-f-guide { width: 400px; }
+.gw-f.is-suggest .gw-f-bar i.is-current { background: var(--gw-s-indigo); }
+.gw-f.is-suggest .gw-f-btn.is-primary { background: var(--gw-s-indigo); border-color: var(--gw-s-indigo); }
+.gw-f.is-suggest :focus-visible { outline-color: var(--gw-s-indigo); }
+
+/* The dock sits beside Finish's when both are minimised. */
+.gw-f-dock.gw-s-dock { inset-inline-end: 92px; }
+.gw-s-dock .gw-f-badge { background: var(--gw-s-indigo); color: #fff; }
+
+.gw-s-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 10px; color: var(--gw-f-muted); font-size: 12px; }
+.gw-s-status[hidden] { display: none; }
+.gw-s-spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--gw-s-indigo-line); border-top-color: var(--gw-s-indigo); animation: gw-s-spin 0.9s linear infinite; }
+@keyframes gw-s-spin { to { transform: rotate(360deg); } }
+
+.gw-s-filters { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.gw-s-filters[hidden] { display: none; }
+.gw-s-filter {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--gw-f-surface-line);
+    background: none;
+    color: var(--gw-f-muted);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+}
+.gw-s-filter[aria-pressed="true"] { background: var(--gw-s-chip); color: var(--gw-f-ink); border-color: var(--gw-s-indigo-line); }
+.gw-s-filter-n { font-variant-numeric: tabular-nums; opacity: 0.8; }
+
+.gw-s-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+.gw-s-cat { display: inline-flex; font-size: 11px; font-weight: 600; color: var(--gw-s-indigo-ink); background: var(--gw-s-chip); border-radius: 6px; padding: 1px 7px; }
+.gw-s-free { font-size: 11px; color: var(--gw-f-muted); border: 1px dashed var(--gw-f-surface-line); border-radius: 6px; padding: 0 6px; }
+.gw-s-place { font-size: 11px; color: var(--gw-f-muted); }
+
+.gw-s-diff {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    background: var(--gw-f-track);
+    background: color-mix(in srgb, var(--gw-f-track) 45%, transparent);
+    border: 1px solid var(--gw-f-surface-line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+.gw-s-diff del { color: var(--gw-s-del); background: var(--gw-s-del-fill); text-decoration-thickness: 1.5px; border-radius: 3px; padding: 0 2px; }
+.gw-s-diff ins { color: var(--gw-s-ins); background: var(--gw-s-ins-fill); text-decoration: none; border-radius: 3px; padding: 0 2px; }
+.gw-s-arrow { color: var(--gw-f-muted); }
+.gw-s-target { font-weight: 600; }
+
+.gw-s-ask { display: flex; gap: 6px; align-items: center; }
+.gw-s-ask .gw-f-answer-wrap { flex: 1; }
+.gw-s-edit[hidden] { display: none; }
+.gw-s-textarea { resize: vertical; min-height: 3.2em; line-height: 1.45; }
+.gw-s-hint, .gw-s-count { margin: 4px 0 0; color: var(--gw-f-muted); font-size: 11.5px; }
+.gw-s-error { margin: 6px 0 0; color: var(--gw-s-del); font-size: 12px; }
+.gw-s-error[hidden] { display: none; }
+.gw-s-src { margin: 10px 0 0; font-size: 11.5px; color: var(--gw-f-muted); }
+.gw-s-last { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 4px 8px; border-radius: 6px; background: var(--gw-f-green-fill); color: var(--gw-f-green); font-size: 12px; }
+.gw-s-link { border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; padding: 0; }
+
+.gw-s-asset { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+.gw-s-thumb { width: 72px; height: 52px; object-fit: cover; border-radius: 6px; flex: none; }
+.gw-s-asset .gw-f-reason { margin: 2px 0 0; }
+
+.gw-s-confirm { margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--gw-s-indigo-line); background: var(--gw-s-indigo-fill); }
+.gw-s-confirm p { margin: 0; }
+
+.gw-s-all[hidden] { display: none; }
+.gw-f.is-suggest .gw-f-foot .gw-s-all { color: var(--gw-s-indigo-ink); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) {
+    .gw-f-pill.gw-s-pill.is-running .gw-f-pill-mark,
+    .gw-s-spinner { animation: none; }
+    [data-gw-suggest] { transition: none; }
+}
+
+@media (max-width: 639px) {
+    .gw-f.is-suggest .gw-f-guide { width: 100%; }
+    .gw-f-dock.gw-s-dock { inset-inline-end: 80px; }
+    .gw-s-diff { flex-direction: column; }
+    .gw-s-arrow { display: none; }
+    [data-gw-suggest] { outline-offset: 3px; }
+}
+
+/* The change in its sentence: the old line, then the new. */
+.gw-s-diff { display: block; }
+.gw-s-line { margin: 0; }
+.gw-s-line + .gw-s-line { margin-top: 4px; }
+.gw-s-ctx { color: var(--gw-f-muted); }
+.gw-s-phrase { background: var(--gw-s-del-fill); color: inherit; font-weight: 600; border-radius: 2px; }
+.gw-s-phases { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; list-style: none; flex-basis: 100%; font-size: 11px; }
+.gw-s-phases li::before { content: "○ "; }
+.gw-s-phases li.is-done::before { content: "✓ "; color: var(--gw-f-green); }
+.gw-s-phases li.is-now { color: var(--gw-s-indigo-ink); font-weight: 600; }
+.gw-s-phases li.is-now::before { content: "● "; }

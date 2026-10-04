@@ -17,6 +17,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\SessionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SetupController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\StockController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\StockLedgerController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\SuggestController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\TypeController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\VoiceController;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\AuthorizeGhostwriter;
@@ -38,6 +39,13 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('finish/check', [FinishController::class, 'check'])->name('finish.check');
     Route::post('finish/fill', [FinishController::class, 'fill'])->name('finish.fill');
     Route::post('finish/guide', [FinishController::class, 'guide'])->name('finish.guide');
+
+    Route::post('suggest/guide', [SuggestController::class, 'guide'])->name('suggest.guide');
+    Route::post('suggest/start', [SuggestController::class, 'start'])->name('suggest.start');
+    Route::post('suggest/{review}/decide', [SuggestController::class, 'decide'])->name('suggest.decide');
+    Route::post('suggest/{review}/another', [SuggestController::class, 'another'])->name('suggest.another');
+    Route::post('suggest/{review}/alt', [SuggestController::class, 'alt'])->name('suggest.alt');
+    Route::post('suggest/{review}/unalt', [SuggestController::class, 'unalt'])->name('suggest.unalt');
 
     Route::get('images/tools', [ImagesController::class, 'tools'])->name('images.tools');
     Route::post('images', [ImagesController::class, 'start'])->name('images.start');

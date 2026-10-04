@@ -102,4 +102,4 @@ jobs:
       # preview's overlay logic, have no dependencies, so Node's own test
       # runner is enough: no install.
       - name: Tests
-        run: node --test resources/js/finish/*.test.js resources/js/preview/*.test.js
+        run: node --test resources/js/finish/*.test.js resources/js/preview/*.test.js resources/js/suggest/*.test.js

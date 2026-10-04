@@ -4,7 +4,7 @@
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "test": "node --test resources/js/finish/*.test.js resources/js/preview/*.test.js"
+        "test": "node --test resources/js/finish/*.test.js resources/js/preview/*.test.js resources/js/suggest/*.test.js"
     },
     "devDependencies": {
         "@statamic/cms": "file:./vendor/statamic/cms/resources/dist-package",

@@ -6,11 +6,11 @@
 -->
 <script>
 import ghost from '../icon.js';
-import { Alert, Button, Stack } from '@statamic/cms/ui';
+import { Alert, Button, ButtonGroup, Dropdown, DropdownItem, DropdownLabel, DropdownMenu, Stack } from '@statamic/cms/ui';
 import Panel from './Panel.vue';
 
 export default {
-    components: { Alert, Button, Panel, Stack },
+    components: { Alert, Button, ButtonGroup, Dropdown, DropdownItem, DropdownLabel, DropdownMenu, Panel, Stack },
 
     props: {
         collection: { type: String, required: true },
@@ -22,7 +22,8 @@ export default {
 
     data() {
         const query = new URLSearchParams(window.location.search);
-        const requested = query.get('ghostwriter');
+        // "suggest" is Suggest edits' (Content to revisit's Review), not a piece.
+        const requested = query.get('ghostwriter') === 'suggest' ? null : query.get('ghostwriter');
 
         return {
             // The form's blueprint, on collections that have more than one.
@@ -84,6 +85,11 @@ export default {
         // from it, and changes are put back over it.
         formValues() {
             return JSON.parse(JSON.stringify(this.form.values ?? {}));
+        },
+
+        // Suggest edits, from the menu: its confirm says what it costs first.
+        suggest() {
+            Statamic.$events.$emit('ghostwriter.suggest.open');
         },
 
         // On an existing entry, the conversation starts from the entry as
@@ -190,7 +196,19 @@ export default {
     <div>
         <Teleport v-if="slot" :to="slot">
             <!-- On a phone the header has no room for the label beside Save, so only the ghost shows. -->
-            <Button :icon="ghost" :text="label" :title="label" :loading="starting" class="max-sm:gap-0! max-sm:px-3! max-sm:[&>div]:sr-only!" @click="launch" />
+            <ButtonGroup v-if="entry">
+                <Button :icon="ghost" :text="label" :title="label" :loading="starting" class="max-sm:gap-0! max-sm:px-3! max-sm:[&>div]:sr-only!" @click="launch" />
+                <Dropdown align="end">
+                    <template #trigger>
+                        <Button icon="chevron-down" :aria-label="__('More ways to edit with Ghostwriter')" data-ghostwriter-menu />
+                    </template>
+                    <DropdownMenu>
+                        <DropdownItem :text="__('Suggest edits')" icon="checkmark" data-ghostwriter-suggest @click="suggest" />
+                        <DropdownLabel :text="__('Reads the page against your voice guide and checks each suggestion twice. Uses Ghostwriter.')" class="max-w-64 whitespace-normal!" />
+                    </DropdownMenu>
+                </Dropdown>
+            </ButtonGroup>
+            <Button v-else :icon="ghost" :text="label" :title="label" :loading="starting" class="max-sm:gap-0! max-sm:px-3! max-sm:[&>div]:sr-only!" @click="launch" />
         </Teleport>
 
         <div v-else class="fixed end-6 bottom-6 z-10">

@@ -201,6 +201,15 @@ class Studio
         return $this->studio->writerInstructions($this->writerContext($type, $voice));
     }
 
+    /**
+     * What the writer reads about a kind and the voice, for calls that
+     * should read the same guide (Suggest edits' review).
+     */
+    public function writerContextFor(ContentType $type, string $voice): WriterContext
+    {
+        return $this->writerContext($type, $voice);
+    }
+
     private function writerContext(ContentType $type, string $voice): WriterContext
     {
         $layout = $this->inputs->layout($type);
