@@ -11,6 +11,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitRow;
 use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitStore;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EntryRef;
 use NineteenNinetyFour\Ghostwriter\Settings;
+use NineteenNinetyFour\Ghostwriter\Suggest\Revisit;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
@@ -132,6 +133,38 @@ class ContentToRevisitTest extends TestCase
 
         $this->assertSame(['https://example.org/gone'], $probe->asked);
         $this->assertSame(LinkStatus::Broken, $this->row('services')->external['https://example.org/gone']->status);
+    }
+
+    public function test_the_list_ranks_pages_with_their_reasons_and_a_review_link(): void
+    {
+        $this->signInWith(['access ghostwriter', 'view revisit_pages entries', 'edit revisit_pages entries']);
+        app(Revisit::class)->daily(full: true);
+
+        $this->get(cp_route('ghostwriter.revisit.show'))->assertOk()->assertInertia(fn ($page) => $page
+            ->component('ghostwriter::Revisit')
+            ->where('rows.0.title', 'Services')
+            ->where('rows.0.reasons.0.severity', 'high')
+            ->where('rows.0.review_url', fn ($url) => str_ends_with((string) $url, 'ghostwriter=suggest'))
+            ->where('reading', false));
+
+        $this->get(cp_route('ghostwriter.revisit.show', ['show' => 'missing-alt']))->assertOk()->assertInertia(fn ($page) => $page->has('rows', 0));
+        $this->get(cp_route('ghostwriter.index'))->assertOk()->assertInertia(fn ($page) => $page->where('revisit.top.0.title', 'Services'));
+        $this->assertSame([], $this->ai->requests(), 'No model.');
+    }
+
+    public function test_a_snoozed_page_leaves_the_list_and_others_see_only_what_they_may(): void
+    {
+        $this->signInWith(['access ghostwriter', 'view revisit_pages entries', 'edit revisit_pages entries']);
+        app(Revisit::class)->daily(full: true);
+
+        $this->postJson(cp_route('ghostwriter.revisit.snooze'), ['key' => 'revisit_pages:services@default'])->assertOk();
+        $this->get(cp_route('ghostwriter.revisit.show'))->assertInertia(fn ($page) => $page->has('rows', 0));
+
+        $this->row('services') && $this->assertNotNull($this->row('services')->snoozedUntil);
+
+        config(['statamic.editions.pro' => true]);
+        $this->signInWith(['access ghostwriter']);
+        $this->postJson(cp_route('ghostwriter.revisit.snooze'), ['key' => 'revisit_pages:services@default'])->assertForbidden();
     }
 
     public function test_the_three_settings_have_their_defaults(): void

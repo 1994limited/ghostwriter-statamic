@@ -11,13 +11,16 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\Idea;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Planning\PlanStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitStore;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Onboarding;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
+use NineteenNinetyFour\Ghostwriter\Suggest\SuggestEdits;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use NineteenNinetyFour\Ghostwriter\WorkStates;
 use Statamic\Facades\Entry;
+use Statamic\Facades\Site;
 
 /**
  * The dashboard. Opening it never starts a model call: kinds are looked for
@@ -76,7 +79,31 @@ class DashboardController
             'sessions' => $summaries->take(30)->values(),
             'suggest_all_url' => cp_route('ghostwriter.kinds.suggest_all'),
             'stock' => app(Ledger::class)->overview(),
+            'revisit' => $this->revisit(),
         ]);
+    }
+
+    /**
+     * Content to revisit at a glance: pages worth a look, and the top few
+     * with their first reason. Read from the list; no model.
+     *
+     * @return array<string, mixed>
+     */
+    private function revisit(): array
+    {
+        $site = Site::selected()?->handle() ?? Site::default()->handle();
+        $rows = app(RevisitStore::class);
+        $now = Carbon::now()->toDateTimeImmutable();
+        $suggest = app(SuggestEdits::class);
+
+        return [
+            'worth' => (int) ($rows->stats($site, $now)['worth-a-look'] ?? 0),
+            'top' => array_map(fn ($row) => [
+                'title' => $row->title,
+                'reason' => $row->reasons !== [] ? $suggest->text($row->reasons[0]->message()) : '',
+            ], $rows->top($site, null, 3, 0, [], $now)),
+            'url' => cp_route('ghostwriter.revisit.show'),
+        ];
     }
 
     /**

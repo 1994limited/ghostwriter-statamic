@@ -13,6 +13,7 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\LibraryConnectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PlanController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\PreviewController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\ProviderConnectionController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\RevisitController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SessionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\SetupController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\StockController;
@@ -39,6 +40,9 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('finish/check', [FinishController::class, 'check'])->name('finish.check');
     Route::post('finish/fill', [FinishController::class, 'fill'])->name('finish.fill');
     Route::post('finish/guide', [FinishController::class, 'guide'])->name('finish.guide');
+
+    Route::get('revisit', [RevisitController::class, 'show'])->name('revisit.show');
+    Route::post('revisit/snooze', [RevisitController::class, 'snooze'])->name('revisit.snooze');
 
     Route::post('suggest/guide', [SuggestController::class, 'guide'])->name('suggest.guide');
     Route::post('suggest/start', [SuggestController::class, 'start'])->name('suggest.start');

@@ -80,9 +80,16 @@ The list is kept in JSON files beside the sessions, one per site and collection:
 
 A link counts as broken only after it fails twice in a row (404, 410, or a name that no longer resolves). Anything else (a timeout, 401, 403, 429, a server error) says nothing about the page and is never shown. Links to your own pages are always checked, with no request.
 
-### Review
+### The list
 
-**Review** on a row of the list opens the page with Suggest edits ready to run: the confirm, with its cost, or a review that still fits the page.
+**Ghostwriter → Content to revisit** (and a tile on the Overview with the pages worth a look):
+
+- **Tiles**: pages worth a look (a priority of Medium or High), pages mentioning a past year as current, broken links, images without alt text. Each filters the list; click it again for everything.
+- **The list**, highest priority first, 25 a page, for the site you're on, and only the collections you can view: the page and its collection, when it was last updated, why (the most important reasons first), and its priority as a bar and a word (High, Medium, Low).
+- **Review** opens the page with Suggest edits ready to run: the confirm, with its cost, or a review that still fits the page.
+- **⋯**: **Snooze for 90 days** (off the list for everyone; needs permission to edit the page) and **Open without reviewing**.
+- The first time it's opened before the daily pass has ever run, every page is read once in the background.
+- On a phone, each page is a card.
 
 ## Settings
 
