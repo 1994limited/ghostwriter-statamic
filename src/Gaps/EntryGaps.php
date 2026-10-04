@@ -75,7 +75,7 @@ class EntryGaps
 
         return new GapContext(
             schema: $schema,
-            entry: new EntryData(values: $data, id: $id),
+            entry: new EntryData(values: $data, id: $id, group: $collection, site: $site),
             richText: $this->bard,
             links: new StatamicLinks,
             placeholders: new StatamicPlaceholderAssets,
