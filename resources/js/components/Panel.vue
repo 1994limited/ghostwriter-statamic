@@ -630,7 +630,7 @@ export default {
             this.replies = {};
             this.skipped = {};
             this.more = false;
-            this.send();
+            this.send(true);
         },
 
         // The answers to the writer's questions, as one message, with
@@ -663,8 +663,9 @@ export default {
             }
         },
 
-        async send() {
-            if (this.asked) return this.sendAnswers();
+        // `plain`: the message as it is, even while questions wait ("Just draft it").
+        async send(plain = false) {
+            if (plain !== true && this.asked) return this.sendAnswers();
 
             if (!this.message.trim() || this.working || this.stage === 'proposed') return;
 
