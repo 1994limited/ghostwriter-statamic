@@ -53,3 +53,15 @@ export function entryMeta(meta, ids, typeMeta) {
 
 /** The entry ID in `entry::abc` (or `statamic://entry::abc`). */
 export const entryId = (value) => (typeof value === 'string' ? (value.match(/entry::([^\s"']+)/)?.[1] ?? null) : null);
+
+/**
+ * A "Link to …" fix's value as Bard's link takes it: a title match's
+ * `entry::abc` gets `statamic://`; the page the SEO pass suggested comes
+ * as the pass writes it already (`statamic://entry::abc`), and an address
+ * stays as it is.
+ */
+export const bardHref = (value) => {
+    const target = String(value ?? '').trim();
+
+    return /^(entry|asset)::/.test(target) ? `statamic://${target}` : target;
+};

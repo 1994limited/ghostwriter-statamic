@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+- **The writer's own links** (core main, 1994limited/ghostwriter-core#92, decisions 22–24):
+  - A link the writer makes to a real, published page of the site (`statamic://entry::…` or its address) is kept, as Bard stores it, instead of becoming a link to choose. `FileEntryIndex` implements core's `LinkLookup` (`linkRow()`). Drafts, noindex and utility pages, other sites and the page itself still become links to choose.
+  - The writer's links to choose no longer count towards the links a draft is given, so a draft whose own markers met its target still gets links to your pages.
+  - For each link to choose the writer left, the SEO pass suggests the page it most likely means (checked by the link verifier). **Finish this page** offers it first, "Link to Contact us", before the title matches (not repeated) and **Choose an entry**; one click links the words in Bard or Markdown. It's never put in for you.
+
 ### Added
 - **Internal links** (SEO layer row 4; core main, 1994limited/ghostwriter-core#90). A first draft is linked to the site's other pages before the layout planner, so every layout carries the links:
   - The SEO pass gets the link index (every routed collection, decision 9), Bard's links (`statamic://entry::id`) and the entry's collection, site and language. One `seo-editor` call picks the words and pages, core's `LinkValidator` checks them, one `seo-verifier` call keeps or drops each; about one link per 250 words, 2 to 5.

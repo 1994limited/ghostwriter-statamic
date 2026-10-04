@@ -52,7 +52,7 @@ A plain text box (a text field, or a cell of a Grid or Table) can't underline pa
 Click the count, or the Ghostwriter button in the bottom corner, to open the guide. It shows one gap at a time: what's missing, and what you can do about it. It opens the field's tab, expands a collapsed set and scrolls to it, and the Ghostwriter mark flies over to point at it.
 
 - **A fact to add:** type it into the box in the guide and press Enter. It replaces the marker in the field. Esc clears the box.
-- **A link to choose:** **Link to Contact** when an entry's title or slug matches the link's hint; otherwise **Choose an entry** (the field's own picker, or type an address) or **Remove the link**, which keeps the words.
+- **A link to choose:** first, the page Ghostwriter suggested for a link the writer left (**Link to Contact us**: picked when the draft was linked to your pages and checked by a second look, never put in for you); then **Link to Contact** when an entry's title or slug matches the link's hint, without repeating the suggested page; otherwise **Choose an entry** (the field's own picker, or type an address) or **Remove the link**, which keeps the words.
 - **An image placeholder or an empty image:** **Find a photo** (Ghostwriter's image dialog for that field), **Choose from Assets**, or **Leave it empty** when the field isn't required.
 - **A stock preview:** **License**, which opens the same License & replace step as the field's badge (or Request licence, without the permission), or **Choose another**.
 - **A count to check:** see below.
