@@ -146,6 +146,8 @@ class Studio
      * The piece's whole brief, filled in from the person's quick details or
      * a plan idea (and after "Try again", the card as they left it), for
      * them to check. Anything only they know stays in square brackets.
+     * With nothing ticked to model it on, the type's own examples are; with
+     * none of those, Ghostwriter chooses from the newest published entries.
      *
      * @return Result<Brief>
      *
@@ -153,7 +155,7 @@ class Studio
      */
     public function fillBrief(Session $session, ContentType $type): Result
     {
-        return $this->studio->fillBrief(BriefThread::request($session, $this->inputs->kind($type), $this->inputs->briefTitles($type)));
+        return $this->studio->fillBrief(BriefThread::request($session, $this->inputs->kind($type), $this->inputs->briefTitles($type), $this->inputs->briefCandidates($type), $type->examples));
     }
 
     /**

@@ -27,6 +27,7 @@ use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Collection as EntryCollection;
+use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\Collection as Collections;
 use Statamic\Facades\Entry as Entries;
 use Statamic\Fields\Blueprint;
@@ -155,12 +156,37 @@ class StudioInputs
      */
     public function briefTitles(ContentType $type): array
     {
-        return Entries::query()->where('collection', $type->group)->get()
-            ->sortByDesc(fn ($entry) => $entry->date()?->timestamp ?? $entry->lastModified()?->timestamp ?? 0)
-            ->take(self::BRIEF_TITLES)
+        return $this->newest($type)
             ->map(fn ($entry) => (string) $entry->get('title'))
             ->values()
             ->all();
+    }
+
+    /**
+     * The published ones among those entries, by ID, for the brief filler
+     * to choose what to model a piece on when nothing is ticked.
+     *
+     * @return array<string, string> Entry ID => title.
+     */
+    public function briefCandidates(ContentType $type): array
+    {
+        return $this->newest($type)
+            ->filter(fn ($entry) => $entry->published())
+            ->mapWithKeys(fn ($entry) => [(string) $entry->id() => (string) $entry->get('title')])
+            ->all();
+    }
+
+    /**
+     * A collection's newest entries, any status, as many as the brief is shown.
+     *
+     * @return Collection<int, Entry>
+     */
+    private function newest(ContentType $type): Collection
+    {
+        return Entries::query()->where('collection', $type->group)->get()
+            ->sortByDesc(fn ($entry) => $entry->date()?->timestamp ?? $entry->lastModified()?->timestamp ?? 0)
+            ->take(self::BRIEF_TITLES)
+            ->values();
     }
 
     /**

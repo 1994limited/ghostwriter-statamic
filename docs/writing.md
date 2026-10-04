@@ -35,7 +35,7 @@ There is no form to fill in. Once you've chosen what you're writing, the convers
 From your reply Ghostwriter fills in the whole brief for that kind, with one model call, and shows it in the conversation as a **brief card**:
 
 - **Working title**, then each of the kind's questions with its answer, all of them editable;
-- **Model it on**, with the entries to follow ticked: a learned kind's own examples, or those of the kind you chose. Tick up to six; with none ticked, Ghostwriter goes by the brief and how this collection is usually written.
+- **Model it on**, with the entries to follow ticked: a learned kind's own examples, or those of the kind you chose. With none of those, Ghostwriter ticks up to six published entries closest in purpose and shape to the new piece, best first. Change the ticks as you like (up to six); with none ticked, Ghostwriter goes by the brief and how this collection is usually written. **Try again** keeps what's ticked.
 
 Anything only you know stays in `[square brackets]`, such as `[Add: the client and what changed after launch]`. Ghostwriter never makes up facts about your organisation, its projects or its figures: a figure or a quote you didn't give is left in brackets for you.
 
