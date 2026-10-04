@@ -519,7 +519,13 @@ class SuggestEdits
             return null;
         }
 
-        // A code core sets (`unreadable`) in plain words; a provider's message as it is.
-        return $error === 'unreadable' ? $this->text(new Message('suggest.review.error.unreadable')) : $error;
+        if ($error !== 'unreadable') {
+            return $error; // A provider's message, already in words.
+        }
+
+        // The code core sets, in core's words (here too for a core without them).
+        $words = $this->text(new Message('suggest.review.error.unreadable'));
+
+        return $words !== 'suggest.review.error.unreadable' ? $words : __('the answer came back in a shape I couldn\'t read. Try again.');
     }
 }
