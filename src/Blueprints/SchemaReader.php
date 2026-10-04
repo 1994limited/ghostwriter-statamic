@@ -146,6 +146,11 @@ class SchemaReader
             'required' => $field->isRequired(),
         ];
 
+        // A text field's own limit, which SEO checks read.
+        if (in_array($type, ['text', 'textarea'], true) && is_numeric($field->get('character_limit')) && (int) $field->get('character_limit') > 0) {
+            $spec['character_limit'] = (int) $field->get('character_limit');
+        }
+
         if (in_array($kind, ['choice', 'choices'], true)) {
             $spec['options'] = $files ?: $this->options($field->get('options', []));
         }

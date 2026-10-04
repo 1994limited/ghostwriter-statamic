@@ -158,3 +158,30 @@ tabs:
                 block: Block
                 warn: Warn
               default: block
+      -
+        display: Suggest edits and Content to revisit
+        instructions: 'Suggest edits reads a page against your voice guide when someone asks (a menu item under Edit with Ghostwriter). Content to revisit, on the Overview, ranks your published pages by checks that need no AI: dates, links, alt text, empty fields and age.'
+        fields:
+          -
+            handle: suggest_claims
+            field:
+              type: toggle
+              display: Check claims and counts
+              instructions: 'Flag counts and claims about you ("a team of 6", "over 20 years", "award-winning") on older pages as facts to check. Ghostwriter never changes a fact itself: it asks you.'
+              default: true
+              width: 50
+          -
+            handle: revisit_external_links
+            field:
+              type: toggle
+              display: Check links to other sites once a week
+              instructions: 'Off by default. Once a week, Ghostwriter asks each site your pages link to whether the page is still there (a HEAD request, at most one a second per site). Broken ones show as Link suggestions and in Content to revisit. Links to your own pages are always checked, with no request.'
+              default: false
+              width: 50
+          -
+            handle: revisit_age_in_full
+            field:
+              type: collections
+              display: Count age in full in these dated collections
+              instructions: 'In a collection with dates (a journal, news), an old post is meant to be old, so age and past years count for a quarter. Choose any dated collection where they should count in full, as they do everywhere else.'
+              mode: select
