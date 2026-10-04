@@ -63,3 +63,4 @@ Ghostwriter writes with Claude, ChatGPT or Gemini, on your own account and key, 
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md).
 - **Licence:** proprietary, © 1994 Limited. See [LICENSE](LICENSE).
 - **Developing:** run `composer install` before `npm ci` (npm takes Statamic's UI package from `vendor/`), then `npm run build` (the build in `resources/dist` is committed) and `vendor/bin/phpunit`. Tests fake every model call, so they need no key.
+- **CI and core:** core and the addons are developed and released together. The "core main" CI job runs the tests against core's `main` branch (aliased to `1.99.0` so it satisfies `composer.json`), so a pull request that uses unreleased core changes can merge when "core main" passes, even if the jobs that install the released core from Packagist fail. A release pull request needs every job green: release core first and raise the core constraint in `composer.json`.
