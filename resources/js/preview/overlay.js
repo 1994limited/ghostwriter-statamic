@@ -27,6 +27,7 @@
 
 import { canRead, findMarkers, locate, measure, watch, words } from './locator.js';
 import { countByRegion, markGaps, toPlainText } from './markers.js';
+import { findQuote, quoteOf } from './comments.js';
 
 export const ERROR_META = 'ghostwriter-preview-error';
 
@@ -38,7 +39,26 @@ const STYLE = `
 .label { position: absolute; left: calc(4px / var(--s)); top: calc(4px / var(--s)); max-width: calc(100% - 8px / var(--s)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   background: #5b4cf0; color: #fff; font: 500 11px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: calc(11px / var(--s)); letter-spacing: 0; padding: 0 calc(7px / var(--s)); border-radius: calc(4px / var(--s)); }
 @media (forced-colors: active) { .outline { border-color: Highlight; } .label { background: Highlight; color: HighlightText; forced-color-adjust: none; } }
+.pin { position: absolute; pointer-events: auto; box-sizing: border-box; width: calc(26px / var(--s)); height: calc(26px / var(--s)); margin: 0; padding: 0; border-radius: calc(13px / var(--s)) calc(13px / var(--s)) calc(13px / var(--s)) calc(3px / var(--s));
+  background: #f5a524; color: #1c1c20; border: calc(2px / var(--s)) solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); font: 600 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: calc(12px / var(--s)); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.pin.sending { background: #9a9aa5; color: #fff; }
+.pin.changed { background: #2f9e6b; color: #fff; }
+.pin.replied { background: #5b4cf0; color: #fff; }
+.pin.refused, .pin.skipped, .pin.failed { background: #fff; color: #b42318; border-color: #b42318; }
+.pin.focused, .pin:focus-visible { outline: calc(3px / var(--s)) solid #5b4cf0; outline-offset: calc(1px / var(--s)); }
+.changed { position: absolute; box-sizing: border-box; border: calc(2px / var(--s)) solid #2f9e6b; border-radius: calc(3px / var(--s)); pointer-events: none; }
+.changed .chip { position: absolute; left: calc(4px / var(--s)); top: calc(-10px / var(--s)); background: #2f9e6b; color: #fff; font: 600 11px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: calc(11px / var(--s)); padding: 0 calc(7px / var(--s)); border-radius: calc(4px / var(--s)); white-space: nowrap; }
+.changed.flash { animation: gw-flash 2.6s ease-out 1; }
+@keyframes gw-flash { 0% { box-shadow: inset 0 0 0 3px #2f9e6b, 0 0 0 8px rgba(47,158,107,.35); } 100% { box-shadow: inset 0 0 0 3px rgba(47,158,107,0), 0 0 0 8px rgba(47,158,107,0); } }
+@media (prefers-reduced-motion: reduce) { .changed.flash { animation: none; } }
+.target { position: absolute; box-sizing: border-box; margin: 0; padding: 0; background: transparent; border: 0; opacity: 0; pointer-events: none; }
+.target:focus { opacity: 1; outline: calc(3px / var(--s)) solid #5b4cf0; outline-offset: calc(-3px / var(--s)); }
+.picked { position: absolute; box-sizing: border-box; border: calc(2px / var(--s)) solid #5b4cf0; border-radius: calc(3px / var(--s)); background: rgba(91, 76, 240, 0.06); pointer-events: none; }
+@media (forced-colors: active) { .pin, .changed, .picked { forced-color-adjust: none; border-color: Highlight; } .target:focus { outline-color: Highlight; } }
 `;
+
+/** The page's cursor while commenting: a style in the frame's own document (the preview only). */
+const COMMENTING_STYLE = 'html[data-gw-commenting], html[data-gw-commenting] * { cursor: crosshair !important; } html[data-gw-commenting] ::selection { background: rgba(91, 76, 240, .25); }';
 
 /**
  * What the frame's page says about a failed render: the meta the preview's
@@ -223,8 +243,17 @@ export function debounce(callback, wait) {
  * gapCounts(), measureAll(), setScale(), boxes(), hover(), nearestTop(),
  * scrollToBlock(), stop()}. `labels` are the gap chips' words (gapLabels());
  * with `onGap(chip)`, a chip clicked (or Enter on it) calls it.
+ *
+ * Comments: `onPick({key, quote, rect, keyboard})` for a block clicked (or
+ * Enter on its target) or words selected in comment mode, `rect` in the
+ * frame's document coordinates; `onPin(number)` for a pin clicked;
+ * `onEscape()` for Esc in comment mode. `commentLabels` are the targets'
+ * and pins' words: {target(label, count), pin(number, state, label), click}.
+ * The overlay then also has setComments({on, pins, changed}), flash(keys),
+ * setPicked(key), focusPin(number), focusTarget(key?), scrollToKey(key),
+ * pinRect(number) and toViewport(rect).
  */
-export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, onChange = () => {}, onGap = null } = {}) {
+export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, onChange = () => {}, onGap = null, onPick = null, onPin = null, onEscape = null, commentLabels = {} } = {}) {
     if (!canRead(frame)) return null;
 
     const doc = frame.contentDocument;
@@ -251,16 +280,43 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
     const layer = doc.createElement('div');
     layer.className = 'layer';
     // A frame shown scaled down (Desktop in a narrow pane) keeps its labels readable.
-    const setScale = (value) => layer.style.setProperty('--s', String(value > 0 ? value : 1));
-    setScale(scale);
+    const setScale = (value) => {
+        layer.style.setProperty('--s', String(value > 0 ? value : 1));
+        if (typeof comments !== 'undefined') {
+            comments.scale = value > 0 ? value : 1;
+            drawComments();
+        }
+    };
+    layer.style.setProperty('--s', String(scale > 0 ? scale : 1));
     const outline = doc.createElement('div');
     outline.className = 'outline';
     const label = doc.createElement('span');
     label.className = 'label';
     outline.append(label);
-    layer.append(outline);
+    outline.setAttribute('aria-hidden', 'true');
+    // Comments: the Changed marks and the picked block under the pins, the
+    // keyboard's targets, then the pins on top.
+    const marksLayer = doc.createElement('div');
+    marksLayer.setAttribute('aria-hidden', 'true');
+    const targetsLayer = doc.createElement('div');
+    const pinsLayer = doc.createElement('div');
+    layer.append(marksLayer, outline, targetsLayer, pinsLayer);
     root.append(style, layer);
     doc.documentElement.append(host);
+    const cursor = doc.createElement('style');
+    cursor.setAttribute('data-gw-commenting-style', '');
+    cursor.textContent = COMMENTING_STYLE;
+    (doc.head ?? doc.documentElement).append(cursor);
+
+    const comments = { on: false, pins: [], changed: [], flashing: new Set(), picked: null, target: null, scale: scale > 0 ? scale : 1 };
+    const pinButtons = new Map();
+    const targetButtons = new Map();
+    const t = {
+        target: (name, count) => (commentLabels.target ? commentLabels.target(name, count) : `${name} block, ${count} comments. Add a comment.`),
+        pin: (number, state, name) => (commentLabels.pin ? commentLabels.pin(number, state, name) : `Comment ${number}, ${state}, on ${name}`),
+        click: commentLabels.click ?? 'click to comment',
+        changed: commentLabels.changed ?? 'Changed',
+    };
 
     const measureAll = () => {
         state.boxes = result.regions.map((region) => ({
@@ -270,6 +326,7 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
         })).filter((entry) => entry.box && entry.box.width > 0 && entry.box.height > 0);
 
         draw();
+        drawComments();
         onChange();
     };
 
@@ -289,7 +346,271 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
         outline.style.top = `${entry.box.top}px`;
         outline.style.width = `${entry.box.width}px`;
         outline.style.height = `${entry.box.height}px`;
-        label.textContent = labelFor(block, byKey);
+        label.textContent = comments.on ? `${labelFor(block, byKey)} · ${t.click}` : labelFor(block, byKey);
+    };
+
+    const boxOf = (key) => state.boxes.find((candidate) => candidate.key === key) ?? null;
+
+    // Document coordinates of a viewport rect in the frame.
+    const docRect = (rect) => ({ left: rect.left + win.scrollX, top: rect.top + win.scrollY, width: rect.width, height: rect.height });
+
+    // The words of a comment on some, found again in its block.
+    const quoteRect = (key, quote) => {
+        const region = result.byKey?.[key];
+
+        if (!region || !quote) return null;
+
+        const nodes = [];
+        let text = '';
+
+        for (const element of region.elements) {
+            const walker = doc.createTreeWalker(element, 4);
+
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                nodes.push({ node, start: text.length });
+                text += node.nodeValue;
+            }
+        }
+
+        const found = findQuote(text, { exact: quote });
+
+        if (!found) return null;
+
+        const at = (offset) => {
+            const hit = [...nodes].reverse().find((entry) => entry.start <= offset);
+
+            return hit ? [hit.node, Math.min(offset - hit.start, hit.node.nodeValue.length)] : null;
+        };
+
+        try {
+            const range = doc.createRange();
+            const start = at(found.start);
+            const end = at(found.end);
+
+            if (!start || !end) return null;
+
+            range.setStart(...start);
+            range.setEnd(...end);
+
+            const rects = [...range.getClientRects()].filter((rect) => rect.width > 0);
+            const last = rects[rects.length - 1] ?? range.getBoundingClientRect();
+
+            return last && last.height > 0 ? docRect(last) : null;
+        } catch {
+            return null;
+        }
+    };
+
+    const place = (element, box) => {
+        element.style.left = `${box.left}px`;
+        element.style.top = `${box.top}px`;
+        element.style.width = `${box.width}px`;
+        element.style.height = `${box.height}px`;
+    };
+
+    // Keyed, so focus stays on a pin or target while the page is measured again.
+    const sync = (buttons, wanted, parent, make) => {
+        for (const [id, button] of buttons) {
+            if (!wanted.has(id)) {
+                button.remove();
+                buttons.delete(id);
+            }
+        }
+
+        for (const id of wanted.keys()) {
+            if (!buttons.has(id)) {
+                const button = make(id);
+                buttons.set(id, button);
+                parent.append(button);
+            }
+        }
+    };
+
+    const drawComments = () => {
+        if (typeof pinsLayer === 'undefined') return;
+
+        const unit = 1 / comments.scale;
+
+        // Changed marks and the picked block.
+        marksLayer.replaceChildren();
+
+        for (const key of comments.changed) {
+            const entry = boxOf(key);
+
+            if (!entry) continue;
+
+            const mark = doc.createElement('div');
+            mark.className = comments.flashing.has(key) ? 'changed flash' : 'changed';
+            place(mark, entry.box);
+            const chip = doc.createElement('span');
+            chip.className = 'chip';
+            chip.textContent = t.changed;
+            mark.append(chip);
+            marksLayer.append(mark);
+        }
+
+        if (comments.picked && boxOf(comments.picked)) {
+            const picked = doc.createElement('div');
+            picked.className = 'picked';
+            place(picked, boxOf(comments.picked).box);
+            marksLayer.append(picked);
+        }
+
+        // Pins, by number.
+        const pins = new Map(comments.pins.filter((pin) => boxOf(pin.key)).map((pin) => [String(pin.number), pin]));
+        sync(pinButtons, pins, pinsLayer, (id) => {
+            const button = doc.createElement('button');
+            button.type = 'button';
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onPin?.(Number(id));
+            });
+            button.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') onEscape?.();
+            });
+
+            return button;
+        });
+
+        const perBlock = {};
+
+        for (const [id, pin] of pins) {
+            const button = pinButtons.get(id);
+            const entry = boxOf(pin.key);
+            const nth = (perBlock[pin.key] = (perBlock[pin.key] ?? -1) + 1);
+            const words = pin.quote ? quoteRect(pin.key, pin.quote) : null;
+            const left = words ? words.left + words.width + 2 * unit : entry.box.left + entry.box.width - (32 + nth * 30) * unit;
+            const top = words ? words.top - 14 * unit : entry.box.top + 6 * unit;
+
+            button.className = `pin ${pin.status}${comments.focused === pin.number ? ' focused' : ''}`;
+            button.textContent = String(pin.number);
+            button.style.left = `${Math.max(0, left)}px`;
+            button.style.top = `${Math.max(0, top)}px`;
+            button.setAttribute('aria-label', t.pin(pin.number, pin.state, pin.label || labelFor(byKey[pin.key], byKey)));
+            button.title = button.getAttribute('aria-label');
+            button.tabIndex = comments.on ? 0 : -1;
+        }
+
+        // The keyboard's targets: one per block on the page, in reading order, one Tab stop.
+        const wanted = new Map(comments.on ? state.boxes.map((entry) => [entry.key, entry]) : []);
+        sync(targetButtons, wanted, targetsLayer, (key) => {
+            const button = doc.createElement('button');
+            button.type = 'button';
+            button.className = 'target';
+            button.addEventListener('focus', () => {
+                comments.target = key;
+                state.hovered = key;
+                draw();
+                drawComments();
+            });
+            button.addEventListener('blur', () => {
+                if (state.hovered === key) {
+                    state.hovered = null;
+                    draw();
+                }
+            });
+            button.addEventListener('keydown', (event) => targetKey(event, key));
+
+            return button;
+        });
+
+        const keys = [...wanted.keys()];
+
+        if (!keys.includes(comments.target)) comments.target = keys[0] ?? null;
+
+        for (const [key, entry] of wanted) {
+            const button = targetButtons.get(key);
+            const count = comments.pins.filter((pin) => pin.key === key).length;
+
+            place(button, entry.box);
+            button.tabIndex = key === comments.target ? 0 : -1;
+            button.setAttribute('aria-label', t.target(labelFor(byKey[key], byKey), count));
+        }
+    };
+
+    const targetKey = (event, key) => {
+        const keys = [...targetButtons.keys()];
+        const at = keys.indexOf(key);
+        const moves = { ArrowDown: at + 1, ArrowRight: at + 1, ArrowUp: at - 1, ArrowLeft: at - 1, Home: 0, End: keys.length - 1 };
+
+        if (event.key in moves) {
+            event.preventDefault();
+            const next = keys[Math.min(Math.max(moves[event.key], 0), keys.length - 1)];
+            comments.target = next;
+            drawComments();
+            targetButtons.get(next)?.focus({ preventScroll: false });
+
+            return;
+        }
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            const entry = boxOf(key);
+
+            if (entry) onPick?.({ key, quote: null, rect: { ...entry.box, height: Math.min(entry.box.height, 40) }, keyboard: true });
+
+            return;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            onEscape?.();
+        }
+    };
+
+    // The deepest located block holding a node.
+    const regionAt = (node) => {
+        let best = null;
+
+        for (const region of result.regions) {
+            if (!boxOf(region.key)) continue;
+            if (!region.elements.some((element) => element === node || element.contains?.(node))) continue;
+            if (!best || depthOf(byKey[region.key], byKey) > depthOf(byKey[best.key], byKey)) best = region;
+        }
+
+        return best;
+    };
+
+    // Words selected in one block: a pick with their quote.
+    const pickSelection = (keyboard = false) => {
+        const selection = win.getSelection?.();
+
+        if (!selection || selection.isCollapsed || !selection.rangeCount) return false;
+
+        const range = selection.getRangeAt(0);
+        const text = range.toString();
+
+        if (!text.trim()) return false;
+
+        const start = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+        const region = regionAt(start);
+
+        if (!region) return false;
+
+        let before = '';
+        let after = '';
+
+        try {
+            const head = doc.createRange();
+            head.setStartBefore(region.elements[0]);
+            head.setEnd(range.startContainer, range.startOffset);
+            before = head.toString();
+            const tail = doc.createRange();
+            tail.setStart(range.endContainer, range.endOffset);
+            tail.setEndAfter(region.elements[region.elements.length - 1]);
+            after = tail.toString();
+        } catch {
+            // The words alone, then.
+        }
+
+        const quote = quoteOf(text, before, after);
+
+        if (!quote) return false;
+
+        onPick?.({ key: region.key, quote, rect: docRect(range.getBoundingClientRect()), keyboard });
+
+        return true;
     };
 
     let frameRequested = false;
@@ -320,6 +641,42 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
     listen(doc.documentElement, 'mouseleave', () => {
         state.hovered = null;
         draw();
+    });
+
+    // Comment mode: a click or a selection is a pick, and nothing on the page reacts to it.
+    const fromOverlay = (event) => event.target === host;
+
+    listen(doc, 'click', (event) => {
+        if (!comments.on || fromOverlay(event)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+    }, true);
+    listen(doc, 'mouseup', (event) => {
+        if (!comments.on || fromOverlay(event) || event.button !== 0) return;
+
+        if (pickSelection()) return;
+
+        const x = event.clientX + win.scrollX;
+        const y = event.clientY + win.scrollY;
+        const hit = innermost(state.boxes, x, y);
+
+        // The composer opens where the click was.
+        if (hit) onPick?.({ key: hit.key, quote: null, rect: { left: x, top: y, width: 1, height: 1 }, keyboard: false });
+    });
+    // In comment mode the page's own links and fields take no focus: the blocks do.
+    listen(doc, 'focusin', (event) => {
+        if (comments.on && !fromOverlay(event)) setTimeout(() => targetButtons.get(comments.target)?.focus(), 0);
+    });
+    listen(doc, 'keydown', (event) => {
+        if (!comments.on) return;
+
+        if (event.altKey && event.shiftKey && event.code === 'KeyM') {
+            event.preventDefault();
+            pickSelection(true);
+        } else if (event.key === 'Escape' && !fromOverlay(event)) {
+            onEscape?.();
+        }
     });
 
     // Never navigate away.
@@ -388,9 +745,75 @@ export function attach(frame, map, { titleKey = null, scale = 1, labels = {}, on
 
             if (entry) win.scrollTo(0, Math.max(0, entry.box.top - anchor.offset));
         },
+        // Comments: the mode, the pins ({number, key, status, state, label, quote}) and the changed blocks.
+        setComments({ on = comments.on, pins = comments.pins, changed = comments.changed } = {}) {
+            const was = comments.on;
+            comments.on = Boolean(on);
+            comments.pins = pins ?? [];
+            comments.changed = changed ?? [];
+
+            if (comments.on !== was) {
+                if (comments.on) {
+                    host.removeAttribute('aria-hidden');
+                    doc.documentElement.setAttribute('data-gw-commenting', '');
+                } else {
+                    host.setAttribute('aria-hidden', 'true');
+                    doc.documentElement.removeAttribute('data-gw-commenting');
+                    comments.picked = null;
+                }
+
+                draw();
+            }
+
+            drawComments();
+        },
+        // The changed blocks flash once (a static outline under reduced motion).
+        flash(keys) {
+            keys.forEach((key) => comments.flashing.add(key));
+            drawComments();
+            setTimeout(() => {
+                keys.forEach((key) => comments.flashing.delete(key));
+            }, 2700);
+        },
+        setPicked(key) {
+            comments.picked = key ?? null;
+            drawComments();
+        },
+        focusPin(number) {
+            comments.focused = number;
+            drawComments();
+            const button = pinButtons.get(String(number));
+
+            if (button) {
+                const entry = boxOf(comments.pins.find((pin) => pin.number === number)?.key);
+                if (entry) win.scrollTo(0, Math.max(0, entry.box.top - 60));
+                button.focus({ preventScroll: true });
+            }
+
+            return Boolean(button);
+        },
+        focusTarget(key = null) {
+            if (key) comments.target = key;
+            drawComments();
+            targetButtons.get(comments.target)?.focus();
+        },
+        scrollToKey(key) {
+            const entry = boxOf(key);
+
+            if (entry) win.scrollTo(0, Math.max(0, entry.box.top - 60));
+        },
+        pinRect(number) {
+            return pinButtons.get(String(number)) ? docRect(pinButtons.get(String(number)).getBoundingClientRect()) : null;
+        },
+        // A rect in the frame's document as the frame's viewport shows it now.
+        toViewport(rect) {
+            return rect ? { left: rect.left - win.scrollX, top: rect.top - win.scrollY, width: rect.width, height: rect.height } : null;
+        },
         stop() {
             state.stopped = true;
             cleanups.forEach((cleanup) => cleanup());
+            doc.documentElement.removeAttribute('data-gw-commenting');
+            cursor.remove();
             host.remove();
         },
     };

@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\CollectionController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\CommentsController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\DashboardController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\EntryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\FinishController;
@@ -127,6 +128,9 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('sessions/{session}/layouts/refresh', [LayoutsController::class, 'refresh'])->name('sessions.layouts.refresh');
     Route::patch('sessions/{session}/extras/{item}', [LayoutsController::class, 'editExtra'])->name('sessions.extras.update');
     Route::delete('sessions/{session}/extras/{item}', [LayoutsController::class, 'deleteExtra'])->name('sessions.extras.destroy');
+    Route::post('sessions/{session}/comments/apply', [CommentsController::class, 'apply'])->name('sessions.comments.apply');
+    Route::post('sessions/{session}/comments/{answer}/{number}/resolve', [CommentsController::class, 'resolve'])->whereNumber(['answer', 'number'])->name('sessions.comments.resolve');
+    Route::post('sessions/{session}/comments/{answer}/{number}/put-back', [CommentsController::class, 'putBack'])->whereNumber(['answer', 'number'])->name('sessions.comments.put_back');
     Route::post('sessions/{session}/entry', [SessionController::class, 'entry'])->name('sessions.entry');
     Route::delete('sessions/{session}', [SessionController::class, 'destroy'])->name('sessions.destroy');
 });

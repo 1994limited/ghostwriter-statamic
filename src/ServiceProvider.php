@@ -46,6 +46,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Layout\Links\StatamicLinks;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\PatternFinder;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\Vocabulary;
+use NineteenNinetyFour\Ghostwriter\Core\Review\Comments;
 use NineteenNinetyFour\Ghostwriter\Core\Revisit\EntrySource;
 use NineteenNinetyFour\Ghostwriter\Core\Revisit\ExternalLinkCheck;
 use NineteenNinetyFour\Ghostwriter\Core\Revisit\HttpLinkProbe;
@@ -258,6 +259,10 @@ class ServiceProvider extends AddonServiceProvider
         // draft and up to two other layouts of the same words, from one
         // planner call on the first draft. Always on; there is no setting.
         $this->app->singleton(SessionLayouts::class, fn ($app) => new SessionLayouts($app->make(CoreStudio::class), $app->make(Layouts::class), Log::channel(config('ghostwriter.log_channel'))));
+
+        // Comments on the draft (core's Review\Comments): conversation
+        // messages; only Apply calls a model (the reviser, once per Apply).
+        $this->app->bind(Comments::class, fn ($app) => new Comments($app->make(SessionGuard::class), $app->make(CoreStudio::class), $app->make(SessionLayouts::class), $app->make(Layouts::class), Log::channel(config('ghostwriter.log_channel'))));
     }
 
     /**

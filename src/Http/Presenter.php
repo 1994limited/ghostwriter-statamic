@@ -18,6 +18,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
 use NineteenNinetyFour\Ghostwriter\Core\Images\StockSearch;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\DraftPreview;
+use NineteenNinetyFour\Ghostwriter\Drafts\DraftComments;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftLayouts;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftValues;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
@@ -41,6 +42,7 @@ class Presenter
         private ImageStudio $images,
         private StockSearch $stock,
         private DraftLayouts $layouts,
+        private DraftComments $comments,
     ) {}
 
     /**
@@ -193,9 +195,29 @@ class Presenter
             // The layout cards (the writer's draft and up to two others) and
             // the extras prepared with the draft, for the Text tab.
             ...($session->draft !== null && $problem === null ? $this->layouts->present($session, $type) : ['layouts' => null, 'extras' => []]),
+            // The comments sent on the draft (conversation messages), each
+            // with its state, placed in the chosen layout; and the next pin's number.
+            'comments' => $session->draft !== null && $problem === null ? $this->comments($session) : null,
             'usage' => $session->usage,
             'images' => $this->images($session, $type),
         ];
+    }
+
+    /**
+     * The comments, or none shown when they can't be read: the panel still
+     * works without them.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function comments(Session $session): ?array
+    {
+        try {
+            return $this->comments->present($session);
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return null;
+        }
     }
 
     /**
