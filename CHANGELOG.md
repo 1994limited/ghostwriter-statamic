@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changed
+- **Finish this page leaves required fields to Statamic, and prompts for a needed image** (core main, 1994limited/ghostwriter-core#82):
+  - A required text, date or select field left empty is no longer a step or counted. Statamic's own validation reports it on save.
+  - An empty image the page looks like it needs is counted in the header menu and brings the guide out on load. It looks needed when it is required, when it is the hero (the set the template prints the H1 from, or a hero-like name when there are too few published entries to go by), or when at least 70% of the collection's newest published entries have one. The step says why, for example "Hero image is required. Add one?" or "Hero image is empty, but most Journal entries have one. Add one?", and keeps **Find a photo** and **Choose from Assets**.
+  - It never blocks publishing, and a new, untouched entry isn't prompted until a draft is put in or it has some text.
+  - The collection's fill rates are counted over its 20 newest published entries (core's `FillRates`) instead of every published entry. They are kept until an entry in the collection is saved or deleted (`RefreshGapRates`), no longer for a fixed ten minutes.
+  - The check's JSON gains `prompting`.
+
 Requires `1994/ghostwriter-core` ^1.9 (comments as conversation messages, `Review\Comments`, on core's main until it is released; Suggest edits and Content to revisit: `Suggest\*`, `Revisit\*`, the `AssetAlt` and `SeoFields` ports; since ^1.8.3 resolving a gap from its chip, `Gaps\MarkerResolver`; since ^1.8.2 the gap chips, `resources/js/preview/markers.js`; layouts, extras and counts to check since ^1.8; and since ^1.7 the page preview's markers, block map and locator).
 
 ### Fixed

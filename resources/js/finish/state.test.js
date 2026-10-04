@@ -1,7 +1,7 @@
 // node --test resources/js/finish
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { counts, currentAfter, fieldStates, firstToDo, published, stepsFrom, tagText } from './state.js';
+import { bringsOut, counts, currentAfter, fieldStates, firstToDo, published, stepsFrom, tagText } from './state.js';
 
 const t = (text, params = {}) => Object.entries(params).reduce((out, [key, value]) => out.replace(`:${key}`, value), text);
 const gap = (id, dotted, kind = 'ask', severity = 'blocks', speech = 'Fill this in') => ({ id, dotted, kind, severity, speech });
@@ -69,8 +69,8 @@ test('skipped gaps stay in the list and in the count', () => {
 // menu showed nothing, but Suggest edits said "1 thing still to finish"
 // and its button opened a guide that wasn't there.
 const heroImage = () => ({
-    id: 'image-empty|hero_image||0', kind: 'image-empty', severity: 'required', path: 'hero_image', dotted: 'hero_image', field: 'hero_image', label: 'Hero image',
-    hint: null, excerpt: null, occurrence: 0, message: 'Hero image is empty. Pages like this usually have an image here.', speech: 'Empty!', blocks: false, meta: [],
+    id: 'image-empty|hero_image||0', kind: 'image-empty', severity: 'prompt', path: 'hero_image', dotted: 'hero_image', field: 'hero_image', label: 'Hero image',
+    hint: null, excerpt: null, occurrence: 0, message: 'Hero image is required. Add one?', speech: 'Empty!', blocks: false, meta: [],
     fixes: [{ label: 'Find a photo', action: 'find-photo', cost: 'free', primary: true }],
 });
 
@@ -80,6 +80,16 @@ test('what is left to finish is one number everywhere: nothing until the guide i
     assert.equal(counts(steps, 0).count, 1, 'the guide itself counts it');
     assert.equal(published(steps, 0, false), 0, 'not out: the menu and Suggest edits say nothing');
     assert.equal(published(steps, 0, true), 1);
+});
+
+test('an image the page needs brings the guide out, so the menu counts it; a required field or a suggestion alone does not', () => {
+    const hero = stepsFrom({ count: 1, gaps: [heroImage()] });
+
+    assert.equal(bringsOut(hero), true);
+    assert.equal(published(hero, 0, bringsOut(hero)), 1, 'the header and the menu row say 1');
+    assert.equal(bringsOut(stepsFrom({ gaps: [gap('s', 'summary', 'expected', 'suggestion', 'Empty!')] })), false);
+    assert.equal(bringsOut(stepsFrom({ gaps: [gap('l', 'related', 'link-empty', 'required', 'Needs a link')] })), false);
+    assert.equal(bringsOut(stepsFrom({ gaps: [gap('a', 'body')] })), true, 'what blocks does');
 });
 
 test('a guide opened from a count lands on what it counted, skipped or not', () => {

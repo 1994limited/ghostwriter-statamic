@@ -53,10 +53,11 @@ class FinishThisPageTest extends TestCase
             ]]]],
             'seo' => ['display' => 'SEO', 'sections' => [['fields' => [
                 ['handle' => 'summary', 'field' => ['type' => 'textarea', 'display' => 'Summary', 'validate' => ['required']]],
+                ['handle' => 'intro', 'field' => ['type' => 'textarea', 'display' => 'Intro']],
             ]]]],
         ]])->save();
 
-        Entry::make()->id('contact')->collection('pages')->slug('contact')->published(true)->data(['title' => 'Contact us', 'summary' => 'How to reach us.'])->save();
+        Entry::make()->id('contact')->collection('pages')->slug('contact')->published(true)->data(['title' => 'Contact us', 'summary' => 'How to reach us.', 'intro' => 'We answer within a day.'])->save();
         Entry::make()->id('capacitor')->collection('pages')->slug('capacitor')->published(false)->data([
             'title' => 'Capacitor apps',
             'hero_image' => ContainerAssetSink::PATH,
@@ -84,10 +85,12 @@ class FinishThisPageTest extends TestCase
         $report = $this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'pages', 'entry' => 'capacitor', 'values' => $values])->assertOk()->json();
 
         $this->assertSame(
-            ['hero_image:image-placeholder', 'body:ask', 'body:link', 'body:link-broken', 'body:leftover-token', 'page_builder.0.button_link:link', 'summary:required'],
+            ['hero_image:image-placeholder', 'body:ask', 'body:link', 'body:link-broken', 'body:leftover-token', 'page_builder.0.button_link:link', 'intro:expected'],
             array_map(fn (array $gap) => $gap['dotted'].':'.$gap['kind'], $report['gaps']),
+            'The required summary is empty, but Statamic\'s own validation says so on save.',
         );
-        $this->assertSame(7, $report['count']);
+        $this->assertSame(6, $report['count']);
+        $this->assertSame(6, $report['prompting']);
 
         $gaps = collect($report['gaps'])->keyBy(fn (array $gap) => $gap['dotted'].':'.$gap['kind']);
 
@@ -98,7 +101,7 @@ class FinishThisPageTest extends TestCase
         $this->assertSame('main', $ask['tab']);
         $this->assertSame(['answer', 'write-around'], array_column($ask['fixes'], 'action'));
         $this->assertSame('[[ask: how long a typical project takes]]', $ask['meta']['match']);
-        $this->assertSame('seo', $gaps['summary:required']['tab']);
+        $this->assertSame('seo', $gaps['intro:expected']['tab']);
 
         // A link to choose is matched to the Contact page by its words.
         $link = $gaps['page_builder.0.button_link:link'];
@@ -112,8 +115,13 @@ class FinishThisPageTest extends TestCase
         $values['summary'] = 'A summary now.';
         $values['hero_image'] = [];
         $after = $this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'pages', 'entry' => 'capacitor', 'values' => $values])->assertOk()->json();
-        $this->assertNotContains('summary:required', array_map(fn (array $gap) => $gap['dotted'].':'.$gap['kind'], $after['gaps']));
         $this->assertNotContains('hero_image:image-placeholder', array_map(fn (array $gap) => $gap['dotted'].':'.$gap['kind'], $after['gaps']));
+
+        // With the placeholder gone the hero is empty, and the page looks like it needs one: one published page is too few to go by, and it is the hero.
+        $hero = collect($after['gaps'])->firstWhere('dotted', 'hero_image');
+        $this->assertSame(['image-empty', 'prompt', 'prominent'], [$hero['kind'], $hero['severity'], $hero['meta']['why']]);
+        $this->assertSame('Hero image is the page\'s main image, and it\'s empty. Add one?', $hero['message']);
+        $this->assertSame(['Find a photo', 'Choose from Assets'], array_column($hero['fixes'], 'label'));
 
         $this->ai->assertNothingSent();
         $this->assertTrue(Entry::find('capacitor')->get('hero_image') === ContainerAssetSink::PATH, 'Nothing was saved.');
@@ -157,7 +165,7 @@ class FinishThisPageTest extends TestCase
         }
     }
 
-    public function test_a_required_date_filled_in_on_the_form_is_not_empty(): void
+    public function test_a_required_date_is_statamics_to_report_filled_in_or_not(): void
     {
         $this->signInWith(['access ghostwriter', 'view events entries', 'edit events entries', 'create events entries']);
         Collection::make('events')->title('Events')->dated(true)->save();
@@ -168,7 +176,7 @@ class FinishThisPageTest extends TestCase
 
         $check = fn (array $values) => array_column($this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'events', 'values' => $values])->assertOk()->json('gaps'), 'field');
 
-        $this->assertContains('date', $check(['title' => 'Open day']));
+        $this->assertNotContains('date', $check(['title' => 'Open day']));
         $this->assertNotContains('date', $check(['title' => 'Open day', 'date' => ['date' => '2026-10-03', 'time' => null]]));
     }
 
@@ -223,12 +231,13 @@ class FinishThisPageTest extends TestCase
         $this->assertCount(1, $this->ai->prompted('gap-filler'), 'Refused before any model was asked.');
     }
 
-    public function test_write_it_for_me_writes_a_summary_from_the_page(): void
+    public function test_write_it_for_me_writes_an_intro_from_the_page(): void
     {
         $this->signIn();
         $entry = Entry::find('capacitor');
         $values = $entry->blueprint()->fields()->addValues($entry->data()->all())->preProcess()->values()->all();
-        $summary = collect($this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'pages', 'entry' => 'capacitor', 'values' => $values])->json('gaps'))->firstWhere('kind', 'required');
+        $summary = collect($this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'pages', 'entry' => 'capacitor', 'values' => $values])->json('gaps'))->firstWhere('kind', 'expected');
+        $this->assertSame('intro', $summary['field'], 'Most published pages have an intro.');
 
         $this->ai->respond('gap-filler', '<result>Capacitor apps from the web product you already have.</result>');
 
@@ -255,7 +264,7 @@ class FinishThisPageTest extends TestCase
         $gaps = $response->json('gaps.gaps');
         $this->assertSame(['ask', 'link'], array_values(array_intersect(array_column($gaps, 'kind'), ['ask', 'link'])));
         $this->assertSame('adult ticket price', collect($gaps)->firstWhere('kind', 'ask')['hint']);
-        $this->assertSame([], array_values(array_filter(array_column($gaps, 'kind'), fn ($kind) => $kind === 'required')), 'The draft filled the summary.');
+        $this->assertSame([], array_values(array_filter(array_column($gaps, 'kind'), fn ($kind) => $kind === 'required')), 'A required field is Statamic\'s to report.');
 
         $this->assertNotNull($this->sessions()->find($session->id)->appliedAt);
         $this->ai->assertNothingSent();

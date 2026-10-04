@@ -31,7 +31,7 @@ export function el(tag, attrs = {}, children = []) {
     return node;
 }
 
-import { counts, currentAfter, fieldStates, firstOpen, firstToDo, nextOpen, published, stepsFrom, tagText } from './state.js';
+import { bringsOut, counts, currentAfter, fieldStates, firstOpen, firstToDo, nextOpen, published, stepsFrom, tagText } from './state.js';
 import { coversText, inlineSpot, labelParts, pinnedBottom, saySide, sayRect } from './place.js';
 
 // What is pinned over the top of the form: Statamic's header and a Bard
@@ -207,9 +207,10 @@ export class FinishGuide {
             this.index = nextOpen(this.steps, this.index);
         }
 
-        // Only something that blocks publishing brings the guide out on its
-        // own: a new, empty form isn't nagged about its required title.
-        if (open || this.steps.some((step) => step.gap.severity === 'blocks')) this.shown = true;
+        // Only something that blocks publishing, or an image the page needs,
+        // brings the guide out on its own (state.js bringsOut()): a new,
+        // empty form isn't nagged.
+        if (open || bringsOut(this.steps)) this.shown = true;
 
         if (this.shown) this.steps.forEach((step) => this.touched.add(step.gap.dotted));
 
@@ -417,7 +418,7 @@ export class FinishGuide {
         this.panel.classList.toggle('is-collapsed', this.phone && !this.sheetOpen);
 
         // Nothing on the fields until the guide has something to show: a
-        // new entry's empty required fields aren't highlighted on their own.
+        // new entry's empty fields aren't highlighted on their own.
         if (visible) this.highlight();
         else this.unhighlight();
 

@@ -106,6 +106,8 @@ class EntryChecks
             sources: $gaps->sources,
             alt: $this->alt,
             seo: $this->seo,
+            group: $gaps->group,
+            profile: $gaps->profile,
         );
     }
 
