@@ -27,6 +27,7 @@ export default {
         setup: { type: Object, required: true },
         counts: { type: Object, required: true },
         stock: { type: Object, default: () => ({ previews: 0 }) },
+        revisit: { type: Object, default: null },
     },
 
     data() {
@@ -244,6 +245,22 @@ export default {
                 <div class="text-sm text-gray-500">{{ __('Drafts and edits under way') }}</div>
             </a>
         </div>
+
+        <!-- Content to revisit: the pages worth a look, found without AI -->
+        <Link
+            v-if="revisit"
+            :href="revisit.url"
+            class="mb-6 flex items-start justify-between gap-4 rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!"
+            data-ghostwriter-revisit-tile
+        >
+            <div class="min-w-0">
+                <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content to revisit') }}</div>
+                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ revisit.worth }}</span> {{ __n('page worth a look|pages worth a look', revisit.worth) }}</div>
+                <div v-if="revisit.top.length" class="mt-1 truncate text-sm text-gray-500">{{ revisit.top.map((row) => `${row.title} (${row.reason})`).join(' · ') }}</div>
+                <div v-else class="text-sm text-gray-500">{{ __('Dates, links, alt text and empty fields, checked without AI.') }}</div>
+            </div>
+            <span class="shrink-0 text-sm underline">{{ __('Open the list') }}</span>
+        </Link>
 
         <!-- Stock previews still to license: only when there are some -->
         <Link
