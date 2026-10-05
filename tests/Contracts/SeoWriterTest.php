@@ -8,6 +8,10 @@ use NineteenNinetyFour\Ghostwriter\Core\Gaps\SeoFields;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\SeoSource;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\EntryData;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\MetaAction;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SearchFields;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SearchMeta;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoState;
 use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoWriter;
 use NineteenNinetyFour\Ghostwriter\Core\Tests\Contracts\SeoWriterContract;
 use NineteenNinetyFour\Ghostwriter\Seo\StatamicSeoWriter;
@@ -156,5 +160,25 @@ final class SeoWriterTest extends TestCase
 
         $this->assertSame($this->seoWriterText(), $values['meta_description']);
         $this->assertSame($this->seoWriterText(), $this->field($entry->withValues($values), schema: $schema)->text);
+    }
+
+    public function test_a_title_that_inherits_the_page_title_can_be_given_its_own(): void
+    {
+        // SEO Pro's default, `@seo:title`: the page title fits, so Ghostwriter leaves it (decision 12).
+        $entry = $this->journalPost(null);
+        $entry = $entry->withValues(['title' => 'Rain gardens'] + $entry->values);
+        $field = $this->field($entry, SeoField::TITLE);
+        $this->assertTrue($field->inherited());
+
+        $apply = fn (SearchMeta $meta) => (new SearchFields($this->seoWriterFields(), $this->seoWriter()))->apply($entry->values, $this->schema(), $entry, new SeoState(meta: $meta), true);
+
+        $left = $apply(new SearchMeta(title: 'Rain garden for a Headingley terrace'));
+        $this->assertArrayNotHasKey('seo', $left->values);
+        $this->assertSame(MetaAction::Leave, $left->actions[SeoField::TITLE]);
+
+        // "Give it its own" in the Search section: the editor's title is written.
+        $given = $apply((new SearchMeta)->with(SeoField::TITLE, 'Rain garden for a Headingley terrace', edited: true));
+        $this->assertSame(['title' => 'Rain garden for a Headingley terrace'], $given->values['seo']);
+        $this->assertSame(SeoSource::Custom, $this->field($entry->withValues($given->values), SeoField::TITLE)->source);
     }
 }

@@ -61,7 +61,6 @@ export function suggestAdapter({ form, finish }) {
         return !!field.offsetParent;
     };
 
-
     /** The words a step is about, as the field holds them now. */
     const current = (step) => {
         if (step.scope === 'asset') return step.asset?.alt ?? '';

@@ -34,8 +34,8 @@ final class StatamicSeoWriter implements SeoWriter
     {
         $segments = $field->path->segments;
 
-        // A plain field, or anything deeper than SEO Pro's `seo.<key>`.
-        if (count($segments) !== 2 || ! is_string($segments[0]) || ! is_string($segments[1])) {
+        // A plain field, or anything but SEO Pro's `seo.title` / `seo.description`.
+        if (count($segments) !== 2 || ! is_string($segments[0]) || ! in_array($segments[1], [SeoField::TITLE, SeoField::DESCRIPTION], true)) {
             return (new PlainSeoWriter)->write($values, $field, $text);
         }
 
