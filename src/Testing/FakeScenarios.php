@@ -110,6 +110,15 @@ final class FakeScenarios
         }));
     }
 
+    /**
+     * Whether a scenario is playing in this process: Connections then
+     * checks keys with core's FakeKeyCheck and shows its test services.
+     */
+    public static function playing(): bool
+    {
+        return self::$current !== null;
+    }
+
     /** Forget everything, for tests of this class. */
     public static function flush(): void
     {

@@ -80,6 +80,6 @@ class LibraryConnectionController
 
     private function back(): RedirectResponse
     {
-        return redirect($this->settings->url() ?? cp_route('ghostwriter.index'));
+        return redirect(cp_route('ghostwriter.connections.show'));
     }
 }

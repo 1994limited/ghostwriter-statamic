@@ -28,7 +28,7 @@ Ghostwriter only sends anything when someone in the Control Panel starts somethi
 
 Each provider's own terms decide how it handles what you send. In particular, on **Gemini's free tier**, Google may use what you send to improve its products; the paid tier doesn't. For client sites, use a paid account. See [API keys](api-keys.md#google-gemini-and-images).
 
-With **OpenRouter**, every request, including images, passes through OpenRouter on its way to the model's company, so OpenRouter's [privacy policy](https://openrouter.ai/privacy) and data settings apply as well as that company's. A key from **Connect with OpenRouter** is kept encrypted in `storage/ghostwriter/provider-keys.json`.
+With **OpenRouter**, every request, including images, passes through OpenRouter on its way to the model's company, so OpenRouter's [privacy policy](https://openrouter.ai/privacy) and data settings apply as well as that company's. A key from **Connect with OpenRouter** is kept encrypted with the other [Connections](connections.md#where-keys-are-kept).
 
 ## What is kept, and where
 
@@ -37,6 +37,7 @@ All of it is files; Ghostwriter adds no database tables. See [Where things are k
 - **Conversations and drafts:** `storage/ghostwriter/sessions/`, one JSON file each, with who sent each message when conversations are shared. Removing a piece deletes its file.
 - **Photo searches and made pictures:** `storage/ghostwriter/images/`, with the person who asked. Cleared after a day.
 - **Guides, kinds and the plan:** `resources/ghostwriter/`.
+- **Keys set up in Connections:** encrypted with your `APP_KEY`, in the `ghostwriter_credentials` table, or in `storage/ghostwriter/credentials/` without a database. Never shown again, only their last four characters. See [Connections](connections.md).
 - **Logs:** the provider, model, tokens and time of each call, never the words or keys. A reply that couldn't be read is logged whole only with `debug.log_replies` on.
 
 Next: [Troubleshooting](troubleshooting.md).

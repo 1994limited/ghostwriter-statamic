@@ -35,12 +35,12 @@ tabs:
               instructions: 'When Get started opens, look over each collection for kinds of content worth teaching: the first time it is seen, and again once ten more entries have been published. Everywhere else, and with this off, kinds are only suggested when someone clicks Suggest kinds.'
               default: true
       -
-        display: API keys
-        instructions: 'Keys live only in your .env file, never on this screen. Whether each one is set:'
+        display: Connections
+        instructions: 'Keys are set up in Connections, or in your .env file, which wins.'
         fields: []
       -
         display: AI provider
-        instructions: 'The API key is never stored here. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY or OPENROUTER_API_KEY in your .env file, or Connect with OpenRouter below.'
+        instructions: 'Set up the provider in Connections, or Connect with OpenRouter there (or set ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY or OPENROUTER_API_KEY in .env, which wins).'
         fields:
           -
             handle: provider
@@ -85,7 +85,7 @@ tabs:
                 provider: openrouter
       -
         display: Images
-        instructions: 'Images are made by ChatGPT or Gemini, directly or through OpenRouter; Claude cannot make them. Set OPENAI_API_KEY or GEMINI_API_KEY in your .env file, or connect OpenRouter. Each image is modelled on the ones already used in the same field on your other entries. Without a key, free photographs can still be searched for: Openverse needs no key, and UNSPLASH_ACCESS_KEY, PIXABAY_API_KEY or PEXELS_API_KEY add those libraries.'
+        instructions: 'Images are made by ChatGPT or Gemini, directly or through OpenRouter; Claude cannot make them. Set up OpenAI, Gemini or OpenRouter in Connections (or set OPENAI_API_KEY or GEMINI_API_KEY in .env). Each image is modelled on the ones already used in the same field on your other entries. Without a key, free photographs can still be searched for: Openverse needs no key, and Unsplash, Pixabay and Pexels can be set up in Connections (or with UNSPLASH_ACCESS_KEY, PIXABAY_API_KEY or PEXELS_API_KEY in .env).'
         fields:
           -
             handle: image_provider
@@ -124,7 +124,7 @@ tabs:
               width: 50
       -
         display: Stock photos
-        instructions: 'Paid photo libraries, licensed from your own account with the library. A paid photo goes into a page as a preview: a labelled stand-in image, with the watermarked photo shown only to signed-in editors. A manager licenses it before the page is published, and the stand-in is replaced with the full image. Keys and secrets live only in your .env file, never on this screen.'
+        instructions: 'Paid photo libraries, licensed from your own account with the library. A paid photo goes into a page as a preview: a labelled stand-in image, with the watermarked photo shown only to signed-in editors. A manager licenses it before the page is published, and the stand-in is replaced with the full image. Keys, secrets and Connect account are in Connections (or set the keys in .env, which wins).'
         fields:
           -
             handle: stock_default_source

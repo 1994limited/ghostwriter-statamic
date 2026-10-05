@@ -1,10 +1,10 @@
 # API keys
 
-Ghostwriter writes with one provider, on your own account. It can also make images with a second provider, and search free photo libraries. Every key goes in your `.env` file, and Ghostwriter reads it there each time it needs it. Your keys stay on your site. Ghostwriter sends them only to the provider you chose, never to us.
+Ghostwriter writes with one provider, on your own account. It can also make images with a second provider, and search free photo libraries. Set each key up under **Ghostwriter → Connections** (see [Connections](connections.md)): open the service's page, make a key, paste it, **Check & save**. Or put it in your `.env` file, which always wins. Your keys stay on your site. Ghostwriter sends them only to the service they belong to, never to us.
 
 What the models use is billed to your account by the provider, pay as you go; it isn't included in Ghostwriter's licence. Google's Gemini has a limited free tier, and the photo libraries are free.
 
-| Variable | Service | What for | Free? |
+| Variable (or set up in Connections) | Service | What for | Free? |
 | --- | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | Anthropic (Claude) | Writing (the default) | No, pay as you go |
 | `OPENAI_API_KEY` | OpenAI (ChatGPT) | Writing, or making images | No, pay as you go |
@@ -15,7 +15,7 @@ What the models use is billed to your account by the provider, pay as you go; it
 | `PEXELS_API_KEY` | Pexels | Photo search | Yes |
 | none | Openverse | Photo search (public domain and CC0 only) | Yes, no key needed |
 
-You need **one** writing key. Everything else is optional. After adding or changing a key, reload the Control Panel page (and run `php artisan config:clear` if your config is cached).
+You need **one** writing key. Everything else is optional. A key set up in Connections works at once. After adding or changing a key in `.env`, reload the Control Panel page (and run `php artisan config:clear` if your config is cached).
 
 > Keep keys out of version control. `.env` should already be in your `.gitignore`. Use a separate key for each site, so you can see what each one spends and revoke one without affecting the others.
 
@@ -44,7 +44,7 @@ With no **Image provider** chosen, Ghostwriter makes images with OpenAI if it ha
 2. Open **Settings → Billing** and add credit. The API is pay as you go, with no free tier, and keys don't work until there is credit on the account.
 3. Open **Settings → API keys** ([direct link](https://platform.claude.com/settings/keys)) and click **Create key**. Name it after the site.
 4. Copy the key straight away; it is only shown once.
-5. Add it to `.env`:
+5. Paste it under **Ghostwriter → Connections → Anthropic → Set up**, or add it to `.env`:
 
    ```dotenv
    ANTHROPIC_API_KEY=sk-ant-...
@@ -57,7 +57,7 @@ A key made inside a workspace only works for that workspace; one that gives "not
 1. Go to the [OpenAI platform](https://platform.openai.com) and create an account.
 2. Under **Settings → Billing**, add a payment method or prepaid credit.
 3. Open **API keys** ([direct link](https://platform.openai.com/api-keys)) and click **Create new secret key**. Copy it; it is only shown once.
-4. Add it to `.env`:
+4. Paste it under **Ghostwriter → Connections → OpenAI → Set up**, or add it to `.env`:
 
    ```dotenv
    OPENAI_API_KEY=sk-...
@@ -72,10 +72,10 @@ OpenAI may ask you to verify your organisation before its image models can be us
 [OpenRouter](https://openrouter.ai) sells access to many companies' models through one account and one key, paid for with prepaid credit.
 
 1. Under **Ghostwriter → Settings → AI provider**, choose **OpenRouter** as the provider and save.
-2. Click **Connect with OpenRouter**. Sign in to OpenRouter (or sign up), choose a spending limit for the key, and allow access. You come back to the settings screen with the key saved; nothing needs copying. The Control Panel must be on `https://` (or `http://localhost`), which is OpenRouter's rule.
+2. Under **Ghostwriter → Connections**, click **Connect with OpenRouter** on OpenRouter's card. Sign in to OpenRouter (or sign up), choose a spending limit for the key, and allow access. You come back to Connections with the key saved; nothing needs copying. (Or paste a key you made on openrouter.ai with **Set up**.) The Control Panel must be on `https://` (or `http://localhost`), which is OpenRouter's rule.
 3. **Check connection** shows the credit left on the key. **Disconnect** forgets the key on this site; to revoke it, delete it at [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).
 
-The key is kept encrypted with your app key in `storage/ghostwriter/provider-keys.json`, never in the content folder and never shown. Only people who may change Ghostwriter's settings can connect or disconnect.
+The key is kept encrypted with your app key with the other Connections (see [where](connections.md#where-keys-are-kept)), never in the content folder and never shown. Only people who may change Ghostwriter's settings can connect or disconnect.
 
 Or create a key on openrouter.ai and put it in `.env` instead:
 
@@ -83,7 +83,7 @@ Or create a key on openrouter.ai and put it in `.env` instead:
 OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
-**A key in `.env` always wins.** While it is set, the settings row says "Using OPENROUTER_API_KEY from .env", and Connect and Disconnect aren't offered.
+**A key in `.env` always wins.** While it is set, OpenRouter's card says "Set in .env", and Connect and Disconnect aren't offered.
 
 **Models.** OpenRouter names models `company/model`. Ghostwriter uses one model for writing (the writer, briefs, guides and planning; `anthropic/claude-opus-5.5` by default) and one for quick jobs (choosing photos and filling a gap; `anthropic/claude-sonnet-5.5`). Choose others under **OpenRouter model for writing** and **OpenRouter model for quick jobs**, or set `openrouter.models.writing` and `openrouter.models.quick` in the config. For a model not in the lists, put its id from [openrouter.ai/models](https://openrouter.ai/models) in **Model**.
 
@@ -97,7 +97,7 @@ When the credit runs out, Ghostwriter says "Your OpenRouter credit has run out."
 
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey) and sign in with a Google account.
 2. Click **Create API key**. If asked, choose or create a Google Cloud project for it.
-3. Copy the key and add it to `.env`:
+3. Copy the key and paste it in Connections, or add it to `.env`:
 
    ```dotenv
    GEMINI_API_KEY=...
@@ -134,7 +134,7 @@ On by default. Openverse is searched for **public-domain and CC0** work only, so
 
 1. Create an account at [unsplash.com](https://unsplash.com/join).
 2. Go to [Your apps](https://unsplash.com/oauth/applications), click **New Application**, accept the API terms, and give it a name and description.
-3. Copy the **Access Key** (not the Secret key) and add it to `.env`:
+3. Copy the **Access Key** (not the Secret key) and paste it in Connections, or add it to `.env`:
 
    ```dotenv
    UNSPLASH_ACCESS_KEY=...
@@ -156,7 +156,7 @@ PEXELS_API_KEY=...
 
 1. Create an account at [pixabay.com](https://pixabay.com/accounts/register/).
 2. While logged in, open the [Pixabay API documentation](https://pixabay.com/api/docs/). Your key is shown in the **Parameters** section, next to `key`.
-3. Add it to `.env`:
+3. Paste it in Connections, or add it to `.env`:
 
    ```dotenv
    PIXABAY_API_KEY=...

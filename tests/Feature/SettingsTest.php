@@ -89,8 +89,10 @@ class SettingsTest extends TestCase
 
         $html = collect(Addon::get(Settings::ADDON)->settingsBlueprint()->fields()->all())['key_status']->get('html');
 
-        $this->assertStringContainsString('GEMINI_API_KEY</code>', $html);
-        $this->assertStringContainsString('Not set', $html);
+        $this->assertStringContainsString('Gemini</span>', $html);
+        $this->assertStringContainsString('Not set up', $html);
+        $this->assertStringContainsString('Set in config', $html, 'The test sets keys in config, not .env.');
+        $this->assertStringContainsString('/cp/ghostwriter/connections', $html);
         $this->assertStringNotContainsString('sk-secret-value', $html);
         $this->assertStringNotContainsString('pexels-secret', $html);
     }

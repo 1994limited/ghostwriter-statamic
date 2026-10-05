@@ -62,19 +62,20 @@ class Onboarding
         $names = $collections->map->title()->implode(', ');
 
         $settingsLink = $settingsUrl ? ['type' => 'link', 'label' => 'Open the settings', 'url' => $settingsUrl] : null;
+        $connectionsLink = $settingsUrl ? ['type' => 'link', 'label' => 'Set up in Connections', 'url' => cp_route('ghostwriter.connections.show')] : null;
 
         return [
             [
                 'key' => 'key',
                 'title' => 'Connect a model',
-                'text' => 'Ghostwriter writes with Claude, ChatGPT or Gemini, on your own account. Add the API key to your .env file; it is read from there and never stored. Or choose OpenRouter in the settings and Connect with OpenRouter, with no key to copy.',
+                'text' => 'Ghostwriter writes with Claude, ChatGPT or Gemini, on your own account. Set up its key in Connections: open the provider\'s page, make a key, paste it in. It is kept encrypted and only ever sent to that provider. Or choose OpenRouter and Connect with OpenRouter, with no key to copy. A key in your .env file still works, and wins.',
                 'done' => $configured,
                 'working' => false,
                 'optional' => false,
                 'detail' => $configured
                     ? 'Writing with '.$this->providerName($this->studio->provider()).'.'
                     : $this->missingKey(),
-                'action' => $settingsLink,
+                'action' => $connectionsLink ?? $settingsLink,
             ],
             [
                 'key' => 'collections',
@@ -318,14 +319,14 @@ class Onboarding
         $others = array_values(array_filter(Providers::TEXT, fn (string $other) => $other !== $provider && ($keys[Credentials::ENV[$other]] ?? false)));
 
         $advice = match (true) {
-            $provider === 'openrouter' => 'Connect with OpenRouter in the settings, or add OPENROUTER_API_KEY to .env, then reload this page.',
-            $wanted !== null => "Add {$wanted} to .env, then reload this page.",
+            $provider === 'openrouter' => 'Connect OpenRouter in Connections (or set OPENROUTER_API_KEY in .env), then reload this page.',
+            $wanted !== null => 'Set up '.$this->providerName($provider)." in Connections (or set {$wanted} in .env), then reload this page.",
             default => "\"{$provider}\" is not a provider Ghostwriter can write with. Choose Claude, ChatGPT, Gemini or OpenRouter in the settings.",
         };
 
         return $others === []
             ? $advice
-            : $advice.' '.Credentials::ENV[$others[0]].' is set already: choose '.$this->providerName($others[0]).' in the settings to write with it.';
+            : $advice.' '.$this->providerName($others[0]).' is set up already: choose it in the settings to write with it.';
     }
 
     /**

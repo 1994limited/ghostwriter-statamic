@@ -9,7 +9,11 @@ use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Ports\LibraryTokens;
 use Throwable;
 
 /**
- * Where a site keeps its photo libraries' tokens (core's LibraryTokens):
+ * @deprecated Settings → Connections keeps tokens in its own store now
+ * (core's StoredLibraryTokens over EncryptedCredentialStore); this only
+ * reads the old file so LegacyCredentials can move it.
+ *
+ * Where a site kept its photo libraries' tokens (core's LibraryTokens):
  * the connected account's OAuth tokens, per site, encrypted with the
  * app's key (Laravel's Crypt) in `storage/ghostwriter/library-tokens.json`
  * beside Ghostwriter's other working files. Never in content/, never
@@ -54,7 +58,7 @@ class EncryptedLibraryTokens implements LibraryTokens
      */
     private function all(): array
     {
-        $path = $this->path();
+        $path = self::path();
 
         if (! is_file($path)) {
             return [];
@@ -70,12 +74,12 @@ class EncryptedLibraryTokens implements LibraryTokens
      */
     private function write(array $all): void
     {
-        File::ensureDirectoryExists(dirname($this->path()));
-        File::put($this->path(), (string) json_encode($all, JSON_PRETTY_PRINT));
-        @chmod($this->path(), 0600);
+        File::ensureDirectoryExists(dirname(self::path()));
+        File::put(self::path(), (string) json_encode($all, JSON_PRETTY_PRINT));
+        @chmod(self::path(), 0600);
     }
 
-    private function path(): string
+    public static function path(): string
     {
         return dirname((string) config('ghostwriter.sessions_path')).'/library-tokens.json';
     }

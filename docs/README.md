@@ -6,7 +6,7 @@ Ghostwriter learns how your site writes and how its pages are built, then drafts
 
 1. [Installation](installation.md): requirements, installing, the queue, updating.
 2. [Get started](getting-started.md): the seven setup steps in the Control Panel.
-3. [API keys](api-keys.md): keys for Claude, ChatGPT or Gemini, gateways, retries, and the free photo libraries.
+3. [API keys](api-keys.md): keys for Claude, ChatGPT or Gemini, gateways, retries, and the free photo libraries. [Connections](connections.md): setting every key up in the Control Panel, and where they are kept.
 4. [Permissions](permissions.md): who can use and manage Ghostwriter, and shared conversations.
 5. [Configuration](configuration.md): the settings screen, `config/ghostwriter.php`, where things are kept, prompts and logging.
 
