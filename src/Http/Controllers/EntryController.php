@@ -93,9 +93,10 @@ class EntryController
         $session->touch($me);
 
         if ($session->messages === [] || ! $this->wasEditing($session) || $fresh) {
-            $session->addMessage('user', $fresh && $this->wasEditing($session)
+            // A note to the writer, not the person's message: never shown.
+            $session->addNote($fresh && $this->wasEditing($session)
                 ? 'Start again from the entry as it stands now. Its content as it stands is the current draft.'
-                : 'This entry already exists on the site. Its content as it stands is the current draft. I will ask for changes to it.', $me, now: now());
+                : 'This entry already exists on the site. Its content as it stands is the current draft. I will ask for changes to it.', now: now());
             $session->addMessage('assistant', 'I have the entry as it stands. Tell me what to change.', extra: ['editing' => true], now: now());
         }
 

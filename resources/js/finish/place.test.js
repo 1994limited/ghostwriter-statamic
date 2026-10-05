@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { coversText, inlineSpot, labelParts, pinnedBottom, saySide, sayRect } from './place.js';
+import { coversText, inlineSpot, labelParts, pinnedBottom, saySide, sayRect, textBoxes } from './place.js';
 
 test('a fix label cuts only the name in it short', () => {
     const name = 'Winter structure: plants that earn their keep in January';
@@ -51,23 +51,67 @@ test('the mark’s words go where they cover none of the page’s text', () => {
     assert.equal(saySide(1330, 60, 1400, { covers: (side) => covered.has(side), y: 700 }), 'above-left');
     assert.equal(saySide(500, 60, 1400, { covers: () => false, y: 700 }), 'left', 'Nothing in the way: the preferred side.');
     assert.equal(saySide(500, 60, 1400, { covers: (side) => side === 'left', y: 700 }), 'right');
-    assert.equal(saySide(1330, 60, 1400, { covers: () => true, y: 700 }), 'left', 'Text everywhere: the side that fits.');
+    assert.equal(saySide(1330, 60, 1400, { covers: () => true, y: 700 }), 'none', 'Text everywhere (the mark in an editor): no words, the mark alone.');
     assert.equal(saySide(1330, 60, 1400, { covers: (side) => side !== 'below-left', y: 10 }), 'below-left', 'No room above.');
     assert.deepEqual(sayRect('above-left', 1330, 700, 60, 20), { left: 1314, top: 676, right: 1374, bottom: 696 });
     assert.deepEqual(sayRect('left', 1330, 700, 60, 20), { left: 1268, top: 702, right: 1328, bottom: 722 });
 });
 
-test('words that only touch the box still count as covered', () => {
-    // Craft's sidebar: "03/10/2026, 00:06 BST" ends 2px inside the label's left edge, between the sample points.
-    const text = { nodeType: 3, textContent: '03/10/2026, 00:06 BST', box: { left: 1172, top: 513, right: 1323, bottom: 529.9 } };
-    const dd = { childNodes: [text], matches: () => false, closest: () => null };
-    const doc = {
-        body: {}, documentElement: {},
-        elementsFromPoint: (x, y) => (x >= 1164 && x <= 1376 && y >= 506 && y <= 538 ? [dd] : []),
-        createRange: () => ({ node: null, selectNodeContents(node) { this.node = node; }, getClientRects() { return [this.node.box]; } }),
-    };
-    const win = { innerWidth: 1400, innerHeight: 900 };
+// A page of text nodes, as textBoxes() reads one: each with its line boxes.
+function page(texts, fields = [], win = { innerWidth: 1400, innerHeight: 900 }) {
+    const nodes = texts.map(({ text, boxes, hidden = false, skip = false }) => ({
+        nodeType: 3,
+        textContent: text,
+        boxes,
+        parentElement: { closest: () => (skip ? {} : null), checkVisibility: () => !hidden },
+    }));
 
-    assert.equal(coversText(sayRect('above-left', 1316, 536, 69, 24), { doc, win }), true);
-    assert.equal(coversText(sayRect('above-left', 1316, 600, 69, 24), { doc, win }), false, 'Below the dates: clear.');
+    return {
+        win,
+        doc: {
+            body: {},
+            createTreeWalker: () => ({ i: 0, nextNode() { return nodes[this.i++] ?? null; } }),
+            createRange: () => ({ node: null, selectNodeContents(node) { this.node = node; }, getClientRects() { return this.node.boxes; } }),
+            querySelectorAll: () => fields,
+        },
+    };
+}
+
+const line = (left, top, right, bottom) => ({ left, top, right, bottom });
+
+test('words that only touch the box still count as covered', () => {
+    // Craft's sidebar: "03/10/2026, 00:06 BST" ends 2px inside the label's left edge.
+    const where = page([{ text: '03/10/2026, 00:06 BST', boxes: [line(1172, 513, 1323, 529.9)] }]);
+
+    assert.equal(coversText(sayRect('above-left', 1316, 536, 69, 24), where), true);
+    assert.equal(coversText(sayRect('above-left', 1316, 600, 69, 24), where), false, 'Below the dates: clear.');
+});
+
+test('every line of an editor\'s words counts, not only what is under a few points', () => {
+    // A paragraph in a rich-text editor; the label beside the mark lands between its sample points but on its third line.
+    const where = page([{ text: 'Long paragraph', boxes: [line(300, 400, 900, 420), line(300, 422, 900, 442), line(300, 444, 640, 464)] }]);
+    const boxes = textBoxes(where);
+
+    assert.equal(boxes.length, 3);
+    assert.equal(coversText({ left: 600, top: 446, right: 680, bottom: 466 }, { boxes }), true);
+    assert.equal(coversText({ left: 650, top: 470, right: 730, bottom: 490 }, { boxes }), false);
+});
+
+test('hidden words, the mark\'s own and words off screen don\'t count', () => {
+    const where = page([
+        { text: 'Hidden', boxes: [line(100, 100, 200, 120)], hidden: true },
+        { text: 'Over here', boxes: [line(100, 100, 200, 120)], skip: true },
+        { text: 'Off screen', boxes: [line(100, 1000, 200, 1020)] },
+        { text: '   ', boxes: [line(100, 100, 200, 120)] },
+    ]);
+
+    assert.deepEqual(textBoxes({ ...where, skip: '.gw-f-flyer' }), []);
+});
+
+test('a field with words in it counts as words; an empty one doesn\'t', () => {
+    const field = (value, placeholder = '') => ({ value, placeholder, closest: () => null, checkVisibility: () => true, getBoundingClientRect: () => line(100, 100, 400, 130) });
+
+    assert.equal(textBoxes(page([], [field('Spring open days')])).length, 1);
+    assert.equal(textBoxes(page([], [field('', 'Search')])).length, 1);
+    assert.equal(textBoxes(page([], [field('')])).length, 0);
 });
