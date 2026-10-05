@@ -150,6 +150,14 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
             return m ? { start: m.index, end: m.index + m.length, words: m.words } : null;
         }
 
+        // A long heading in a markdown field: the words of its `#` line.
+        if (gap.kind === 'heading-long') {
+            const found = [...text.matchAll(/^#{1,6}[ \t]+(.+?)[ \t#]*$/gm)].filter((m) => normaliseHint(m[1]) === normaliseHint(gap.hint));
+            const m = found[gap.occurrence ?? 0] ?? found[0];
+
+            return m ? { start: m.index + m[0].indexOf(m[1]), end: m.index + m[0].indexOf(m[1]) + m[1].length } : null;
+        }
+
         if (gap.kind === 'check') {
             const m = pickCheck(checks(text), gap);
 
@@ -307,6 +315,13 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
 
                 case 'write-for-me': {
                     const { text } = await fill(gap, 'write-for-me');
+
+                    // Shorten a heading: only the heading's words change.
+                    if (gap.kind === 'heading-long') {
+                        if (!text || !replaceMarker(gap, text)) break;
+
+                        return { fixed: true, message: t('Shortened. Check it reads right.') };
+                    }
 
                     set(gap.dotted, text);
 

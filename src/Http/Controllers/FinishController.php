@@ -32,7 +32,8 @@ use Statamic\Fields\Blueprint;
  * - check: what is unfinished in the form's values, for the count by Save
  *   and the guide. Found for nothing: no model, no save.
  * - fill: one fix that writes, on a click that says so ("Write around
- *   it", "Write it for me"): one small model call, the text handed back
+ *   it", "Write it for me", which for a long heading writes it shorter):
+ *   one small model call, the text handed back
  *   for the form. It never supplies a fact.
  * - guide: whether the person left the guide open or minimised.
  */
@@ -70,9 +71,11 @@ class FinishController
         abort_if($gap === null, 422, __('That has already been filled in.'));
 
         try {
-            $ask = $request->input('task') === FixAction::WriteAround->value
-                ? GapRequest::writeAround($gap)
-                : $this->summary($gap, $blueprint, $values, $entry, $bard);
+            $ask = match (true) {
+                $request->input('task') === FixAction::WriteAround->value => GapRequest::writeAround($gap),
+                $gap->kind === GapKind::HeadingLong => GapRequest::shortenHeading($gap, $this->around($gap, $blueprint, $values, $entry, $bard)),
+                default => $this->summary($gap, $blueprint, $values, $entry, $bard),
+            };
             $text = (string) $studio->fillGap($ask)->value;
         } catch (GapRefused) {
             abort(422, __('Ghostwriter never fills in a fact. Type it in yourself.'));
@@ -96,6 +99,23 @@ class FinishController
         }
 
         return response()->json(['state' => $state]);
+    }
+
+    /**
+     * The field a long heading is in, as text: what its section says, for
+     * the model to keep the heading's meaning (it adds nothing from it).
+     */
+    private function around(Gap $gap, Blueprint $blueprint, array $values, ?EntryContract $entry, BardDialect $bard): string
+    {
+        $context = $this->gaps->context($blueprint, $this->gaps->data($blueprint, $values, $entry));
+
+        foreach (Walk::entry($context->schema, $context->entry) as $visit) {
+            if ($visit->path->equals($gap->path)) {
+                return (string) Walk::text($visit, $bard);
+            }
+        }
+
+        return '';
     }
 
     /**

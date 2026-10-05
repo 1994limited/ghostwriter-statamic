@@ -34,6 +34,7 @@ use NineteenNinetyFour\Ghostwriter\Seo\HeadingProfiles;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
 use NineteenNinetyFour\Ghostwriter\Storage\FileRenderProfiles;
+use NineteenNinetyFour\Ghostwriter\Suggest\EntryChecks;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\Collection;
 use Statamic\Fields\Blueprint;
@@ -92,6 +93,8 @@ class EntryGaps
             seo: $this->seo,
             group: $collection !== null ? HeadingProfiles::label($collection) : '',
             profile: $collection !== null ? $this->profile($collection, $blueprint->handle(), $site) : null,
+            // A full address on the site counts as a link to it ("Link to your other pages").
+            hosts: EntryChecks::ownHosts(),
         );
     }
 

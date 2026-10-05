@@ -22,6 +22,8 @@ It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 | **A link field left empty** that most entries like this fill | | No: it's counted, not enforced |
 | **A field most entries fill, left empty**, and text such as `TBC`, `[insert date]` or `lorem ipsum` | | No: a suggestion only |
 | **Links Ghostwriter added** to your other pages, in a draft you used. See [Links Ghostwriter added](#links-ghostwriter-added). | A normal link to an entry | No: a suggestion only, never counted |
+| **A long heading**: a heading in Bard or Markdown over 70 characters. See [Search: headings and links](#search-headings-and-links). | | No: a suggestion only, never counted |
+| **No links to your other pages** on a page of 300 words or more. See [Search: headings and links](#search-headings-and-links). | | No: a suggestion only, never counted |
 | **A description for search** that's empty, or shorter than search results have room for (under 120 characters for a limit of 160), in SEO Pro or a plain `meta_description` field, on a page someone has worked on. See [A description for search](#a-description-for-search). | | No: a suggestion only, never counted |
 
 A required text, date or select field left empty isn't listed: Statamic's own validation says so when you save.
@@ -112,6 +114,15 @@ When the page's SEO description is empty or too short, the guide suggests **Add 
 - **I'll write it** takes you to the field.
 
 Without a description from a draft, only **I'll write it** is offered. A description SEO Pro takes from another field that fits, a template and one switched off are left alone. It's a suggestion: it never counts on the menu or blocks publishing.
+
+### Search: headings and links
+
+Two more suggestions help the page in search. Neither counts on the menu or blocks publishing.
+
+- **Shorten a heading.** A heading over 70 characters is hard to scan and gets cut off in search results. **Write it for me** asks Ghostwriter for a shorter one with the same meaning (one small call, and the button says so); only the heading's words change, in Bard or Markdown. **I'll write it** selects the heading for you.
+- **Link to your other pages.** A page of 300 words or more with no link to your site's own pages (a link to an entry, a path such as `/contact`, or a full address on your site; links to other sites don't count). **Add a link** takes you to the text; **Skip** hides it. [Suggest edits](suggest-edits.md) proposes the links themselves.
+
+These steps, and the rest of the SEO wording, are in German, French, Dutch and Spanish as well as English.
 
 ### Keyboard and screen readers
 

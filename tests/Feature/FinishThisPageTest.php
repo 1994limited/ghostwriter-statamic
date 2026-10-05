@@ -248,6 +248,76 @@ class FinishThisPageTest extends TestCase
         $this->ai->assertSent('gap-filler', fn (TextRequest $request) => str_contains($request->prompt, 'Talk to us about Capacitor'));
     }
 
+    public function test_a_long_heading_and_a_long_page_with_no_links_are_suggestions_and_the_heading_is_shortened_once(): void
+    {
+        $heading = 'What we do in a walled garden in late winter, before the first warm weekend arrives';
+        Entry::make()->id('winter')->collection('pages')->slug('winter')->published(true)->data([
+            'title' => 'Winter care',
+            'summary' => 'Winter care.',
+            'intro' => 'Winter visits.',
+            'body' => [
+                ['type' => 'heading', 'attrs' => ['level' => 2], 'content' => [['type' => 'text', 'text' => $heading]]],
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => trim(str_repeat('We cut back the grasses, divide the perennials and mulch the borders. ', 30))]]],
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'marks' => [['type' => 'link', 'attrs' => ['href' => 'https://rhs.org.uk']]], 'text' => 'The RHS'], ['type' => 'text', 'text' => ' says the same.']]],
+            ],
+        ])->save();
+
+        $this->signIn();
+        $entry = Entry::find('winter');
+        $values = $entry->blueprint()->fields()->addValues($entry->data()->all())->preProcess()->values()->all();
+        $report = $this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'pages', 'entry' => 'winter', 'values' => $values])->assertOk()->json();
+        $long = collect($report['gaps'])->firstWhere('kind', 'heading-long');
+        $links = collect($report['gaps'])->firstWhere('kind', 'few-links');
+
+        $this->assertSame('Shorten a heading', $long['step']);
+        $this->assertSame('suggestion', $long['severity']);
+        $this->assertSame(['write-for-me', 'focus'], array_column($long['fixes'], 'action'));
+        $this->assertSame('Link to your other pages', $links['step']);
+        $this->assertSame(['Add a link', 'Skip'], array_column($links['fixes'], 'label'));
+        $this->assertSame(count(array_filter($report['gaps'], fn ($gap) => $gap['severity'] !== 'suggestion')), $report['count'], 'SEO never counts in the pill.');
+        $this->assertSame('suggestion', $links['severity']);
+        $this->assertCount(0, $this->ai->prompted('gap-filler'), 'Found for nothing.');
+
+        $this->ai->respond('gap-filler', '<result>Walled garden jobs for late winter</result>');
+        $this->postJson(cp_route('ghostwriter.finish.fill'), ['collection' => 'pages', 'entry' => 'winter', 'values' => $values, 'gap' => $long['id'], 'task' => 'write-for-me'])
+            ->assertOk()
+            ->assertJsonPath('text', 'Walled garden jobs for late winter');
+        $this->ai->assertSent('gap-filler', fn (TextRequest $request) => str_contains($request->prompt, 'Task: shorten-heading') && str_contains($request->prompt, "<heading>\n{$heading}\n</heading>"));
+
+        // The page linked to the site: no step.
+        $values['body'] = is_string($values['body'])
+            ? str_replace(['https://rhs.org.uk', 'https:\\/\\/rhs.org.uk'], 'statamic://entry::contact', $values['body'])
+            : json_decode(str_replace('https://rhs.org.uk', 'statamic://entry::contact', json_encode($values['body'], JSON_UNESCAPED_SLASHES)), true);
+        $after = $this->postJson(cp_route('ghostwriter.finish.check'), ['collection' => 'pages', 'entry' => 'winter', 'values' => $values])->json('gaps');
+        $this->assertNull(collect($after)->firstWhere('kind', 'few-links'));
+    }
+
+    public function test_the_seo_steps_are_in_german_french_dutch_and_spanish(): void
+    {
+        app()->setLocale('de');
+        $gaps = app(EntryGaps::class);
+
+        $this->assertSame('Eine Überschrift kürzen', $gaps->text(new Message('gaps.step.heading-long')));
+        $this->assertSame('Diese Überschrift in Body hat 83 Zeichen. Über 70 ist sie schwer zu überfliegen und wird in Suchergebnissen abgeschnitten.', $gaps->text(new Message('gaps.heading-long', ['label' => 'Body', 'length' => 83])));
+        app()->setLocale('fr');
+        $this->assertSame('Créer des liens vers vos autres pages', $gaps->text(new Message('gaps.step.few-links')));
+        app()->setLocale('nl');
+        $this->assertSame('Overslaan', $gaps->text(new Message('gaps.fix.skip')));
+        app()->setLocale('es');
+        $this->assertSame('Acortar un encabezado', $gaps->text(new Message('gaps.step.heading-long')));
+        app()->setLocale('en');
+        $this->assertSame('Shorten a heading', $gaps->text(new Message('gaps.step.heading-long')));
+    }
+
+    public function test_the_translations_are_core_s(): void
+    {
+        require_once dirname(__DIR__, 2).'/scripts/sync-core-translations.php';
+
+        foreach (Message::TRANSLATED as $language) {
+            $this->assertSame(ghostwriter_core_translations($language), json_decode((string) file_get_contents(dirname(__DIR__, 2)."/lang/{$language}.json"), true), "lang/{$language}.json is out of date: php scripts/sync-core-translations.php");
+        }
+    }
+
     public function test_a_draft_put_into_the_form_comes_with_its_gaps_and_the_session_keeps_them(): void
     {
         $this->signIn();
