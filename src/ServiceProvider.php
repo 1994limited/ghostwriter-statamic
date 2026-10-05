@@ -331,6 +331,10 @@ class ServiceProvider extends AddonServiceProvider
             PromptLibrary::directory() => resource_path('ghostwriter/prompts'),
         ], 'ghostwriter-prompts');
 
+        // Core's SEO strings in German, French, Dutch and Spanish, keyed by
+        // their English source as everything else `__()` translates here.
+        $this->loadJsonTranslationsFrom(__DIR__.'/../lang');
+
         Permission::group('ghostwriter', 'Ghostwriter', function (): void {
             Permission::register('access ghostwriter')
                 ->label('Write content and edit the voice guide with Ghostwriter');

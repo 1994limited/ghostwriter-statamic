@@ -134,8 +134,31 @@ export function linkRuns(doc, href) {
     return found;
 }
 
+// Headings whose words are a long heading's (Shorten a heading), in order.
+export function headingRuns(doc, hint) {
+    const found = [];
+
+    doc.descendants((node, pos) => {
+        if (!node.isTextblock) return true;
+
+        if (node.type.name === 'heading' && normaliseHint(node.textContent) === normaliseHint(hint)) {
+            found.push({ kind: 'heading-long', from: pos + 1, to: pos + 1 + node.content.size, block: { text: node.textContent, start: pos + 1 } });
+        }
+
+        return false;
+    });
+
+    return found;
+}
+
 // The marker in this document a gap names: the nth of its kind with its hint.
 export function findGap(doc, gap) {
+    if (gap.kind === 'heading-long') {
+        const runs = headingRuns(doc, gap.hint);
+
+        return runs[gap.occurrence ?? 0] ?? runs[0] ?? null;
+    }
+
     if (gap.kind === 'links-added') {
         const runs = linkRuns(doc, gap.meta?.formHref ?? gap.meta?.href ?? gap.href);
 
@@ -164,7 +187,7 @@ function decorations(state, tiptap, path) {
     });
 
     // A link Ghostwriter added isn't a marker: only the one being checked is marked.
-    if (target?.kind === 'links-added') list.push(Decoration.inline(target.from, target.to, { class: 'gw-gap-mark is-current', 'data-gw-kind': 'links-added' }));
+    if (target?.kind === 'links-added' || target?.kind === 'heading-long') list.push(Decoration.inline(target.from, target.to, { class: 'gw-gap-mark is-current', 'data-gw-kind': target.kind }));
 
     return DecorationSet.create(state.doc, list);
 }

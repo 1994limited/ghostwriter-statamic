@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+- **SEO layer row 6** (core main, 1994limited/ghostwriter-core row 6): Finish this page suggests **Shorten a heading** (a heading over 70 characters; **Write it for me** shortens only the heading's words, in Bard or Markdown, through `finish/fill`) and **Link to your other pages** (300 words or more and no link to the site; Add a link · Skip). `EntryGaps` passes the site's hosts. Suggest edits gains SEO candidates (an empty or short description, a long heading, no links: the review is shown pages to link to and proposes the links). Content to revisit gains **No SEO description**, **No internal links** and **Heading levels**, which together add at most 25.
+- **German, French, Dutch and Spanish** for the SEO strings: `lang/{de,fr,nl,es}.json`, from core by `php scripts/sync-core-translations.php` (a test fails while they differ), loaded with `loadJsonTranslationsFrom()`.
+
+### Changed
+- **Addresses keep the whole phrase**: "What to do in the garden in March" is `what-to-do-in-the-garden-in-march`; only a title over about 60 characters loses its little words.
+- **A description SEO Pro takes from an empty field is written** (Pages' `@seo:excerpt` with no excerpt): the Search section no longer says "Your SEO description stays" over nothing.
+
 ### Changed
 - **The writer's own links** (core main, 1994limited/ghostwriter-core#92, decisions 22–24):
   - A link the writer makes to a real, published page of the site (`statamic://entry::…` or its address) is kept, as Bard stores it, instead of becoming a link to choose. `FileEntryIndex` implements core's `LinkLookup` (`linkRow()`). Drafts, noindex and utility pages, other sites and the page itself still become links to choose.

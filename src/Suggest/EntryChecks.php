@@ -108,6 +108,7 @@ class EntryChecks
             seo: $this->seo,
             group: $gaps->group,
             profile: $gaps->profile,
+            hosts: $gaps->hosts,
         );
     }
 

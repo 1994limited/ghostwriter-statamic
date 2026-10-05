@@ -16,7 +16,7 @@ The review runs in the background (on the queue). While it runs, the menu beside
 
 ### What it suggests
 
-Free checks find candidates for nothing: a past year written as current ("New for 2024"), "this year" on an old page, a count or claim about you that may have changed ("our team of 6 designers"), a sentence that runs on, a link to a deleted page, an image with no alt text, and an SEO title or description over its limit. **None of these reaches you on its own.** The review reads each one in its paragraph, under its heading, with the page's title, kind and date and your voice guide, and keeps it only if it's a real problem there ("New for 2023" in a 2023 journal post is history, so it's dropped). It adds its own suggestions for voice and clarity on the same terms. A second call then checks every suggestion again: that it's real, that the new words read naturally in their sentence, that they add no facts, and that they're in your voice. Things judged fine are remembered, and aren't suggested again until their sentence changes.
+Free checks find candidates for nothing: a past year written as current ("New for 2024"), "this year" on an old page, a count or claim about you that may have changed ("our team of 6 designers"), a sentence that runs on, a link to a deleted page, an image with no alt text, an SEO title or description over its limit, an SEO description that's empty or too short, a heading over 70 characters, and a page of 300 words or more with no link to your other pages. For that last one the review is shown up to ten of your pages it could link to (Contact and About included, even outside the collections Ghostwriter writes for) and proposes links on words already in the page, as **Link** suggestions. **None of these reaches you on its own.** The review reads each one in its paragraph, under its heading, with the page's title, kind and date and your voice guide, and keeps it only if it's a real problem there ("New for 2023" in a 2023 journal post is history, so it's dropped). It adds its own suggestions for voice and clarity on the same terms. A second call then checks every suggestion again: that it's real, that the new words read naturally in their sentence, that they add no facts, and that they're in your voice. Things judged fine are remembered, and aren't suggested again until their sentence changes.
 
 | Category | What you can do |
 | --- | --- |
@@ -62,6 +62,11 @@ Every published entry in a collection Ghostwriter writes for is checked, for not
 | **empty fields** | Fields most pages like it fill, left empty. |
 | **unfinished** | A fact to add, a link to choose or a placeholder left from [Finish this page](finish-this-page.md). |
 | **SEO text too long** | An SEO title over 60 characters or a description over 160 (or the field's own character limit). |
+| **No SEO description** | The page prints no SEO description: its own is empty, or the field it takes it from is. |
+| **No internal links** | 300 words or more, and no link to your site's own pages. |
+| **Heading levels** | A heading would sit at another level to fit the page template (a skipped level, or an H1 in the body under the template's own). |
+
+The search reasons weigh less than broken links, past dates and unfinished text, and together they add at most 25 to a page's score, so no page is High on search alone.
 | **2 years old** | Age, from the entry's last save. |
 
 The phrase checks read English, German, French, Dutch and Spanish. A site in another language gets the checks that need no words: links, alt text, SEO length, empty fields and age.

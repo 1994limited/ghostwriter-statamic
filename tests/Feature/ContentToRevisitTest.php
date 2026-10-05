@@ -89,6 +89,30 @@ class ContentToRevisitTest extends TestCase
         $this->assertSame([], $this->ai->requests());
     }
 
+    public function test_a_long_page_with_no_links_is_an_seo_reason_ranked_below_a_broken_link(): void
+    {
+        Entry::make()->id('long-read')->collection('revisit_pages')->slug('long-read')->published(true)->data([
+            'title' => 'A long read',
+            'eyebrow' => 'Winter',
+            'body' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => trim(str_repeat('We cut back the grasses, divide the perennials and mulch the borders. ', 30))]]]],
+        ])->save();
+        Entry::make()->id('broken')->collection('revisit_pages')->slug('broken')->published(true)->data([
+            'title' => 'A page with a broken link',
+            'eyebrow' => 'Winter',
+            'body' => [['type' => 'paragraph', 'content' => [['type' => 'text', 'marks' => [['type' => 'link', 'attrs' => ['href' => 'statamic://entry::show-garden']]], 'text' => 'our show garden']]]],
+        ])->save();
+        Entry::find('show-garden')->delete();
+
+        $long = $this->row('long-read');
+        $broken = $this->row('broken');
+
+        $this->assertTrue($long->has(ReasonKind::FewLinks));
+        $this->assertSame('No internal links', collect($long->reasons)->first(fn ($reason) => $reason->kind === ReasonKind::FewLinks)->message()->english());
+        $this->assertTrue($broken->has(ReasonKind::BrokenLink));
+        $this->assertGreaterThan($long->score, $broken->score, 'A page that is wrong matters more than one that is hard to find.');
+        $this->assertSame([], $this->ai->requests());
+    }
+
     public function test_deleting_a_page_flags_the_pages_that_linked_to_it(): void
     {
         $this->assertFalse($this->row('services')->has(ReasonKind::BrokenLink));
