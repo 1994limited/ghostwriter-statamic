@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Blueprints\EntryLayouts;
 use NineteenNinetyFour\Ghostwriter\Blueprints\SchemaReader;
+use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\ProviderException;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Usage;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\Extras\Extra;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\Extras\ExtraItem;
@@ -17,6 +18,8 @@ use NineteenNinetyFour\Ghostwriter\Core\Arrange\LayoutContext;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\Plan;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\PlanOrigin;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\SessionLayouts;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\Guide;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
@@ -25,15 +28,19 @@ use NineteenNinetyFour\Ghostwriter\Core\Gaps\Markers;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Links\StatamicLinks;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
 use NineteenNinetyFour\Ghostwriter\Core\Seo\LinkContext;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\MetaContext;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SearchSection;
 use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoPass;
 use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoState;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Conversation;
+use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\WriterContext;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\LinkIndex;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\TaggedResponse;
 use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
 use NineteenNinetyFour\Ghostwriter\Seo\HeadingProfiles;
+use NineteenNinetyFour\Ghostwriter\Seo\SearchContext;
 use NineteenNinetyFour\Ghostwriter\Suggest\EntryChecks;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Facades\Entry;
@@ -51,8 +58,11 @@ use Throwable;
  *   (two calls; the panel shows "Checking headings and links…" and holds
  *   "Use this draft" meanwhile, so the text never changes under the
  *   editor), and the layout planner looks for up to two more layouts (one
- *   call; "Finding other layouts…"). Later turns re-arrange without a
- *   call.
+ *   call; "Finding other layouts…"). The same SEO call writes the search
+ *   title and description, and the address follows the title (the Text
+ *   tab's Search section). Later turns re-arrange without a call, unless
+ *   the title or a quarter of the words changed: then one more call writes
+ *   the search title and description again, where nobody edited them.
  * - Any other change to the draft (click-to-edit, Edit YAML) re-arranges
  *   the layouts, no call; one that no longer fits is "Needs refreshing".
  * - The chosen layout is stored on the session, so it is everyone's on the
@@ -77,6 +87,7 @@ class DraftLayouts
         private SessionStore $store,
         private HeadingProfiles $headings,
         private LinkIndex $index,
+        private SearchContext $search,
     ) {}
 
     /**
@@ -131,8 +142,8 @@ class DraftLayouts
     public function afterTurn(Session $session, ?string $before, TaggedResponse $response, Conversation $conversation, WriterContext $writer, LayoutContext $site): void
     {
         $this->quietly(fn () => self::isFirst($before)
-            ? $this->layouts->afterEdit($session, null, $site)
-            : $this->layouts->afterWriter($session, $before, $response, $conversation, $writer, $site));
+            ? $this->layouts->afterEdit($session, null, $this->withMeta($site, $session, $writer))
+            : $this->layouts->afterWriter($session, $before, $response, $conversation, $writer, $this->withMeta($site, $session, $writer)));
     }
 
     /**
@@ -151,7 +162,7 @@ class DraftLayouts
             }
 
             $written = $copy->draft;
-            $usage = $this->layouts->afterWriter($copy, null, $response, $conversation, $writer, $this->withLinks($site, $copy, $writer), function (string $stage) use ($sessionId) {
+            $usage = $this->layouts->afterWriter($copy, null, $response, $conversation, $writer, $this->withMeta($this->withLinks($site, $copy, $writer), $copy, $writer), function (string $stage) use ($sessionId) {
                 if ($stage === SeoPass::CHECKING) {
                     self::checking($sessionId);
                 } else {
@@ -159,19 +170,21 @@ class DraftLayouts
                 }
             });
 
-            $this->sessions->change($sessionId, function (Session $latest) use ($copy, $usage, $site, $written) {
+            $this->sessions->change($sessionId, function (Session $latest) use ($copy, $usage, $site, $written, $writer) {
                 $latest->extras = $copy->extras;
 
                 // The SEO pass's links are the draft's own, unless it was
-                // edited meanwhile (it isn't usable until they're in).
+                // edited meanwhile (it isn't usable until they're in). The
+                // search title, description and address are kept either
+                // way, with what was written into the entry before.
                 if ($latest->draft === $written) {
                     $latest->draft = $copy->draft;
                     $latest->seo = $copy->seo;
                 } elseif ($copy->seo !== []) {
-                    $latest->seo = (new SeoState(removed: SeoState::of($latest)->removed, checked: SeoState::of($copy)->checked))->toArray();
+                    $latest->seo = (new SeoState(removed: SeoState::of($latest)->removed, checked: SeoState::of($copy)->checked, meta: SeoState::of($copy)->meta, written: SeoState::of($latest)->written))->toArray();
                 }
 
-                $this->settle($latest, $copy, $usage, $site);
+                $this->settle($latest, $copy, $usage, $this->withMeta($site, $latest, $writer));
             });
         } catch (Throwable $exception) {
             $this->log($exception);
@@ -209,6 +222,209 @@ class DraftLayouts
             $this->log($exception);
 
             return $site;
+        }
+    }
+
+    /**
+     * The context with what the SEO pass needs to write the draft's search
+     * title, description and address (SEO layer §9, §10; SearchContext):
+     * the entry's SEO fields and values, whether it is new, what
+     * Ghostwriter wrote into it before, and where its slug goes. The site
+     * as it was when it can't be read: a draft is never lost over it.
+     */
+    public function withMeta(LayoutContext $site, Session $session, ?WriterContext $writer = null): LayoutContext
+    {
+        try {
+            $type = app(TypeRepository::class)->find($session->kind);
+            $meta = $type ? $this->search->for($session, $type->forSession($session), kind: $writer?->kind, voice: $writer?->voice) : null;
+
+            if ($meta === null) {
+                return $site;
+            }
+
+            return new LayoutContext($site->schema, $site->pattern, $site->entries, $site->defaults, $site->exampleIds, $site->profile, $site->links, $meta);
+        } catch (Throwable $exception) {
+            $this->log($exception);
+
+            return $site;
+        }
+    }
+
+    /**
+     * The session's MetaContext alone, for the Search section and its
+     * edits; null when the collection or blueprint has gone.
+     */
+    public function metaContext(Session $session, ContentType $type, bool $writing = false): ?MetaContext
+    {
+        try {
+            return $this->search->for($session, $type->forSession($session), voice: $writing ? $this->voice() : null);
+        } catch (Throwable $exception) {
+            $this->log($exception);
+
+            return null;
+        }
+    }
+
+    // -- The Search section (SEO layer §9.5) --------------------------------------
+
+    /**
+     * The Text tab's Search section, as core's SearchSection gives it:
+     * null where the draft has neither SEO fields nor an address to show.
+     *
+     * @return array{title: array<string, mixed>|null, description: array<string, mixed>|null, address: array<string, mixed>|null, fields: bool, via: array<string, ?string>}|null
+     */
+    public function searchSection(Session $session, ?ContentType $type): ?array
+    {
+        if ($type === null || $session->draft === null || trim($session->draft) === '') {
+            return null;
+        }
+
+        $context = $this->metaContext($session, $type);
+
+        if ($context === null) {
+            return null;
+        }
+
+        try {
+            $section = (new SearchSection)->of($session, $context);
+        } catch (Throwable $exception) {
+            $this->log($exception);
+
+            return null;
+        }
+
+        if (! $section['fields'] && $section['address'] === null) {
+            return null;
+        }
+
+        // Which field the title and description go in: SEO Pro's when the
+        // blueprint has it (it comes before plain fields), else the plain
+        // field's own label.
+        $pro = collect($context->schema->fields)->contains(fn ($field) => $field->type === 'seo_pro');
+
+        return $section + ['via' => [
+            'title' => $pro ? 'SEO Pro' : ($section['title']['label'] ?? null),
+            'description' => $pro ? 'SEO Pro' : ($section['description']['label'] ?? null),
+            'address' => __('Slug'),
+        ]];
+    }
+
+    /**
+     * An editor's text in the Search section: the SEO title ('' uses the
+     * page title again), the description, or the address ('' makes it
+     * from the title again). Theirs from now on. No call.
+     *
+     * @throws InvalidArgumentException for an address that can't be set.
+     */
+    public function editMeta(Session $session, string $role, string $text, ContentType $type): void
+    {
+        $context = $this->metaContext($session, $type);
+
+        if ($role === 'slug' && ! ($context?->slug?->settable ?? false)) {
+            throw new InvalidArgumentException('Published pages keep their address.');
+        }
+
+        $site = $context ? new LayoutContext($context->schema, meta: $context) : null;
+
+        $this->seoPass()->editMeta($session, $role, $text, $site);
+        self::wrote($session->id);
+    }
+
+    /**
+     * "Use this" beside an SEO value of the entry's own that stays: the
+     * draft's text goes in on "Use this draft" after all, or not. No call.
+     */
+    public function useMeta(Session $session, string $role, bool $use = true): void
+    {
+        $this->seoPass()->useMeta($session, $role, $use);
+        self::wrote($session->id);
+    }
+
+    /**
+     * "Try again" in the Search section: one `seo-editor` call for another
+     * title and description, outside the session's lock, onto the session
+     * as it is by then. A failed call is kept for the panel to say so
+     * (`seo.search.failed`), and nothing changes.
+     */
+    public function retryMeta(string $sessionId, ContentType $type): void
+    {
+        try {
+            $copy = $this->store->find($sessionId);
+            $context = $copy ? $this->metaContext($copy, $type, writing: true) : null;
+
+            if (! $copy || ! $context) {
+                return;
+            }
+
+            $schema = $this->context($type->forSession($copy), site: false)?->schema ?? $context->schema;
+            $usage = $this->seoPass()->retryMeta($copy, new LayoutContext($schema, meta: $context));
+
+            $this->sessions->change($sessionId, function (Session $latest) use ($copy, $usage) {
+                $latest->seo = SeoState::of($latest)->withMeta(SeoState::of($copy)->meta)->toArray();
+                $latest->usage = ['input' => (int) ($latest->usage['input'] ?? 0) + $usage->input, 'output' => (int) ($latest->usage['output'] ?? 0) + $usage->output] + $latest->usage;
+            });
+        } catch (ProviderException $exception) {
+            Log::channel(config('ghostwriter.log_channel'))->warning("Ghostwriter: Try again didn't write another search title and description: {$exception->getMessage()}", ['agent' => 'seo-editor']);
+            Cache::put(self::failedKey($sessionId), true, self::CHECKING_SECONDS);
+        } catch (Throwable $exception) {
+            $this->log($exception);
+            Cache::put(self::failedKey($sessionId), true, self::CHECKING_SECONDS);
+        } finally {
+            self::wroteAnother($sessionId);
+        }
+    }
+
+    /** Marked while Try again writes another title and description. */
+    public static function writing(string $sessionId): void
+    {
+        Cache::forget(self::failedKey($sessionId));
+        Cache::put(self::writingKey($sessionId), true, self::CHECKING_SECONDS);
+    }
+
+    /** Try again has finished, or won't run. */
+    public static function wroteAnother(string $sessionId): void
+    {
+        Cache::forget(self::writingKey($sessionId));
+    }
+
+    public static function isWriting(string $sessionId): bool
+    {
+        return (bool) Cache::get(self::writingKey($sessionId), false);
+    }
+
+    /** Whether the last Try again failed (until the next one, or an edit). */
+    public static function writeFailed(string $sessionId): bool
+    {
+        return (bool) Cache::get(self::failedKey($sessionId), false);
+    }
+
+    /** An edit in the Search section: a failed Try again is no longer news. */
+    private static function wrote(string $sessionId): void
+    {
+        Cache::forget(self::failedKey($sessionId));
+    }
+
+    private static function writingKey(string $sessionId): string
+    {
+        return 'ghostwriter.seo.writing.'.$sessionId;
+    }
+
+    private static function failedKey(string $sessionId): string
+    {
+        return 'ghostwriter.seo.failed.'.$sessionId;
+    }
+
+    private function seoPass(): SeoPass
+    {
+        return new SeoPass(logger: Log::channel(config('ghostwriter.log_channel')), studio: app(CoreStudio::class));
+    }
+
+    private function voice(): string
+    {
+        try {
+            return (string) app(GuideStore::class)->guide(Guide::VOICE)->body;
+        } catch (Throwable) {
+            return '';
         }
     }
 
@@ -257,7 +473,7 @@ class DraftLayouts
 
         $this->quietly(function () use ($session, $before, $type) {
             if ($site = $this->safeContext($type->forSession($session))) {
-                $this->layouts->afterEdit($session, $before, $site);
+                $this->layouts->afterEdit($session, $before, $this->withMeta($site, $session));
             }
         });
     }

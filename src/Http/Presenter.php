@@ -210,6 +210,80 @@ class Presenter
             // tab marks them, with a popover), its one-line notice, and
             // whether it is still checking a first draft.
             'seo' => $this->seo($session),
+            // The Text tab's Search section: the search title, description
+            // and address the draft goes in with, each editable, and Try
+            // again. Null where the page has none of them.
+            'search' => $session->draft !== null && $problem === null ? $this->search($session, $type) : null,
+        ];
+    }
+
+    /**
+     * The Search section (SEO layer §9.5), in the editor's words: core's
+     * rows with their notes and the range said, whether each count is
+     * outside its range, whether Try again is under way or failed, and the
+     * section's own strings.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function search(Session $session, ?ContentType $type): ?array
+    {
+        $section = $this->layouts->searchSection($session, $type);
+
+        if ($section === null) {
+            return null;
+        }
+
+        $row = function (?array $row): ?array {
+            if ($row === null) {
+                return null;
+            }
+
+            $row['note_text'] = self::seoText($row['note']['key'], $row['note']['params']);
+
+            if (isset($row['min'], $row['max'], $row['length'])) {
+                $row['range_text'] = self::seoText('seo.search.range', ['min' => $row['min'], 'max' => $row['max']]);
+                // A title over its room, a description outside its range: the count turns amber.
+                $row['out'] = $row['role'] === 'title' ? $row['length'] > $row['max'] : ($row['length'] < $row['min'] || $row['length'] > $row['max']);
+            }
+
+            if ($row['role'] ?? null) {
+                $row['heading'] = self::seoText($row['role'] === 'title' ? 'seo.search.title' : 'seo.search.description');
+            }
+
+            if (($row['role'] ?? null) === 'title') {
+                $row['uses_text'] = self::seoText('seo.search.uses-title', ['title' => $row['pageTitle']]);
+            }
+
+            return $row;
+        };
+
+        $address = $section['address'];
+
+        if ($address !== null) {
+            $address['note_text'] = self::seoText($address['note']['key'], $address['note']['params']);
+            $address['heading'] = self::seoText('seo.search.address');
+        }
+
+        return [
+            'title' => $row($section['title']),
+            'description' => $row($section['description']),
+            'address' => $address,
+            'fields' => $section['fields'],
+            'via' => $section['via'] ?? null,
+            // Try again, under way ("Writing another…"), or failed.
+            'writing' => DraftLayouts::isWriting($session->id),
+            'failed' => DraftLayouts::writeFailed($session->id) ? self::seoText('seo.search.failed') : null,
+            'strings' => array_map(fn (string $key) => self::seoText('seo.search.'.$key), [
+                'heading' => 'heading',
+                'intro' => 'intro',
+                'give_own' => 'give-own',
+                'use_page_title' => 'use-page-title',
+                'use_this' => 'use-this',
+                'keep_mine' => 'keep-mine',
+                'try_again' => 'try-again',
+                'try_again_note' => 'try-again-note',
+                'writing' => 'writing',
+            ]),
         ];
     }
 

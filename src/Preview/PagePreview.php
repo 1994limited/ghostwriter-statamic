@@ -68,7 +68,8 @@ class PagePreview
         }
 
         $preview = $this->mark($session, $draft, $built, $arranged);
-        $slug = $this->slug($original, $form, $draft);
+        // The address Use this draft would set (a new entry's), else the form's.
+        $slug = $built->slug ?? $this->slug($original, $form, $draft);
         $parent = self::parent($form);
 
         $hash = self::stableHash($preview->hash, $built->data);

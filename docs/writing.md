@@ -221,12 +221,37 @@ A first draft is linked to a few of your site's other pages, as an editor would,
 
 ![The Text tab with two dotted links Ghostwriter added, the popover on "planting plan from us": How a planting plan comes together, Journal, its address and why, with Open page and Remove link](images/writing-links.png)
 
+### Search
+
+Under the Extras at the end of the **Text** tab, **Search** shows how the page may appear in search results, as **Use this draft** will put it in. Nothing here is saved until you use the draft.
+
+- **SEO title.** Most pages keep using the page title, which is what SEO Pro does by default: the row says "Uses the page title: “…”", with its length against the field's limit and why ("It fits, so your SEO settings keep using it."). When the page title is too long for search results once your site name is added, the first draft gets a shorter title of its own. **Give it its own** gives the page one anyway, starting from the page title; **Use the page title** goes back.
+- **Meta description.** The first draft's SEO check writes one or two plain sentences from what the page says, and nothing it doesn't say: no figure, name or quotation the draft, your brief and your answers don't have. The count (`149 / 160`) turns amber outside the range search results show well (120 to 155 characters for a limit of 160; its tooltip says so). If the description couldn't be written from the page, the row says so and stays empty.
+- **Address.** On a new entry, or one not yet published, the slug is made from the title: short, without little words such as "the" or "how to", a year only in a dated collection such as a journal, and unique in the collection and site. It follows the title until you change it. A published entry keeps its address, shown greyed with "Published pages keep their address". Only collections whose route uses the slug show it.
+- **Click any of them to change it**, as with the draft: saved when you leave it, Esc puts it back, and no model is asked. What you write is yours: a later turn won't rewrite it.
+- **Try again** asks for another title and description, written differently (one call; "Asks for another title and description. Uses Ghostwriter."). It says "Writing another…" meanwhile, and if the call fails, "That didn't work. Try again in a moment."
+- **Later turns.** When you ask for changes that alter the title or about a quarter of the words, the title and description are written again (one call), unless you edited them.
+
+**Which fields are filled.** SEO Pro's title and description (the injected `seo` field), else plain fields named `seo_title`, `meta_title`, `seo_description` or `meta_description`, with the field's character limit. Ghostwriter never writes over a person's text:
+
+| The field holds | On Use this draft |
+| --- | --- |
+| Nothing | The draft's text goes in |
+| Text Ghostwriter put in before, unchanged since | The draft's text goes in |
+| Text someone wrote | Kept. The Search section says "Your SEO description stays. Suggested instead: …", with **Use this** to put the draft's in after all (and **Keep mine** to change your mind) |
+| Text from another field, through SEO Pro (`@seo:excerpt`), that fits | Left as your site set it up |
+| Text from another field that's empty, or too long or short | Kept, with the draft's suggested |
+| A template, or switched off in SEO Pro | Left alone |
+
+In SEO Pro, the text goes in as the entry's own (custom) value, and the field's other settings stay as they were. With no SEO fields on the blueprint, only the address shows; with neither, there's no Search section. After **Use this draft**, [Finish this page](finish-this-page.md#a-description-for-search) offers the draft's description where the entry's own is empty or too short.
+
 ## Use this draft
 
 **Use this draft** puts the draft into the entry form underneath, field by field, in the [layout](#layouts) you chose (the button names it). Anything the draft doesn't cover keeps what was in the form.
 
 - **Nothing is saved or published.** Check the form over, then save as you normally would.
 - **Drafts start unpublished.** On a new entry, or one that isn't published yet, the form's **Published** toggle is switched off, so you can save straight away and the entry goes live only when you switch it on. The message says "Ghostwriter drafts start unpublished. Switch on Published when you're ready." An entry that is already published keeps its toggle as it is. To leave the toggle alone everywhere, set `drafts_unpublished` to `false` in `config/ghostwriter.php` (or `GHOSTWRITER_DRAFTS_UNPUBLISHED=false`).
+- **The search title, description and address** from the [Search](#search) section go into the SEO fields and Statamic's own **Slug** field, under the rules above: never over a person's text, and the address only on an entry not yet published whose slug is empty or still the one Statamic made from the title.
 - Using it again replaces the fields it covers.
 
 When the draft leaves something only you can finish (a fact it didn't have, a link to choose, an image placeholder), [Finish this page](finish-this-page.md) takes over: the count appears on the Ghostwriter menu, beside **Write with Ghostwriter**, the fields are highlighted, and the guide opens on the first gap. Anything else worth knowing is listed in one notice above the form, under "Draft added to the form. Check it over, then save.", until you close it, such as fields and blocks the draft used that this blueprint doesn't have, and options that don't exist, which were left out. Without either, a short message says the draft went in.

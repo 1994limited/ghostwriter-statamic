@@ -9,21 +9,31 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\MarkerResolver;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Markers;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\SeoFields;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
 use NineteenNinetyFour\Ghostwriter\Core\Images\AssetSink;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SearchFields;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoProvenance;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoState;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\EntryMerger;
 use NineteenNinetyFour\Ghostwriter\Images\ImageStudio;
+use NineteenNinetyFour\Ghostwriter\Seo\SearchContext;
+use NineteenNinetyFour\Ghostwriter\Seo\StatamicSeoWriter;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Fields\Blueprint;
+use Throwable;
 
 /**
  * The entry's data as "Use this draft" would put it into the form: the
  * draft built into the blueprint's fields, the house style and placeholders
  * on a new entry, the form's own values under an edit, and the images
- * chosen in the panel. Apply and the page preview both start here, so the
- * preview renders exactly what apply would set.
+ * chosen in the panel, and the draft's search title and description in
+ * the SEO fields where Ghostwriter may write them (core's SearchFields,
+ * never over a person's text), with the address for a new entry. Apply
+ * and the page preview both start here, so the preview renders exactly
+ * what apply would set.
  *
  * Nothing here changes the session or saves an entry. The one thing apply
  * may write is the striped placeholder image, once per container; the
@@ -39,6 +49,8 @@ class DraftValues
         private HouseFinish $finish,
         private FormBaseline $baseline,
         private KeptBardSets $sets,
+        private SearchContext $search,
+        private SeoFields $seo,
     ) {}
 
     /**
@@ -97,7 +109,68 @@ class DraftValues
             $notes = self::withoutChosen($notes, $chosen, $data);
         }
 
-        return new BuiltValues($data, $notes, $left, $specs, $schema);
+        [$data, $written, $slug] = $this->search($session, $type, $blueprint, $data, $values, $original);
+
+        return new BuiltValues($data, $notes, $left, $specs, $schema, $written, $slug);
+    }
+
+    /**
+     * The draft's search title and description into the SEO fields (SEO
+     * Pro's or plain), where MetaPolicy lets Ghostwriter write them, in the
+     * shape the data holds (core's SearchFields with StatamicSeoWriter);
+     * what was written, for the session (SeoState::withWritten()); and the
+     * address for an entry that can have it set (SEO layer §10): a new
+     * entry, or one not published, whose slug in the form is empty, the
+     * one Statamic made from the title, or the one Ghostwriter set.
+     *
+     * @param  array<string, mixed>  $data  As the entry stores it.
+     * @param  mixed  $values  The publish form's values.
+     * @return array{0: array<string, mixed>, 1: SeoProvenance, 2: ?string}
+     */
+    private function search(Session $session, ContentType $type, Blueprint $blueprint, array $data, mixed $values, ?Entry $original): array
+    {
+        $state = SeoState::of($session);
+        $meta = $state->meta;
+
+        if ($meta->title === '' && $meta->description === '' && $meta->slug === null) {
+            return [$data, new SeoProvenance, null];
+        }
+
+        try {
+            $context = $this->search->for($session, $type, $blueprint);
+        } catch (Throwable) {
+            $context = null;
+        }
+
+        if ($context === null) {
+            return [$data, new SeoProvenance, null];
+        }
+
+        // The SEO fields as the form holds them (the entry's saved values
+        // under an edit), as the draft doesn't hold them: a person's text is
+        // seen as theirs, and SEO Pro's other keys are kept.
+        $input = $data + ($original ? $this->baseline->data($original, $values) : $this->baseline->values($blueprint, $values));
+        $applied = (new SearchFields($this->seo, new StatamicSeoWriter))->apply($input, $context->schema, $context->entry->withValues($input), $state, $context->newEntry, $context->provenance);
+
+        foreach ($applied->values as $handle => $value) {
+            if (! array_key_exists($handle, $input) || $input[$handle] !== $value) {
+                $data[$handle] = $value;
+            }
+        }
+
+        $slug = null;
+        $form = is_array($values) ? $values : [];
+
+        if ($meta->slug !== null && ($context->slug?->settable ?? false)) {
+            $now = is_string($form['slug'] ?? null) ? $form['slug'] : (string) $original?->slug();
+            $title = is_string($form['title'] ?? null) ? $form['title'] : (string) $original?->get('title');
+
+            if (SearchContext::generated($now, $title, $meta->slug, (string) $context->entry->site)) {
+                $slug = $meta->slug;
+            }
+        }
+
+        return [$data, $applied->written, $slug];
     }
 
     /**

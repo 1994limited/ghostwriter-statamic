@@ -71,14 +71,16 @@ class FieldImages
     {
         $photo = $file->photo;
         $fallback = trim($term) !== '' ? $term : $slot->title;
+        $alt = $photo->alt($fallback);
 
+        // Named from the alt text it is given, in the entry's language (SEO layer §11).
         $asset = $this->keep($slot, $file->content, $file->extension, [
             'title' => $photo->assetTitle($fallback),
-            'alt' => $photo->alt($fallback),
+            'alt' => $alt,
             'credit' => $photo->credit,
             'credit_url' => $photo->creditUrl,
             'licence' => $photo->licence,
-        ], $photo->filenameBase($fallback));
+        ], $photo->filenameBase($fallback, alt: $alt, language: ImageStudio::language($slot->entry)));
 
         $this->ledger->recordFree($photo, $asset, $slot->entry ? Ledger::usage($slot->entry, $field ?? $slot->field['handle'], $slot->label()) : null);
 

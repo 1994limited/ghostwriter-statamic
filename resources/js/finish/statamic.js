@@ -12,6 +12,7 @@ import { ensure, stock } from '../stock/store.js';
 import { request } from '../stock/request.js';
 import { browseButton } from './fields.js';
 import { bardHref, entryId, entryMeta, get, isLinkMeta, metaPath } from './links.js';
+import { inSeoPro, seoValue } from './seo.js';
 
 const idOf = (dotted) => `field_${String(dotted).replace(/\./g, '_')}`;
 const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -108,11 +109,14 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
         return { message: t('Nothing chosen: the link is as it was.') };
     };
 
-    const locate = (gap) => {
-        const label = document.querySelector(`label[for="${CSS.escape(idOf(gap.dotted))}"]`);
+    const find = (dotted) => {
+        const label = document.querySelector(`label[for="${CSS.escape(idOf(dotted))}"]`);
 
-        return label?.closest('.form-group') ?? document.getElementById(idOf(gap.dotted))?.closest('.form-group') ?? null;
+        return label?.closest('.form-group') ?? document.getElementById(idOf(dotted))?.closest('.form-group') ?? null;
     };
+
+    // SEO Pro's description is inside its own field (`seo`): that field, where the key has no place of its own.
+    const locate = (gap) => find(gap.dotted) ?? (inSeoPro(gap.dotted, values()) ? find(String(gap.dotted).split('.')[0]) : null);
 
     const reveal = async (gap) => {
         const field = locate(gap);
@@ -166,7 +170,8 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
 
         const field = locate(gap);
         const control = document.getElementById(idOf(gap.dotted));
-        const input = control?.matches('input, textarea') ? control : field?.querySelector('input, textarea');
+        // An SEO description is the field's text box, not its title's input.
+        const input = control?.matches('input, textarea') ? control : field?.querySelector(gap.meta?.role === 'description' ? 'textarea, input' : 'input, textarea');
         const range = inString(input?.value, gap);
 
         if (input && range) {
@@ -339,6 +344,17 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
                     set(gap.dotted, current.slice(0, range.start) + range.words + current.slice(range.end));
 
                     return { fixed: true };
+                }
+
+                // "Use this": the draft's search description (Add a description
+                // for search), in the field's own shape: SEO Pro's custom
+                // value, or a plain field's text.
+                case 'use-text': {
+                    if (!fix.value) break;
+
+                    set(gap.dotted, seoValue(valueAt(gap.dotted), fix.value, inSeoPro(gap.dotted, values())));
+
+                    return { fixed: true, message: t('Description added. Check it, then save.') };
                 }
 
                 case 'leave-empty':

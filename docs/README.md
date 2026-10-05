@@ -12,7 +12,7 @@ Ghostwriter learns how your site writes and how its pages are built, then drafts
 
 ## Using Ghostwriter
 
-6. [Writing a new entry](writing.md): the brief, the conversation, the draft, its layouts and preview, comments, links to your other pages and **Use this draft**.
+6. [Writing a new entry](writing.md): the brief, the conversation, the draft, its layouts and preview, comments, links to your other pages, the search title, description and address, and **Use this draft**.
 7. [Editing an existing entry](editing.md): changing an entry in conversation.
 8. [The voice guide and image style guide](guides.md): how your site sounds, and what its pictures look like.
 9. [Kinds of content](kinds.md): teaching Ghostwriter the things you write often.

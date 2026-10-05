@@ -48,9 +48,14 @@ class Previews
         $fallback = trim($term) !== '' ? $term : $slot->title;
         $standIn = StandIn::jpeg($photo->width ?? 1600, $photo->height ?? 1067, self::label($library->label(), $photo->id));
 
-        $asset = ImageStudio::saveAsset($slot->field['container'], $slot->folder(), $photo->filenameBase($fallback).'-'.$library->id().'-'.$photo->id, $standIn, 'jpg', [
+        $alt = $photo->alt($fallback);
+
+        // Named from the alt text it is given (SEO layer §11), with the
+        // library and the photo's ID after it, so the ledger and support
+        // can still trace the file.
+        $asset = ImageStudio::saveAsset($slot->field['container'], $slot->folder(), $photo->filenameBase($fallback, alt: $alt, language: ImageStudio::language($slot->entry)).'-'.$library->id().'-'.$photo->id, $standIn, 'jpg', [
             'title' => $photo->assetTitle($fallback),
-            'alt' => $photo->alt($fallback),
+            'alt' => $alt,
             'credit' => $photo->credit,
             'credit_url' => $photo->creditUrl,
             'licence' => $photo->licence,

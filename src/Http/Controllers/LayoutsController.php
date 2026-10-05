@@ -4,6 +4,7 @@ namespace NineteenNinetyFour\Ghostwriter\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Busy;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Kinds\ContentType;
@@ -16,12 +17,15 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
 use NineteenNinetyFour\Ghostwriter\Drafts\DraftLayouts;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\RefreshLayouts;
+use NineteenNinetyFour\Ghostwriter\Jobs\RetrySearchMeta;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 
 /**
- * The layout cards and the extras in the writing panel. Choosing a layout,
- * and editing or deleting an extra, call no model; "Refresh layouts" is one
- * call to the layout planner, in the background. Everything is stored on
+ * The layout cards, the extras and the Search section in the writing
+ * panel. Choosing a layout, editing or deleting an extra and editing the
+ * search title, description or address call no model; "Refresh layouts"
+ * is one call to the layout planner, and the Search section's "Try again"
+ * one `seo-editor` call, each in the background. Everything is stored on
  * the session, so it is everyone's on the piece.
  */
 class LayoutsController
@@ -125,6 +129,86 @@ class LayoutsController
         }, self::BUSY));
 
         return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * An edit in the Search section: the SEO title (empty: use the page
+     * title), the description, or the address (empty: from the title).
+     * Theirs from now on; nothing goes into the entry until "Use this
+     * draft". No call.
+     */
+    public function editSearch(Request $request, string $session): JsonResponse
+    {
+        $validated = $request->validate([
+            'role' => ['required', Rule::in(['title', 'description', 'slug'])],
+            'text' => ['present', 'nullable', 'string', 'max:1000'],
+        ]);
+
+        $session = $this->session($session);
+        $type = $this->type($session);
+
+        $this->ensureSearchIdle($session);
+
+        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($validated, $type) {
+            try {
+                $this->layouts->editMeta($session, $validated['role'], (string) ($validated['text'] ?? ''), $type);
+            } catch (InvalidArgumentException $exception) {
+                abort(422, $exception->getMessage());
+            }
+        }, self::BUSY));
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * "Use this" beside an SEO value of the entry's own that stays (`use`
+     * false takes it back): the draft's text goes in on "Use this draft"
+     * after all. No call.
+     */
+    public function useSearch(Request $request, string $session): JsonResponse
+    {
+        $validated = $request->validate([
+            'role' => ['required', Rule::in(['title', 'description'])],
+            'use' => ['sometimes', 'boolean'],
+        ]);
+
+        $session = $this->session($session);
+
+        $this->ensureSearchIdle($session);
+
+        $session = $this->guarded(fn () => $this->sessions->edit($session->id, $this->viewer(), function (Session $session) use ($validated) {
+            $this->layouts->useMeta($session, $validated['role'], (bool) ($validated['use'] ?? true));
+        }, self::BUSY));
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /**
+     * "Try again" in the Search section: one call for another title and
+     * description, in the background (RetrySearchMeta). The panel shows
+     * "Writing another…" until it has finished.
+     */
+    public function retrySearch(string $session): JsonResponse
+    {
+        $session = $this->session($session);
+        $this->type($session);
+
+        abort_if($session->draft === null, 422, 'There is no draft yet.');
+        abort_if($session->isWorking(), 409, self::BUSY);
+        abort_if(DraftLayouts::isChecking($session->id), 409, 'Ghostwriter is still checking the draft.');
+        abort_if(DraftLayouts::isWriting($session->id), 409, 'Ghostwriter is already writing another title and description.');
+
+        DraftLayouts::writing($session->id);
+        RetrySearchMeta::start($session->id);
+
+        return response()->json($this->presenter->detail($session));
+    }
+
+    /** The Search section is edited only once the draft's first pass and any Try again have finished. */
+    private function ensureSearchIdle(Session $session): void
+    {
+        abort_if(DraftLayouts::isChecking($session->id), 409, 'Ghostwriter is still checking the draft.');
+        abort_if(DraftLayouts::isWriting($session->id), 409, 'Ghostwriter is writing another title and description.');
     }
 
     private function type(Session $session): ContentType

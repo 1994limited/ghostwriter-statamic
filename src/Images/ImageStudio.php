@@ -23,13 +23,16 @@ use NineteenNinetyFour\Ghostwriter\Core\Images\Shrinker;
 use NineteenNinetyFour\Ghostwriter\Core\Prompts\PromptLibrary;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Jobs\GenerateImage;
+use NineteenNinetyFour\Ghostwriter\Seo\SearchContext;
 use NineteenNinetyFour\Ghostwriter\Stock\Ledger;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry as Entries;
+use Statamic\Facades\Site;
 use Statamic\Support\Str;
+use Throwable;
 
 /**
  * Makes the images a draft needs. Nothing about a site's look is assumed:
@@ -283,7 +286,7 @@ class ImageStudio
                 if ($image !== null) {
                     $session->images[$key] = $image;
                 }
-            } catch (\Throwable $exception) {
+            } catch (Throwable $exception) {
                 report($exception);
 
                 $session->images[$key] = ['status' => 'failed', 'error' => $exception->getMessage()] + ($session->images[$key] ?? []);
@@ -525,14 +528,16 @@ class ImageStudio
 
         $photo = $file->photo;
         $fallback = $term !== null && trim($term) !== '' ? $term : $session->title();
+        $alt = $photo->alt($fallback);
 
+        // Named from the alt text it is given, in the entry's language (SEO layer §11).
         $asset = $this->store($session, $slot, $file->content, $file->extension, [
             'title' => $photo->assetTitle($fallback),
-            'alt' => $photo->alt($fallback),
+            'alt' => $alt,
             'credit' => $photo->credit,
             'credit_url' => $photo->creditUrl,
             'licence' => $photo->licence,
-        ], $photo->filenameBase($fallback));
+        ], $photo->filenameBase($fallback, alt: $alt, language: self::language(SearchContext::entryOf($session))));
 
         // Where it is used is found when the entry is saved.
         app(Ledger::class)->recordFree($photo, $asset);
@@ -552,6 +557,21 @@ class ImageStudio
         $folder = $reference ? trim(dirname($reference->path()), './') : 'ghostwriter';
 
         return self::saveAsset($slot['container'], $folder, $name ?: (Str::slug($session->title()) ?: 'image'), $content, $extension, $meta);
+    }
+
+    /**
+     * The language an entry is written in (its site's), for naming its
+     * images: the default site's for a new entry.
+     */
+    public static function language(?Entry $entry): string
+    {
+        try {
+            $site = $entry?->locale() ? Site::get($entry->locale()) : Site::default();
+
+            return (string) ($site?->lang() ?: 'en');
+        } catch (Throwable) {
+            return 'en';
+        }
     }
 
     /**
