@@ -392,3 +392,11 @@
     .gw-f-tip { display: none; }
     [data-gw-gap] { outline-offset: 3px; }
 }
+
+/* A model fix running ("Finding pages to link to…"). */
+.gw-f-btn.is-running { cursor: progress; }
+.gw-f-spinner { flex: none; box-sizing: border-box; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: gw-f-spin 0.9s linear infinite; }
+@keyframes gw-f-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .gw-f-spinner { animation: none; border-top-color: currentColor; opacity: 0.6; }
+}

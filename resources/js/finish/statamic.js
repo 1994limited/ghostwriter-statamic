@@ -5,6 +5,7 @@
 // a save: the editor checks and saves as usual.
 import { unref } from 'vue';
 import { asks, checks, leftovers, links, normaliseHint, sentenceAround } from './patterns.js';
+import { unlinkedWords } from './words.js';
 import { linksTo } from './linkkeys.js';
 import { checkReplacement, pickCheck } from './check.js';
 import { bardEditor, editorAt, setCurrent } from './bard.js';
@@ -21,7 +22,7 @@ const frames = (n = 2) => new Promise((resolve) => {
     step(n);
 });
 
-export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
+export function statamicAdapter({ form, baseUrl, payload, recheck, t, onLinks = () => {} }) {
     const values = () => unref(form.values) ?? {};
 
     const valueAt = (dotted) => String(dotted).split('.').reduce((value, key) => (value == null ? undefined : value[key]), values());
@@ -143,6 +144,13 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
             return m ? { start: m.index, end: m.index + m.length, words: m.words } : null;
         }
 
+        // A link Suggest links found: the words, the nth of their unlinked repeats.
+        if (gap.kind === 'link-proposed') {
+            const m = unlinkedWords(text, gap.meta?.words ?? gap.hint)[gap.occurrence ?? 0];
+
+            return m ? { start: m.index, end: m.index + m.length, words: m.words } : null;
+        }
+
         if (gap.kind === 'link') {
             const found = links(text).filter((m) => normaliseHint(m.hint) === normaliseHint(gap.hint));
             const m = found[gap.occurrence ?? 0] ?? found[0];
@@ -250,6 +258,28 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
 
     const fill = async (gap, task) => request(`${baseUrl}/finish/fill`, { method: 'POST', body: { ...payload(), gap: gap.id, task } });
 
+    // "Suggest links": the two link calls in the background, polled until
+    // they have finished. What they found comes with the next check, by
+    // the token (onLinks): each link a step of its own.
+    const suggestLinks = async (gap) => {
+        const { token } = await request(`${baseUrl}/finish/links`, { method: 'POST', body: { ...payload(), gap: gap.id } });
+
+        for (let i = 0; i < 400; i++) {
+            await new Promise((resolve) => setTimeout(resolve, i < 5 ? 600 : 1500));
+
+            const status = await request(`${baseUrl}/finish/links/${token}`);
+
+            if (status.status === 'working') continue;
+            if (status.status === 'failed') return { message: status.message ?? t('Something went wrong.') };
+
+            onLinks(token);
+
+            return { message: status.found ? (status.found === 1 ? t('Found 1 page to link to.') : t('Found :count pages to link to.', { count: status.found })) : t('No pages close enough to link to.') };
+        }
+
+        return { message: t('Ghostwriter is taking too long. Try again in a minute.') };
+    };
+
     const openStock = async (gap) => {
         const asset = gap.meta?.asset;
         const key = asset ? `${asset.volume}::${asset.path}` : null;
@@ -328,6 +358,9 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
                     return { fixed: true, message: t('Written. Check it, then save.') };
                 }
 
+                case 'suggest-links':
+                    return await suggestLinks(gap);
+
                 case 'link': {
                     if (!fix.value) break;
 
@@ -336,7 +369,7 @@ export function statamicAdapter({ form, baseUrl, payload, recheck, t }) {
 
                         const current = valueAt(gap.dotted);
                         const range = inString(current, gap);
-                        const url = fix.label && gap.meta?.candidates?.find((c) => c.value === fix.value)?.url;
+                        const url = gap.kind === 'link-proposed' ? fix.value : fix.label && gap.meta?.candidates?.find((c) => c.value === fix.value)?.url;
 
                         if (!range || !url) break;
 

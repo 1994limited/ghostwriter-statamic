@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\ProviderException;
+use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\FixAction;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Gap;
@@ -14,11 +15,14 @@ use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapKind;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapRefused;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Walk;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Kind;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\LinkProposals;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\GapRequest;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\UnreadableReply;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Gaps\EntryGaps;
+use NineteenNinetyFour\Ghostwriter\Gaps\LinkSuggestions;
+use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Types\TypeRepository;
 use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\Facades\Collection;
@@ -35,6 +39,9 @@ use Statamic\Fields\Blueprint;
  *   it", "Write it for me", which for a long heading writes it shorter):
  *   one small model call, the text handed back
  *   for the form. It never supplies a fact.
+ * - links: "Suggest links" on a page with no link to the site: the two
+ *   link calls in the background, polled at links/{token}; the token then
+ *   goes with each check, so each link found is a step (Link it · Skip).
  * - guide: whether the person left the guide open or minimised.
  */
 class FinishController
@@ -52,9 +59,51 @@ class FinishController
     {
         [$blueprint, $entry, $values, $collection] = $this->form($request);
 
-        $report = $this->gaps->forForm($blueprint, $values, $entry, $collection, $this->session($request, $entry), $request->input('site'));
+        $report = $this->gaps->forForm($blueprint, $values, $entry, $collection, $this->session($request, $entry), $request->input('site'), $this->proposals($request));
 
         return response()->json($this->gaps->present($report, $blueprint));
+    }
+
+    /**
+     * "Suggest links" on "Link to your other pages": one `seo-editor` and
+     * one `seo-verifier` call on the form's values, in the background
+     * (LinkSuggestions). The guide polls links/{token} for when it has
+     * finished, then sends the token with each check, so each link found
+     * is a step. Nothing is saved.
+     */
+    public function links(Request $request, LinkSuggestions $suggestions): JsonResponse
+    {
+        $request->validate(['gap' => ['required', 'string', 'max:2000']]);
+
+        [$blueprint, $entry, $values, $collection] = $this->form($request);
+        $report = $this->gaps->forForm($blueprint, $values, $entry, $collection, $this->session($request, $entry), $request->input('site'));
+        $gap = $report->find((string) $request->input('gap'));
+
+        abort_if($gap === null || $gap->kind !== GapKind::FewLinks, 422, __('This page links to your other pages already.'));
+
+        $token = $suggestions->start([
+            'collection' => $collection,
+            'entry' => $entry?->id(),
+            'blueprint' => $blueprint->handle(),
+            'site' => $request->input('site'),
+            'values' => $values,
+        ], (string) User::current()?->id());
+
+        return response()->json(['token' => $token, 'status' => LinkSuggestions::WORKING]);
+    }
+
+    /** Where Suggest links is: working, done (how many found) or failed. */
+    public function linksStatus(string $token, LinkSuggestions $suggestions): JsonResponse
+    {
+        $status = $suggestions->status($token, User::current()?->id());
+
+        abort_if($status === null, 404);
+
+        if ($status['status'] === LinkSuggestions::WORKING) {
+            $status['waiting'] = app(Waiting::class)->notice('links:'.$token, app(Settings::class)->workerCommand());
+        }
+
+        return response()->json($status);
     }
 
     public function fill(Request $request, Studio $studio, BardDialect $bard): JsonResponse
@@ -181,6 +230,14 @@ class FinishController
         $values = $request->input('values');
 
         return [$blueprint, $entry, is_array($values) ? $values : [], $collection->handle()];
+    }
+
+    /** What Suggest links found in this page view, by the token the guide sends. */
+    private function proposals(Request $request): ?LinkProposals
+    {
+        $token = $request->input('links');
+
+        return is_string($token) ? app(LinkSuggestions::class)->proposals($token, User::current()?->id()) : null;
     }
 
     private function session(Request $request, ?EntryContract $entry): ?Session

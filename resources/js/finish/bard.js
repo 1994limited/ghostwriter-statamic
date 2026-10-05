@@ -18,7 +18,7 @@ const KEY = 'ghostwriterGaps';
 let current = null;
 
 export function setCurrent(gap) {
-    current = gap ? { path: gap.dotted, kind: gap.kind, hint: gap.hint, occurrence: gap.occurrence ?? 0, match: gap.meta?.match ?? null, href: gap.meta?.formHref ?? gap.meta?.href ?? null } : null;
+    current = gap ? { path: gap.dotted, kind: gap.kind, hint: gap.hint, occurrence: gap.occurrence ?? 0, match: gap.meta?.match ?? null, href: gap.meta?.formHref ?? gap.meta?.href ?? null, words: gap.meta?.words ?? null } : null;
     editors.forEach(({ editor }) => redraw(editor));
 }
 
@@ -151,8 +151,52 @@ export function headingRuns(doc, hint) {
     return found;
 }
 
+// Where some words are in the document as plain text, outside any link, in
+// order (a link Suggest links found: core counts its repeats the same way).
+// Words split across text nodes (bold inside them) are found too.
+export function wordRuns(doc, words) {
+    const found = [];
+    const needle = String(words ?? '');
+
+    if (!needle) return found;
+
+    doc.descendants((node, pos) => {
+        if (!node.isTextblock) return true;
+
+        let text = '';
+        const linked = [];
+
+        node.forEach((child) => {
+            const piece = child.isText ? child.text : '￼';
+
+            if (child.marks?.some((m) => m.type.name === 'link')) linked.push([text.length, text.length + piece.length]);
+            text += piece;
+        });
+
+        let at = text.indexOf(needle);
+
+        while (at !== -1) {
+            if (!linked.some(([start, end]) => at < end && at + needle.length > start)) {
+                found.push({ kind: 'link-proposed', from: pos + 1 + at, to: pos + 1 + at + needle.length, words: needle, block: { text, start: pos + 1 } });
+            }
+
+            at = text.indexOf(needle, at + 1);
+        }
+
+        return false;
+    });
+
+    return found;
+}
+
 // The marker in this document a gap names: the nth of its kind with its hint.
 export function findGap(doc, gap) {
+    if (gap.kind === 'link-proposed') {
+        const runs = wordRuns(doc, gap.meta?.words ?? gap.hint);
+
+        return runs[gap.occurrence ?? 0] ?? null;
+    }
+
     if (gap.kind === 'heading-long') {
         const runs = headingRuns(doc, gap.hint);
 
@@ -179,7 +223,7 @@ function decorations(state, tiptap, path) {
     const { Decoration, DecorationSet } = tiptap.pm.view;
     const list = [];
     const markers = markersIn(state.doc);
-    const target = current && current.path === path ? findGap(state.doc, { kind: current.kind, hint: current.hint, occurrence: current.occurrence, meta: { match: current.match, href: current.href } }) : null;
+    const target = current && current.path === path ? findGap(state.doc, { kind: current.kind, hint: current.hint, occurrence: current.occurrence, meta: { match: current.match, href: current.href, words: current.words } }) : null;
 
     markers.forEach((m) => {
         const now = target && target.from === m.from && target.to === m.to;
@@ -187,7 +231,7 @@ function decorations(state, tiptap, path) {
     });
 
     // A link Ghostwriter added isn't a marker: only the one being checked is marked.
-    if (target?.kind === 'links-added' || target?.kind === 'heading-long') list.push(Decoration.inline(target.from, target.to, { class: 'gw-gap-mark is-current', 'data-gw-kind': target.kind }));
+    if (target?.kind === 'links-added' || target?.kind === 'heading-long' || target?.kind === 'link-proposed') list.push(Decoration.inline(target.from, target.to, { class: 'gw-gap-mark is-current', 'data-gw-kind': target.kind }));
 
     return DecorationSet.create(state.doc, list);
 }

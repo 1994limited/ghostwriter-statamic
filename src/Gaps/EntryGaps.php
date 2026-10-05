@@ -26,6 +26,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Layout\Links\StatamicLinks;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Pattern;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\EntryData;
 use NineteenNinetyFour\Ghostwriter\Core\Schema\Schema;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\LinkProposals;
 use NineteenNinetyFour\Ghostwriter\Core\Seo\RenderProfile;
 use NineteenNinetyFour\Ghostwriter\Drafts\BardDialect;
 use NineteenNinetyFour\Ghostwriter\Drafts\FormBaseline;
@@ -72,8 +73,9 @@ class EntryGaps
      */
     /**
      * @param  list<string>|null  $sources  What a count to check may have been counted from (ExtraSources::fromSession()->all()): with them, a count whose list has changed since says so.
+     * @param  LinkProposals|null  $proposals  What "Suggest links" found in this page view (LinkSuggestions).
      */
-    public function context(Blueprint $blueprint, array $data, ?string $collection = null, ?string $id = null, ?SessionGaps $session = null, ?string $site = null, ?array $sources = null): GapContext
+    public function context(Blueprint $blueprint, array $data, ?string $collection = null, ?string $id = null, ?SessionGaps $session = null, ?string $site = null, ?array $sources = null, ?LinkProposals $proposals = null): GapContext
     {
         $schema = $this->reader->schemaWithoutFolders($blueprint);
 
@@ -95,6 +97,8 @@ class EntryGaps
             profile: $collection !== null ? $this->profile($collection, $blueprint->handle(), $site) : null,
             // A full address on the site counts as a link to it ("Link to your other pages").
             hosts: EntryChecks::ownHosts(),
+            // What "Suggest links" found in this page view: a step for each link still to make.
+            proposals: $proposals,
         );
     }
 
@@ -113,12 +117,12 @@ class EntryGaps
      *
      * @param  array<string, mixed>  $values  As the publish form holds them.
      */
-    public function forForm(Blueprint $blueprint, array $values, ?Entry $entry, string $collection, ?Session $session = null, ?string $site = null): GapReport
+    public function forForm(Blueprint $blueprint, array $values, ?Entry $entry, string $collection, ?Session $session = null, ?string $site = null, ?LinkProposals $proposals = null): GapReport
     {
         $data = $this->data($blueprint, $values, $entry);
         $session ??= $entry ? $this->sessionOf($entry) : null;
 
-        return GapFinder::standard()->find($this->context($blueprint, $data, $collection, $entry?->id(), $session ? SessionGaps::fromSession($session) : null, $site ?? $entry?->locale(), self::sources($session)));
+        return GapFinder::standard()->find($this->context($blueprint, $data, $collection, $entry?->id(), $session ? SessionGaps::fromSession($session) : null, $site ?? $entry?->locale(), self::sources($session), $proposals));
     }
 
     /**
@@ -247,7 +251,9 @@ class EntryGaps
             }
 
             // A step's title where it isn't the field's label: "Add a description for search".
-            $out['step'] = is_string($gap->meta['step'] ?? null) ? $this->text(new Message($gap->meta['step'])) : null;
+            $out['step'] = is_string($gap->meta['step'] ?? null) ? $this->text(new Message($gap->meta['step'], $gap->message()->params)) : null;
+            // What a model fix's button says while it runs ("Finding pages to link to…").
+            $out['running'] = is_string($gap->meta['running'] ?? null) ? $this->text(new Message($gap->meta['running'])) : null;
             $out['tab'] = $tabs[$gap->path->handle()] ?? null;
             // Facts already say only the editor knows them; a link left for a
             // person is the other place the reason helps.

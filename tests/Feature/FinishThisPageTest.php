@@ -273,7 +273,7 @@ class FinishThisPageTest extends TestCase
         $this->assertSame('suggestion', $long['severity']);
         $this->assertSame(['write-for-me', 'focus'], array_column($long['fixes'], 'action'));
         $this->assertSame('Link to your other pages', $links['step']);
-        $this->assertSame(['Add a link', 'Skip'], array_column($links['fixes'], 'label'));
+        $this->assertSame(['Suggest links', 'Add a link', 'Skip'], array_column($links['fixes'], 'label'));
         $this->assertSame(count(array_filter($report['gaps'], fn ($gap) => $gap['severity'] !== 'suggestion')), $report['count'], 'SEO never counts in the pill.');
         $this->assertSame('suggestion', $links['severity']);
         $this->assertCount(0, $this->ai->prompted('gap-filler'), 'Found for nothing.');
