@@ -130,7 +130,10 @@ class Revisit
             $whole = $full || $last === null || $lastFull === null || $lastFull <= $now->modify('-'.self::FULL_EVERY.' days');
 
             if ($whole) {
+                $seen = [];
+
                 foreach ($this->source->all($handle) as $snapshot) {
+                    $seen[$snapshot->ref->key()] = true;
                     $entry = \Statamic\Facades\Entry::find((string) $snapshot->ref->id);
                     $entry = $entry?->locale() === $handle ? $entry : $entry?->in($handle);
 
@@ -139,6 +142,8 @@ class Revisit
                         $this->entries->put($snapshot->ref, $snapshot->title, $row->url, $snapshot->context, self::summary($entry), $row);
                     }
                 }
+
+                $this->forgetGone($handle, $seen);
             }
 
             $read += $this->index->refresh($this->source, $now, $whole ? null : $last, $handle, $whole);
@@ -150,6 +155,34 @@ class Revisit
         $this->writeJson($this->statePath(), $state);
 
         return $read;
+    }
+
+    /**
+     * Entries gone without a word (their files removed, a deploy, the
+     * addon switched off while they were deleted): their full rows out of
+     * the index, as RevisitIndex::refresh() forgets their list rows. Only
+     * rows whose entry no longer exists in the site; `$seen` were just
+     * indexed.
+     *
+     * @param  array<string, true>  $seen
+     */
+    private function forgetGone(string $site, array $seen): void
+    {
+        $gone = [];
+
+        foreach ($this->entries->rows($site) as $key => $row) {
+            if (isset($seen[$key]) || $row->scope !== IndexScope::Full) {
+                continue;
+            }
+
+            $entry = \Statamic\Facades\Entry::find((string) $row->entry->id);
+
+            if ($entry === null || ($entry->locale() !== $site && $entry->in($site) === null)) {
+                $gone[] = (string) $key;
+            }
+        }
+
+        $this->entries->forgetKeys($site, $gone);
     }
 
     /**

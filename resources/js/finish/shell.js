@@ -32,7 +32,7 @@ export function el(tag, attrs = {}, children = []) {
 }
 
 import { bringsOut, counts, currentAfter, fieldStates, firstOpen, firstToDo, nextOpen, published, stepsFrom, tagText } from './state.js';
-import { coversText, inlineSpot, labelParts, pinnedBottom, saySide, sayRect } from './place.js';
+import { coversText, inlineSpot, labelParts, pinnedBottom, saySide, sayRect, textBoxes } from './place.js';
 
 // What is pinned over the top of the form: Statamic's header and a Bard
 // toolbar stuck under it. The mark and its words never go under them.
@@ -835,11 +835,13 @@ export class FinishGuide {
     }
 
     // The mark at x, y, its words on whichever side fits in the window and
-    // covers none of the page's own (a sidebar's dates, a field's label).
+    // covers none of the page's own (a field's words, a sidebar's dates, a
+    // label); none hidden: the mark alone (data-say="none").
     place(x, y) {
         const label = this.say.offsetWidth;
         const height = this.say.offsetHeight || 20;
-        const covers = (side) => coversText(sayRect(side, x, y, label, height), { skip: '.gw-f-flyer, .gw-f-flash' });
+        let boxes = null;
+        const covers = (side) => coversText(sayRect(side, x, y, label, height), { boxes: (boxes ??= textBoxes({ skip: '.gw-f-flyer, .gw-f-flash' })) });
 
         this.flyer.style.transform = `translate(${x}px, ${y}px)`;
         this.flyer.dataset.say = saySide(x, label, window.innerWidth, { prefer: 'left', covers: label ? covers : null, y, height });

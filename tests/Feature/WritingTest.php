@@ -1533,7 +1533,12 @@ class WritingTest extends TestCase
         $detail = $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()), ['fresh' => true])->assertJsonPath('id', $id)->json();
 
         $this->assertStringContainsString('The old summary.', $detail['draft']);
-        $this->assertStringContainsString('Start again from the entry', end($detail['messages'])['content'] === 'I have the entry as it stands. Tell me what to change.' ? $detail['messages'][count($detail['messages']) - 2]['content'] : '');
+        // The writer is told, in a note the conversation doesn't show.
+        $stored = $this->sessions()->find($id)->messages;
+        $this->assertStringContainsString('Start again from the entry', $stored[count($stored) - 2]['content']);
+        $this->assertTrue(Session::isNote($stored[count($stored) - 2]));
+        $this->assertSame('I have the entry as it stands. Tell me what to change.', end($detail['messages'])['content']);
+        $this->assertStringNotContainsString('Start again from the entry', json_encode($detail['messages']));
 
         // Once the changes have been put into the entry, reopening starts afresh too.
         $session = $this->sessions()->find($id);
@@ -1587,6 +1592,10 @@ class WritingTest extends TestCase
         $this->assertStringNotContainsString('Switched off', $detail['draft']);
         $this->assertStringNotContainsString('existing.jpg', $detail['draft']);
 
+        // The note that the entry is the draft is for the writer: not shown, and never "You".
+        $this->assertSame(['I have the entry as it stands. Tell me what to change.'], array_column($detail['messages'], 'content'));
+        $this->assertStringNotContainsString('already exists on the site', json_encode($detail['messages']));
+
         // Opening it again carries on the same conversation.
         $this->postJson(cp_route('ghostwriter.entries.session', $entry->id()))->assertJsonPath('id', $detail['id']);
 
@@ -1598,7 +1607,8 @@ class WritingTest extends TestCase
         $this->postJson(cp_route('ghostwriter.sessions.message', $detail['id']), ['message' => 'New heading and summary, move the prose first.'])->assertOk();
         $this->runTurn($this->sessions()->find($detail['id']));
 
-        // The writer was shown the entry as the current draft.
+        // The writer was shown the entry as the current draft, and told so.
+        $this->ai->assertSent('writer', fn (TextRequest $prompt) => str_contains(json_encode(array_map(fn ($m) => $m->content, $prompt->history)), 'already exists on the site'));
         $this->ai->assertSent('writer', fn (TextRequest $prompt) => str_contains($prompt->prompt, '<current_draft>') && str_contains($prompt->prompt, 'Old heading'));
 
         $values = $this->postJson(cp_route('ghostwriter.sessions.apply', $detail['id']))->assertOk()->json('values');

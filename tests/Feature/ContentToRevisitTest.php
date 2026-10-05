@@ -11,6 +11,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitRow;
 use NineteenNinetyFour\Ghostwriter\Core\Revisit\RevisitStore;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\EntryRef;
 use NineteenNinetyFour\Ghostwriter\Settings;
+use NineteenNinetyFour\Ghostwriter\Suggest\FileEntryIndex;
 use NineteenNinetyFour\Ghostwriter\Suggest\Revisit;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\Blueprint;
@@ -138,6 +139,23 @@ class ContentToRevisitTest extends TestCase
 
         $this->assertSame(['https://example.org/gone'], $probe->asked);
         $this->assertSame(LinkStatus::Broken, $this->row('services')->external['https://example.org/gone']->status);
+    }
+
+    public function test_the_full_pass_forgets_an_entry_that_went_without_a_word(): void
+    {
+        $index = app(FileEntryIndex::class);
+        $ref = new EntryRef('revisit_pages', 'show-garden', 'default');
+        app(Revisit::class)->daily(full: true);
+        $this->assertNotNull($index->row($ref));
+
+        // Gone with no event (its file removed, a deploy).
+        Entry::find('show-garden')->deleteQuietly();
+
+        app(Revisit::class)->daily(full: true);
+
+        $this->assertNull($index->fresh()->row($ref), 'Out of the index.');
+        $this->assertNull($this->row('show-garden'), 'Off the list.');
+        $this->assertNotNull($index->row(new EntryRef('revisit_pages', 'services', 'default')), 'The rest stay.');
     }
 
     public function test_the_list_ranks_pages_with_their_reasons_and_a_review_link(): void

@@ -318,6 +318,8 @@
 .gw-f-flyer[data-say^="above"] .gw-f-say { top: auto; bottom: calc(100% + 4px); }
 .gw-f-flyer[data-say="above-left"] .gw-f-say, .gw-f-flyer[data-say="below-left"] .gw-f-say { right: 0; left: auto; }
 .gw-f-flyer[data-say="above-right"] .gw-f-say, .gw-f-flyer[data-say="below-right"] .gw-f-say { right: auto; left: 0; }
+/* Every side would sit on the page's words: the mark alone. Still measured, so not display: none. */
+.gw-f-flyer[data-say="none"] .gw-f-say { visibility: hidden; }
 
 /* The step's words, tinted for a moment as the mark arrives. */
 .gw-f-flash { position: fixed; inset: 0; z-index: 28; pointer-events: none; }
