@@ -38,8 +38,6 @@ Every conversation is shared with everyone who has the Ghostwriter permission. A
 - Pieces show who started them and who changed them last, such as "Started by Maya Lindqvist · last changed by you", in **Or carry on with**, on the Overview and on the content plan.
 - Ghostwriter answers one request at a time on a piece. While someone else's request runs, the panel says "Maya is waiting on Ghostwriter", and sending waits until it has answered.
 
-![A shared conversation, with a message from Maya Lindqvist and replies from you](images/writing-shared.png)
-
 To keep conversations private instead, set `shared_conversations` to `false` in `config/ghostwriter.php`, or in `.env`:
 
 ```dotenv

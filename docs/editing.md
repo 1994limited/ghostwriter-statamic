@@ -16,7 +16,7 @@ Ask for what you want in plain words:
 
 The revised draft shows on the right, in **Preview** as the page will look with the changes (the entry is copied for the preview, with the draft over it; nothing is saved). You can change any writing in it yourself in **Blocks** or **Text**, as when [writing](writing.md#the-draft).
 
-![The About page in the panel, with a request, Ghostwriter's reply, and the revised draft with Use these changes](images/editing.png)
+![A journal entry in the panel: the request, Ghostwriter's reply with Draft updated, and the revised page in the Preview tab with Use these changes](images/editing.png)
 
 ## Use these changes
 

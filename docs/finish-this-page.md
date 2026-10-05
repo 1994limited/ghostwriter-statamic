@@ -2,7 +2,7 @@
 
 Some things only a person can finish: the price of a ticket, where a button should go, the photo for the hero. Ghostwriter never makes these up. It marks the place instead, and **Finish this page** finds every mark in an entry, highlights it on the entry's form and walks you through it. A page can't be published while something still needs you.
 
-![The guide on a page's form: the count beside Save, the current Bard field outlined with the Ghostwriter mark by its set, the fact to add and a link to choose marked in the text, a stock preview still to license below, and the guide asking what the fact should say](images/finish-this-page.png)
+![The guide on a journal entry: the count on the Ghostwriter menu, the Body field outlined and tagged "2 · Needs a link", the fact to add and the link to choose marked in its text, the Ghostwriter mark at the words, and the guide offering Link to Contact, Choose an entry and Remove the link](images/finish-this-page.png)
 
 It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 
@@ -21,6 +21,7 @@ It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 | **An image the page looks like it needs, left empty**: it's required, it's the page's hero (the set the template prints the H1 from, or a hero image when there are too few published entries to go by), or at least 70% of the collection's 20 newest published entries have one. The step says which: "Hero image is required. Add one?", "Hero image is empty, but most Journal entries have one. Add one?" | | No: it's counted and brings the guide out, but only Statamic enforces required. Not on a new entry until a draft is put in or it has some text. |
 | **A link field left empty** that most entries like this fill | | No: it's counted, not enforced |
 | **A field most entries fill, left empty**, and text such as `TBC`, `[insert date]` or `lorem ipsum` | | No: a suggestion only |
+| **Links Ghostwriter added** to your other pages, in a draft you used. See [Links Ghostwriter added](#links-ghostwriter-added). | A normal link to an entry | No: a suggestion only, never counted |
 
 A required text, date or select field left empty isn't listed: Statamic's own validation says so when you save.
 
@@ -35,7 +36,7 @@ Everything is found from the entry's values and its blueprint, as you type. Find
 
 ## On the entry's form
 
-When an entry has something to finish, a count appears on the menu beside **Edit with Ghostwriter** (amber: it stops the page going live), and the fields are highlighted. The menu's **Finish this page**, with the same count, opens the guide:
+When an entry has something to finish, a count appears on the Ghostwriter menu, beside **Edit with Ghostwriter** (or **Write with Ghostwriter** on a new entry): amber, as it stops the page going live. The same count includes any [suggested edits](suggest-edits.md) to review, so it's one number for everything waiting. The fields are highlighted, and the menu's **Finish this page**, with its own count, opens the guide:
 
 - **amber**: still to do (or skipped for now);
 - **purple**: the one the guide is on;
@@ -57,6 +58,9 @@ Click the count, or the Ghostwriter button in the bottom corner, to open the gui
 - **A stock preview:** **License**, which opens the same License & replace step as the field's badge (or Request licence, without the permission), or **Choose another**.
 - **A count to check:** see below.
 - **Template text:** **Remove it**.
+- **Links Ghostwriter added:** **Keep it** or **Remove the link**. See below.
+
+![A new page after Use this draft: the Text set tagged "3 · Needs a link", the words "tell us about your garden" marked in it, and the guide on step 3 of 4 saying the link doesn't go anywhere yet, with Link to Contact first, then Choose an entry and Remove the link](images/finish-link-suggested.png)
 
 ### Counts to check
 
@@ -78,6 +82,19 @@ When no list like it is there any more, it asks whether the count is still right
 
 ![The list changed since: Use "4" instead](images/finish-check-stale.png)
 
+### Links Ghostwriter added
+
+When a draft you used has [links Ghostwriter added](writing.md#links-to-your-other-pages) to your other pages, the guide ends with them, after anything still to finish:
+
+> Check 2 links Ghostwriter added. "planting plan from us" goes to How a planting plan comes together (/journal/how-a-planting-plan-comes-together). Keep it, or remove the link and keep the words.
+
+- **Keep it** leaves the link as it is and puts the step away.
+- **Remove the link** takes the link out in the field and keeps the words.
+
+It's marked as a suggestion ("A suggestion: it won't stop the page going live"), the field is tagged **Linked**, and it never counts on the menu or blocks publishing.
+
+![The guide on a link Ghostwriter added: "planting plan from us" in a Text block tagged Linked, with Keep it and Remove the link](images/finish-links.png)
+
 **Back**, **Skip for now** and **Next** move between gaps. A skipped gap stays highlighted and still counts. Every fix goes into the form only: nothing is saved until you press Save.
 
 Press **—** (or Esc while you're in the guide) to tuck it away into the corner button, which shows the count; click it to bring the guide back. Ghostwriter remembers, for each person, whether they left the guide open. It starts tucked away, and opens by itself when you put a Ghostwriter draft into the form (`finish.open_after_draft`).
@@ -90,7 +107,7 @@ The count and the highlights follow your typing: the form is checked again a mom
 - The guide is a labelled region that never traps focus, so the form stays usable. Each step, each fix and opening or closing it are announced. Highlighted fields carry a hidden "Ghostwriter: needs a link" note, and every tag is a button.
 - With **Reduce motion** on in your system, nothing moves: no flight, no bobbing, no animations when it opens or closes.
 
-On a phone the guide is a sheet along the bottom of the screen that folds down to one line ("2 of 5 · Needs a link · Next"), and the button beside Save shows just the ghost and the count. It follows Statamic's dark mode.
+On a phone the guide is a sheet along the bottom of the screen that folds down to one line ("2 of 5 · Needs a link · Next"), and the mark doesn't fly. It follows Statamic's dark mode.
 
 ## Publishing
 
