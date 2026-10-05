@@ -40,6 +40,8 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
 
     Route::post('finish/check', [FinishController::class, 'check'])->name('finish.check');
     Route::post('finish/fill', [FinishController::class, 'fill'])->name('finish.fill');
+    Route::post('finish/links', [FinishController::class, 'links'])->name('finish.links');
+    Route::get('finish/links/{token}', [FinishController::class, 'linksStatus'])->name('finish.links.status');
     Route::post('finish/guide', [FinishController::class, 'guide'])->name('finish.guide');
 
     Route::get('revisit', [RevisitController::class, 'show'])->name('revisit.show');

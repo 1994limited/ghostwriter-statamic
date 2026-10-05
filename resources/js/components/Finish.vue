@@ -28,7 +28,8 @@ export default {
     },
 
     data() {
-        return { timer: null, asked: 0 };
+        // links: what Suggest links found in this page view, by its token: sent with each check.
+        return { timer: null, asked: 0, links: null };
     },
 
     mounted() {
@@ -36,7 +37,7 @@ export default {
         const t = (text, params = {}) => __(text, params);
 
         this.guide = new FinishGuide({
-            adapter: statamicAdapter({ form: this.form, baseUrl: this.baseUrl, payload: () => this.payload(), recheck: () => this.check(300), t }),
+            adapter: statamicAdapter({ form: this.form, baseUrl: this.baseUrl, payload: () => this.payload(), recheck: () => this.check(300), t, onLinks: (token) => { this.links = token; } }),
             t,
             state: config.guide,
             key: `${this.collection}.${this.entry ?? 'new'}`,
@@ -86,6 +87,7 @@ export default {
                 session: session && session !== 'new' ? session : null,
                 site: unref(this.form.site) ?? null,
                 values: JSON.parse(JSON.stringify(unref(this.form.values) ?? {})),
+                links: this.links,
             };
         },
 

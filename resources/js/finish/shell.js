@@ -566,7 +566,11 @@ export class FinishGuide {
                 return;
             }
 
-            box.append(this.fixButton(fix.label, { name: fix.name, primary: fix.primary, model: fix.cost === 'model', disabled: this.busy === gap.id, onclick: () => this.run(gap, fix) }));
+            // A model fix that takes a while ("Suggest links") says what it's
+            // doing, with a spinner, until it has finished.
+            const running = this.busy === gap.id && this.running === fix.action && gap.running;
+
+            box.append(this.fixButton(running ? gap.running : fix.label, { name: running ? null : fix.name, primary: fix.primary, model: fix.cost === 'model', disabled: this.busy === gap.id, running: !!running, onclick: () => this.run(gap, fix) }));
         });
 
         return box;
@@ -576,25 +580,26 @@ export class FinishGuide {
     // in it (an entry's title) is cut short with an ellipsis when there's no
     // room, so "Link to" always shows, and the whole label is its tooltip and
     // accessible name. "uses Ghostwriter" is kept apart from it.
-    fixButton(label, { name = null, primary = false, model = false, disabled = false, onclick = null } = {}) {
+    fixButton(label, { name = null, primary = false, model = false, disabled = false, running = false, onclick = null } = {}) {
         const parts = labelParts(label, name);
         const uses = this.t('uses Ghostwriter');
 
         return el('button', {
             type: 'button',
-            class: `gw-f-btn${primary ? ' is-primary' : ''}`,
+            class: `gw-f-btn${primary ? ' is-primary' : ''}${running ? ' is-running' : ''}`,
             title: label,
-            'aria-label': model ? `${label} (${uses})` : label,
+            'aria-label': model && !running ? `${label} (${uses})` : label,
+            'aria-busy': running ? 'true' : null,
             disabled,
             onclick,
         }, [
-            primary ? el('span', { class: 'gw-f-btn-mark', html: MARK }) : null,
+            running ? el('span', { class: 'gw-f-spinner', 'aria-hidden': 'true' }) : (primary ? el('span', { class: 'gw-f-btn-mark', html: MARK }) : null),
             el('span', { class: 'gw-f-btn-text' }, [
                 parts.lead ? el('span', { class: 'gw-f-btn-keep', text: parts.lead }) : null,
                 el('span', { class: 'gw-f-btn-name', text: parts.name }),
                 parts.tail ? el('span', { class: 'gw-f-btn-keep', text: parts.tail }) : null,
             ]),
-            model ? el('small', { text: uses }) : null,
+            model && !running ? el('small', { text: uses }) : null,
         ]);
     }
 
@@ -609,7 +614,10 @@ export class FinishGuide {
         }
 
         this.busy = gap.id;
+        this.running = fix.action;
         this.paint();
+
+        if (gap.running) this.announce(gap.running);
 
         try {
             const result = await this.adapter.run(gap, fix, value);
@@ -638,6 +646,7 @@ export class FinishGuide {
             }
         } finally {
             this.busy = null;
+            this.running = null;
         }
 
         this.adapter.recheck?.();
