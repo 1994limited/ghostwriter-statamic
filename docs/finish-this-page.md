@@ -60,6 +60,8 @@ Click the count, or the Ghostwriter button in the bottom corner, to open the gui
 - **Template text:** **Remove it**.
 - **Links Ghostwriter added:** **Keep it** or **Remove the link**. See below.
 
+![A new page after Use this draft: the Text set tagged "3 · Needs a link", the words "tell us about your garden" marked in it, and the guide on step 3 of 4 saying the link doesn't go anywhere yet, with Link to Contact first, then Choose an entry and Remove the link](images/finish-link-suggested.png)
+
 ### Counts to check
 
 A stat such as "3 areas" may be counted from a list you gave ("Northumberland, Durham and the Tyne Valley"). Ghostwriter counts the list itself; the model never supplies the number. Before the page goes live, the guide asks you to check it:

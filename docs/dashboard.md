@@ -18,7 +18,7 @@ This page covers Ghostwriter's own home page, the Overview, and the widget for S
 
 The cog in the header opens the settings, for managers only.
 
-![The Overview: Get started with its progress, the four tiles, Content to revisit, Stock images with previews to license, and the collections with Kinds and Write](images/overview.png)
+![The Overview: Get started with its progress, the four tiles, Content to revisit, and the collections with Kinds and Write](images/overview.png)
 
 It follows the Control Panel's dark mode.
 
