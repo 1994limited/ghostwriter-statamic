@@ -131,6 +131,9 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::patch('sessions/{session}/extras/{item}', [LayoutsController::class, 'editExtra'])->name('sessions.extras.update');
     Route::delete('sessions/{session}/extras/{item}', [LayoutsController::class, 'deleteExtra'])->name('sessions.extras.destroy');
     Route::post('sessions/{session}/links/remove', [LayoutsController::class, 'removeLink'])->name('sessions.links.remove');
+    Route::patch('sessions/{session}/search', [LayoutsController::class, 'editSearch'])->name('sessions.search.update');
+    Route::post('sessions/{session}/search/use', [LayoutsController::class, 'useSearch'])->name('sessions.search.use');
+    Route::post('sessions/{session}/search/try-again', [LayoutsController::class, 'retrySearch'])->name('sessions.search.try_again');
     Route::post('sessions/{session}/comments/apply', [CommentsController::class, 'apply'])->name('sessions.comments.apply');
     Route::post('sessions/{session}/comments/{answer}/{number}/resolve', [CommentsController::class, 'resolve'])->whereNumber(['answer', 'number'])->name('sessions.comments.resolve');
     Route::post('sessions/{session}/comments/{answer}/{number}/put-back', [CommentsController::class, 'putBack'])->whereNumber(['answer', 'number'])->name('sessions.comments.put_back');

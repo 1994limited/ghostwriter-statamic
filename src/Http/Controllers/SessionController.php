@@ -25,7 +25,9 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Viewer;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
 use NineteenNinetyFour\Ghostwriter\Core\Review\Comments;
+use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoState;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Brief;
 use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Core\Text\HtmlToMarkdown;
@@ -329,19 +331,38 @@ class SessionController
 
         // Noted so the session can be shown as handed over, not still in
         // progress, on the session as it stands now, with what the draft
-        // left for a person (Finish this page's messages read it).
+        // left for a person (Finish this page's messages read it) and the
+        // SEO text Ghostwriter put in, so it is known as its own later.
         $viewer = $this->viewer();
-        $this->sessions->change($session->id, function (Session $stored) use ($viewer, $left): void {
+        $written = $built->written;
+        $stored = $this->sessions->change($session->id, function (Session $stored) use ($viewer, $left, $written): void {
             $stored->markApplied($viewer->id, now()->toImmutable());
             $stored->gaps = $left->toArray();
+
+            if (! $written->isEmpty()) {
+                SeoState::of($stored)->withWritten($written)->saveTo($stored);
+            }
         });
 
         // What is still to finish in the entry as the form will hold it,
-        // for the count by Save and the guide, which opens now.
-        $report = $gaps->find($gaps->context($blueprint, $data, $original ? null : $type->group, $original ? (string) $original->id() : null, $left, sources: EntryGaps::sources($session)));
+        // for the count by Save and the guide, which opens now: with the
+        // links Ghostwriter added and the draft's search description, so
+        // "Add a description for search" can offer it.
+        $seo = SeoState::of($stored ?? $session);
+        $left = new SessionGaps($left->toArray(), $seo->links, $seo->suggested, $seo->meta->toArray());
+        // Under an edit, the fields the draft doesn't hold are as the form has them.
+        $checked = $original ? $data + $gaps->data($blueprint, is_array($request->input('values')) ? $request->input('values') : [], $original) : $data;
+        $report = $gaps->find($gaps->context($blueprint, $checked, $original ? null : $type->group, $original ? (string) $original->id() : null, $left, $original?->locale(), EntryGaps::sources($session)));
+
+        $values = $fields->values()->only(array_keys($data))->all();
+
+        // The address, for a new entry: into the form's own slug field.
+        if ($built->slug !== null) {
+            $values['slug'] = $built->slug;
+        }
 
         return response()->json([
-            'values' => $fields->values()->only(array_keys($data))->all(),
+            'values' => $values,
             'meta' => $fields->meta()->only(array_keys($data))->all(),
             'notes' => $notes,
             'gaps' => $gaps->present($report, $blueprint),

@@ -29,7 +29,7 @@ Without a writing model to judge them, the top result of each search comes first
 
 ### Names, alt text and credits
 
-- The file is named and titled from what the library says the photo shows, for example `brown-rocks-at-golden-hour-x7k2qa.jpg` and "Brown rocks at golden hour", falling back to the search words.
+- The file is named from its alt text, for search: the little words and library noise ("stock photo", "royalty free", "image of") are left out, at most six words, in the entry's language, for example `brown-rocks-golden-hour-x7k2qa.jpg`. Where that leaves too little, the library's description, title or tags are used, then the search words. It's titled from what the library says the photo shows ("Brown rocks at golden hour"). The name is given once, when the photo goes in, and licensing keeps it.
 - The library's description goes in the asset's **alt** text, where the container's blueprint has an `alt` field (Statamic's default asset blueprint does).
 - The photographer, library and licence are saved on the asset as `credit`, `credit_url` and `licence`, for example "Jane Doe on Unsplash". Add fields with those handles to the container's blueprint to see and print them.
 

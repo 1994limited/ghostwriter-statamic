@@ -202,12 +202,31 @@ export default {
             return true;
         },
 
+        // The address for a new entry (the Search section's): into
+        // Statamic's own slug field, after the title. The field makes a slug
+        // from a new title a moment later (a request), which would replace
+        // it, so it is set again once that has settled, unless the editor
+        // is in the field by then.
+        setSlug(slug) {
+            const set = () => {
+                const field = document.getElementById('field_slug');
+
+                if (field && field.contains(document.activeElement)) return;
+                if (this.form.values?.slug !== slug) this.form.setFieldValue('slug', slug);
+            };
+
+            this.$nextTick(set);
+            [400, 1200, 2500].forEach((wait) => setTimeout(set, wait));
+        },
+
         apply({ values, meta, notes, gaps }) {
             // Field by field, so everything the draft does not cover keeps the
             // value and meta it already had. Meta goes first: fields such as
             // Bard and Replicator read it as soon as their value arrives.
             Object.entries(meta).forEach(([handle, value]) => this.form.setFieldMeta(handle, value));
-            Object.entries(values).forEach(([handle, value]) => this.form.setFieldValue(handle, value));
+            Object.entries(values).forEach(([handle, value]) => handle !== 'slug' && this.form.setFieldValue(handle, value));
+
+            if (typeof values.slug === 'string' && values.slug !== '') this.setSlug(values.slug);
 
             const unpublished = this.startUnpublished();
 

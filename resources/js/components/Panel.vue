@@ -18,6 +18,7 @@ import CommentComposer from './CommentComposer.vue';
 import CommentsSidebar from './CommentsSidebar.vue';
 import DraftPreview from './DraftPreview.vue';
 import ExtrasList from './ExtrasList.vue';
+import SearchSection from './SearchSection.vue';
 import GapPopover from './GapPopover.vue';
 import LayoutCards from './LayoutCards.vue';
 import LinkPopover from './LinkPopover.vue';
@@ -39,7 +40,7 @@ const BESIDE = 980;
 const COMMENTS_POLL = 10000;
 
 export default {
-    components: { Alert, AsksCard, BriefCard, Button, CommentComposer, CommentItem, CommentsSidebar, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, LinkPopover, PagePreview, SetupAlert, Subheading, Textarea },
+    components: { Alert, AsksCard, BriefCard, Button, CommentComposer, CommentItem, CommentsSidebar, DraftPreview, ExtrasList, GapPopover, Heading, LayoutCards, LearnForm, LinkPopover, PagePreview, SearchSection, SetupAlert, Subheading, Textarea },
 
     props: {
         collection: { type: String, required: true },
@@ -548,6 +549,7 @@ export default {
 
         receive(data) {
             const changed = data.draft !== this.session?.draft;
+            const wroteAnother = data.id === this.session?.id && !!this.session?.search?.writing && !data.search?.writing;
 
             // An Apply has finished: flash what changed, and say what came back.
             if (data.id === this.session?.id && this.session?.comments && data.comments) {
@@ -598,7 +600,10 @@ export default {
             const drawing = (data.images ?? []).some((image) => image.status === 'working');
 
             // The SEO pass, then the planner, may still be at work after the draft lands.
-            if (data.status === 'working' || drawing || data.layouts?.planning || data.seo?.checking) this.later(() => this.open(data.id));
+            if (data.status === 'working' || drawing || data.layouts?.planning || data.seo?.checking || data.search?.writing) this.later(() => this.open(data.id));
+
+            // Try again in the Search section has finished.
+            if (wroteAnother) this.announce(data.search?.failed ?? this.__('Search title and description written again.'));
 
             // The checks have finished: the draft can be used.
             if (data.id === this.session?.id && this.session?.seo?.checking && !data.seo?.checking) {
@@ -1044,6 +1049,41 @@ export default {
             } catch (error) {
                 this.fail(error);
                 revert?.();
+            }
+        },
+
+        // The Search section: an edit (saved as the editor's), "Use this",
+        // and Try again (one call, in the background). Nothing goes into the
+        // entry until Use this draft.
+        async editSearch({ role, text, revert }) {
+            try {
+                const { data } = await this.$axios.patch(this.url(`sessions/${this.session.id}/search`), { role, text });
+
+                this.receive(data);
+            } catch (error) {
+                this.fail(error);
+                revert?.();
+            }
+        },
+
+        async useSearch({ role, use }) {
+            try {
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/search/use`), { role, use });
+
+                this.receive(data);
+            } catch (error) {
+                this.fail(error);
+            }
+        },
+
+        async retrySearch() {
+            try {
+                const { data } = await this.$axios.post(this.url(`sessions/${this.session.id}/search/try-again`));
+
+                this.receive(data);
+                this.announce(data.search?.strings?.writing ?? this.__('Writing another…'));
+            } catch (error) {
+                this.fail(error);
             }
         },
 
@@ -1848,6 +1888,7 @@ export default {
                                         <DraftPreview :nodes="session.preview" :view="view" :editable="!working && !checking" :switched="switched" @edit="editField" @gap="openGap" />
                                     </div>
                                     <ExtrasList v-if="view === 'text'" :extras="session.extras ?? []" :editable="!working" @edit="editExtra" @remove="removeExtra" @gap="openGap" />
+                                    <SearchSection v-if="view === 'text' && session.search" :search="session.search" :editable="!working && !checking" @edit="editSearch" @use="useSearch" @try-again="retrySearch" />
                                 </template>
                             </div>
 

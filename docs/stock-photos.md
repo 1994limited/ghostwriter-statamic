@@ -9,7 +9,7 @@ Free photos (Openverse, Unsplash, Pexels, Pixabay) work as before: see [Images](
 ## How it works
 
 1. **Find.** In the image dialog's **Find a photo** tab, **Search in** chooses where to look: *Free libraries*, one paid library, or *Everything*.
-2. **Insert preview.** A paid photo doesn't go in as the real file. The field gets a **stand-in**: a striped image with the photo's shape, labelled "Getty Images 1234567 · preview, not licensed". It already has the photo's title, alt text and file name. The library's **watermarked preview** (its "comp") is kept privately and is shown only to people signed in to the Control Panel.
+2. **Insert preview.** A paid photo doesn't go in as the real file. The field gets a **stand-in**: a striped image with the photo's shape, labelled "Getty Images 1234567 · preview, not licensed". It already has the photo's title, alt text and file name (named from the alt text, then the library and the photo's ID: `stone-path-summer-meadow-getty-1234567-x7k2qa.jpg`). The library's **watermarked preview** (its "comp") is kept privately and is shown only to people signed in to the Control Panel.
 3. **License & replace.** Someone with the licence permission presses **License** on the field's badge (or in the asset editor, or on the Stock images screen), checks the cost and presses **License & replace**. The stand-in's file is swapped for the licensed photo. It is the same asset at the same path, so every page that uses it keeps it, with its alt text, title and focal point.
 4. **Publish.** A page can't be published while it holds a preview that isn't licensed yet.
 

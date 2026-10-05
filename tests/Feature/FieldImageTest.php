@@ -151,7 +151,8 @@ class FieldImageTest extends TestCase
             ->assertOk()
             ->json();
 
-        $this->assertStringStartsWith('grids/a-white-lighthouse-on-a-cliff-at-dusk-', $kept['asset']['path']);
+        // Named from its alt text, stop words out (SEO layer §11).
+        $this->assertStringStartsWith('grids/white-lighthouse-cliff-dusk-', $kept['asset']['path']);
         $this->assertSame('A white lighthouse on a cliff at dusk', $kept['asset']['title']);
         $asset = AssetContainer::find('assets')->asset($kept['asset']['path']);
         $this->assertSame('Ada on Unsplash', $asset->get('credit'));

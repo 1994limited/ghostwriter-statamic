@@ -8,6 +8,7 @@ import { unref } from 'vue';
 import { findQuote, rangeIn } from './quote.js';
 import { plain } from './markdown.js';
 import { bardField, editorAt, setRanges } from './bard.js';
+import { seoText, seoValue } from '../finish/seo.js';
 
 const idOf = (dotted) => `field_${String(dotted).replace(/\./g, '_')}`;
 const still = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -60,9 +61,6 @@ export function suggestAdapter({ form, finish }) {
         return !!field.offsetParent;
     };
 
-    // SEO Pro keeps a value as { source, value } in the form.
-    const seoText = (value) => (value && typeof value === 'object' ? (value.source === 'custom' ? value.value ?? '' : value.value ?? '') : value ?? '');
-
     /** The words a step is about, as the field holds them now. */
     const current = (step) => {
         if (step.scope === 'asset') return step.asset?.alt ?? '';
@@ -108,15 +106,8 @@ export function suggestAdapter({ form, finish }) {
         return text.slice(0, range[0]) + words + text.slice(range[1]);
     };
 
-    const writeString = (step, next) => {
-        if (step.seo?.pro) {
-            set(step.dotted, { source: 'custom', value: next });
-
-            return;
-        }
-
-        set(step.dotted, next);
-    };
+    // SEO Pro's custom value, or the text (finish/seo.js: the same rule as the server's StatamicSeoWriter).
+    const writeString = (step, next) => set(step.dotted, step.seo ? seoValue(valueAt(step.dotted), next, step.seo.pro) : next);
 
     /**
      * Puts words in for a step: the quote's range, or the whole value. The

@@ -22,6 +22,7 @@ It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 | **A link field left empty** that most entries like this fill | | No: it's counted, not enforced |
 | **A field most entries fill, left empty**, and text such as `TBC`, `[insert date]` or `lorem ipsum` | | No: a suggestion only |
 | **Links Ghostwriter added** to your other pages, in a draft you used. See [Links Ghostwriter added](#links-ghostwriter-added). | A normal link to an entry | No: a suggestion only, never counted |
+| **A description for search** that's empty, or shorter than search results have room for (under 120 characters for a limit of 160), in SEO Pro or a plain `meta_description` field, on a page someone has worked on. See [A description for search](#a-description-for-search). | | No: a suggestion only, never counted |
 
 A required text, date or select field left empty isn't listed: Statamic's own validation says so when you save.
 
@@ -100,6 +101,17 @@ It's marked as a suggestion ("A suggestion: it won't stop the page going live"),
 Press **—** (or Esc while you're in the guide) to tuck it away into the corner button, which shows the count; click it to bring the guide back. Ghostwriter remembers, for each person, whether they left the guide open. It starts tucked away, and opens by itself when you put a Ghostwriter draft into the form (`finish.open_after_draft`).
 
 The count and the highlights follow your typing: the form is checked again a moment after you stop.
+
+### A description for search
+
+When the page's SEO description is empty or too short, the guide suggests **Add a description for search**:
+
+> The SEO description is only 14 characters. Here's the one from the draft: "Winter care for gardens across Northumberland…"
+
+- **Use this** puts the description from the draft you used (its [Search](writing.md#search) section's) into the field, in the field's own shape (SEO Pro's custom value, or the plain field's text). It costs nothing: the text was written with the draft.
+- **I'll write it** takes you to the field.
+
+Without a description from a draft, only **I'll write it** is offered. A description SEO Pro takes from another field that fits, a template and one switched off are left alone. It's a suggestion: it never counts on the menu or blocks publishing.
 
 ### Keyboard and screen readers
 

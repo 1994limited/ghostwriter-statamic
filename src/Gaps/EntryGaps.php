@@ -10,6 +10,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImages;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Fix;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\FixAction;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Gap;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapContext;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapFinder;
@@ -18,6 +19,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Gaps\GapReport;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Message;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\PublishReadiness;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Readiness;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\SeoFields;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\SessionGaps;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\FillRates;
 use NineteenNinetyFour\Ghostwriter\Core\Layout\Links\StatamicLinks;
@@ -59,6 +61,7 @@ class EntryGaps
         private StockImages $stock,
         private StockLibraries $libraries,
         private Settings $settings,
+        private SeoFields $seo,
     ) {}
 
     /**
@@ -85,6 +88,8 @@ class EntryGaps
             pattern: $collection !== null ? $this->pattern($schema, $collection, $blueprint->handle()) : null,
             session: $session ?? new SessionGaps,
             sources: $sources ?? [],
+            // SEO Pro's and plain SEO fields: "Add a description for search".
+            seo: $this->seo,
             group: $collection !== null ? HeadingProfiles::label($collection) : '',
             profile: $collection !== null ? $this->profile($collection, $blueprint->handle(), $site) : null,
         );
@@ -230,7 +235,16 @@ class EntryGaps
             $out['message'] = $this->text($gap->message());
             $out['speech'] = $this->text(new Message($gap->kind->speech()));
             // The name in a label ("Link to :title"), so the guide can cut just that short.
-            $out['fixes'] = array_map(fn (Fix $fix) => ['label' => $this->text($fix->label), 'name' => isset($fix->label->params['title']) ? (string) $fix->label->params['title'] : null] + $fix->toArray(), $gap->fixes);
+            // Shortening an SEO value is Suggest edits' (a model call); here the editor does it.
+            $fixes = array_values(array_filter($gap->fixes, fn (Fix $fix) => $fix->action !== FixAction::Shorten));
+            $out['fixes'] = array_map(fn (Fix $fix) => ['label' => $this->text($fix->label), 'name' => isset($fix->label->params['title']) ? (string) $fix->label->params['title'] : null] + $fix->toArray(), $fixes);
+
+            if ($fixes !== [] && ! in_array(true, array_column($out['fixes'], 'primary'), true)) {
+                $out['fixes'][0]['primary'] = true;
+            }
+
+            // A step's title where it isn't the field's label: "Add a description for search".
+            $out['step'] = is_string($gap->meta['step'] ?? null) ? $this->text(new Message($gap->meta['step'])) : null;
             $out['tab'] = $tabs[$gap->path->handle()] ?? null;
             // Facts already say only the editor knows them; a link left for a
             // person is the other place the reason helps.

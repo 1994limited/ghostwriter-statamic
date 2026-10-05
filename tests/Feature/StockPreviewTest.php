@@ -114,7 +114,8 @@ class StockPreviewTest extends TestCase
         $kept = $this->postJson(cp_route('ghostwriter.images.use', $found['id']), ['source' => 'demo', 'photo' => 'demo-101', 'term' => 'meadow', 'current' => []])->assertOk()->json();
 
         $this->assertSame('Preview added. Only signed-in editors see the photo; license it before publishing.', $kept['toast']);
-        $this->assertStringStartsWith('covers/stone-path-through-a-summer-meadow-demo-demo-101-', $kept['asset']['path']);
+        // Named from its alt text (stop words out), then the library and the photo's ID.
+        $this->assertStringStartsWith('covers/stone-path-summer-meadow-demo-demo-101-', $kept['asset']['path']);
         $this->assertStringEndsWith('.jpg', $kept['asset']['path']);
         $this->assertSame(['assets::'.$kept['asset']['path']], $kept['value']);
 
