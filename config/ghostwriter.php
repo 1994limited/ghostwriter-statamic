@@ -45,12 +45,14 @@ return [
     | API keys
     |--------------------------------------------------------------------------
     |
-    | Read from .env each time one is needed, and never stored or shown.
-    | OpenRouter can also be connected from the settings screen ("Connect with
-    | OpenRouter"); that key is kept encrypted, and OPENROUTER_API_KEY wins
-    | over it whenever it is set. A key
-    | still set in config/ai.php, from when Ghostwriter used the Laravel AI
-    | SDK, is used when the one here is empty.
+    | Every key can be set up in the Control Panel instead, under Ghostwriter
+    | → Connections: paste it, it is checked with the service, and kept
+    | encrypted with APP_KEY (in the database once `php artisan migrate` has
+    | made its table, else in storage/ghostwriter/credentials/). A key set
+    | here (or in .env) always wins, and the Connections page says so. Keys
+    | are only ever sent to the service they belong to. A key still set in
+    | config/ai.php, from when Ghostwriter used the Laravel AI SDK, is used
+    | when the one here is empty.
     |
     */
 
@@ -227,13 +229,13 @@ return [
     | in the field, and the library's watermarked comp kept privately for
     | signed-in editors. A manager then licenses it from your own account
     | with the library, and the stand-in's file is swapped for the licensed
-    | one. Keys and secrets live only in .env, are read each time and are
-    | never stored or shown. A library is offered only once its keys are
-    | set (and Ghostwriter has its adapter); each can be switched off on
-    | the settings screen.
+    | one. Keys and secrets are set up in Connections (or here, which wins),
+    | and never shown. A library is offered only once its keys are set (and
+    | Ghostwriter has its adapter); each can be switched off on the
+    | settings screen.
     |
-    | Shutterstock licenses for your connected account: set its keys, then
-    | Connect account on the settings screen. Getty Images and iStock are
+    | Shutterstock licenses for your connected account: set up its key and
+    | secret, then Connect account, both in Connections. Getty Images and iStock are
     | coming: their keys can be set now, and they switch on once
     | Ghostwriter ships their adapter.
     |

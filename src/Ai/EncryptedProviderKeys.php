@@ -9,7 +9,11 @@ use SensitiveParameter;
 use Throwable;
 
 /**
- * Where a site keeps the API key it got with "Connect with OpenRouter"
+ * @deprecated Settings → Connections keeps the key in its own store now
+ * (core's StoredProviderKeys over EncryptedCredentialStore); this only
+ * reads the old file so LegacyCredentials can move it.
+ *
+ * Where a site kept the API key it got with "Connect with OpenRouter"
  * (core's ProviderKeys): encrypted with the app's key (Laravel's Crypt) in
  * `storage/ghostwriter/provider-keys.json`, beside Ghostwriter's other
  * working files. Never in content/, never shown or logged. A key that

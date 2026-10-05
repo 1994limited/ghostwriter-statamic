@@ -4,12 +4,15 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigProviderSettings;
-use NineteenNinetyFour\Ghostwriter\Ai\EncryptedProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Ai\ModelCheck;
+use NineteenNinetyFour\Ghostwriter\Connections\ConnectionsPage;
+use NineteenNinetyFour\Ghostwriter\Connections\EncryptedCredentialStore;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectsProvider;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\OpenRouterConnection;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\ProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Testing\FakeOpenRouter;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\Connections;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\StoredProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\Addon;
@@ -39,7 +42,7 @@ class OpenRouterTest extends TestCase
 
     public function test_the_key_store_is_encrypted_and_the_real_connection_is_bound(): void
     {
-        $this->assertInstanceOf(EncryptedProviderKeys::class, app(ProviderKeys::class));
+        $this->assertInstanceOf(StoredProviderKeys::class, app(ProviderKeys::class));
 
         $this->app->forgetInstance(ConnectsProvider::class);
         $this->assertInstanceOf(OpenRouterConnection::class, app(ConnectsProvider::class));
@@ -72,11 +75,11 @@ class OpenRouterTest extends TestCase
         $location = (string) $this->get(cp_route('ghostwriter.providers.connect', 'openrouter'))->assertRedirect()->headers->get('Location');
         $this->assertStringStartsWith('https://cms.example.com/cp/ghostwriter/providers/openrouter/callback?code=', $location);
 
-        $this->get($location)->assertRedirect(app(Settings::class)->url());
+        $this->get($location)->assertRedirect(cp_route('ghostwriter.connections.show'));
         $this->assertTrue($this->connection->connected());
         $this->assertStringStartsWith('Connected to OpenRouter (sk-or-v1-', $this->toasts()[0]);
 
-        $file = (string) file_get_contents(EncryptedProviderKeys::path());
+        $file = (string) file_get_contents(EncryptedCredentialStore::path());
         $this->assertStringNotContainsString(FakeOpenRouter::KEY, $file, 'Encrypted at rest.');
         $this->assertSame(FakeOpenRouter::KEY, app(ProviderKeys::class)->get('openrouter'));
 
@@ -86,16 +89,18 @@ class OpenRouterTest extends TestCase
         // Check connection: the credit left.
         $this->postJson(cp_route('ghostwriter.providers.check', 'openrouter'))->assertOk()->assertJsonPath('ok', true)->assertJsonPath('message', $this->connection->account()->summary());
 
-        $row = $this->row();
-        $this->assertStringContainsString('Connected to OpenRouter (', $row);
-        $this->assertStringContainsString('Disconnect', $row);
-        $this->assertStringContainsString('pass through OpenRouter', $row);
-        $this->assertStringNotContainsString(FakeOpenRouter::KEY, $row);
+        $card = $this->card();
+        $this->assertSame('connected', $card['status']['state']);
+        $this->assertSame('connect', $card['status']['via']);
+        $this->assertSame('••'.substr(FakeOpenRouter::KEY, -4), $card['status']['ending']);
+        $this->assertSame('Connected by signing in to OpenRouter.', $card['help']);
+        $this->assertStringNotContainsString(FakeOpenRouter::KEY, json_encode($card));
 
         $this->postJson(cp_route('ghostwriter.providers.disconnect', 'openrouter'))->assertOk()->assertJsonPath('message', 'OpenRouter is disconnected. To revoke the key, delete it at openrouter.ai/settings/keys.');
         $this->assertFalse($this->connection->connected());
         $this->assertNull(app(ProviderKeys::class)->get('openrouter'));
-        $this->assertStringContainsString('Connect with OpenRouter', $this->row());
+        $this->assertSame('not_set', $this->card()['status']['state']);
+        $this->assertStringEndsWith('/cp/ghostwriter/providers/openrouter/connect', $this->card()['oauth_links']['connect_url']);
     }
 
     public function test_a_wrong_or_reused_state_is_refused_and_nothing_is_kept(): void
@@ -121,14 +126,14 @@ class OpenRouterTest extends TestCase
         $this->connection->refuseCode = true;
 
         $location = (string) $this->get(cp_route('ghostwriter.providers.connect', 'openrouter'))->headers->get('Location');
-        $this->get($location)->assertRedirect(app(Settings::class)->url());
+        $this->get($location)->assertRedirect(cp_route('ghostwriter.connections.show'));
 
         $this->assertFalse($this->connection->connected());
         $this->assertSame([OpenRouterConnection::SIGN_IN_REFUSED], $this->toasts());
 
         Toast::clear();
         $location = (string) $this->get(cp_route('ghostwriter.providers.connect', 'openrouter'))->headers->get('Location');
-        $this->get(preg_replace('/code=[^&]+&?/', '', $location))->assertRedirect(app(Settings::class)->url());
+        $this->get(preg_replace('/code=[^&]+&?/', '', $location))->assertRedirect(cp_route('ghostwriter.connections.show'));
         $this->assertSame(['OpenRouter isn\'t connected: the sign-in was cancelled.'], $this->toasts());
     }
 
@@ -137,16 +142,16 @@ class OpenRouterTest extends TestCase
         config(['ghostwriter.keys.openrouter' => 'sk-or-v1-from-env']);
         $this->signInAsManager();
 
-        $this->get(cp_route('ghostwriter.providers.connect', 'openrouter'))->assertRedirect(app(Settings::class)->url());
+        $this->get(cp_route('ghostwriter.providers.connect', 'openrouter'))->assertRedirect(cp_route('ghostwriter.connections.show'));
         $this->assertSame([OpenRouterConnection::ENV_KEY_SET], $this->toasts());
         $this->assertNull(session('ghostwriter.connect.openrouter'));
 
         $this->postJson(cp_route('ghostwriter.providers.disconnect', 'openrouter'))->assertStatus(409)->assertJsonPath('message', OpenRouterConnection::ENV_KEY_SET);
 
-        $row = $this->row();
-        $this->assertStringContainsString('Using OPENROUTER_API_KEY from .env', $row);
-        $this->assertStringNotContainsString('Connect with OpenRouter', $row);
-        $this->assertStringNotContainsString('sk-or-v1-from-env', $row);
+        $card = $this->card();
+        $this->assertSame('env', $card['status']['state']);
+        $this->assertNull($card['oauth_links'], 'No Connect while a key in config wins.');
+        $this->assertStringNotContainsString('sk-or-v1-from-env', json_encode($card));
         $this->assertTrue(app(Settings::class)->keyStatus()['OPENROUTER_API_KEY']);
     }
 
@@ -181,11 +186,11 @@ class OpenRouterTest extends TestCase
         config(['ghostwriter.openrouter.models.writing' => 'openai/gpt-6.1-sol']);
         $this->assertSame('openai/gpt-6.1-sol', $tiers->tierModel('openrouter', 'writing'));
 
-        // The settings screen offers the tiers' models, and the OpenRouter row.
+        // The settings screen offers the tiers' models; connecting is in Connections.
         $fields = collect(Addon::get(Settings::ADDON)->settingsBlueprint()->fields()->all());
         $this->assertArrayHasKey('anthropic/claude-opus-5.5', $fields['openrouter_quick_model']->get('options'));
         $this->assertArrayHasKey('openrouter', $fields['provider']->get('options'));
-        $this->assertStringContainsString('Connect with OpenRouter', (string) $fields['openrouter_connection']->get('html'));
+        $this->assertFalse($fields->has('openrouter_connection'));
 
         // A model that isn't an OpenRouter id is said out loud.
         $this->assertStringContainsString('isn\'t an OpenRouter model id', (string) app(ModelCheck::class)->mismatch('openrouter', 'claude-opus-5-5'));
@@ -193,13 +198,15 @@ class OpenRouterTest extends TestCase
     }
 
     /**
-     * The settings screen's OpenRouter row, as HTML.
+     * OpenRouter's card on the Connections page.
+     *
+     * @return array<string, mixed>
      */
-    private function row(): string
+    private function card(): array
     {
-        $contents = app(Settings::class)->withOpenRouter(['tabs' => ['main' => ['sections' => [['display' => 'AI provider', 'fields' => []]]]]], app(ConnectsProvider::class));
+        $page = app(ConnectionsPage::class);
 
-        return (string) $contents['tabs']['main']['sections'][0]['fields'][0]['field']['html'];
+        return $page->card(app(Connections::class)->services()->get('openrouter'));
     }
 
     /**

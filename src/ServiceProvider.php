@@ -8,10 +8,10 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigProviderSettings;
-use NineteenNinetyFour\Ghostwriter\Ai\EncryptedProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Ai\ModelCheck;
+use NineteenNinetyFour\Ghostwriter\Connections\EncryptedCredentialStore;
+use NineteenNinetyFour\Ghostwriter\Connections\LegacyCredentials;
 use NineteenNinetyFour\Ghostwriter\Contracts\EntryWriter;
-use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectedCredentials;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectsProvider;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\OpenRouterConnection;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Http\GuzzleHttpClients;
@@ -19,6 +19,15 @@ use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\ProviderKeys;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Providers;
 use NineteenNinetyFour\Ghostwriter\Core\Arrange\SessionLayouts;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\ChecksKeys;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\Connections;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\CredentialStore;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\KeyCheck;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\KeyWatch;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\StoredLibraryTokens;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\StoredProviderKeys;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\Strings;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\Testing\FakeKeyCheck;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\DomainOptions;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Format;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Guides\GuideStore;
@@ -70,7 +79,6 @@ use NineteenNinetyFour\Ghostwriter\Http\Middleware\GhostwriterPreviewResponse;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\StockPreviewsInLivePreview;
 use NineteenNinetyFour\Ghostwriter\Preview\PreviewEntry;
 use NineteenNinetyFour\Ghostwriter\Seo\StatamicSeoWriter;
-use NineteenNinetyFour\Ghostwriter\Stock\EncryptedLibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
 use NineteenNinetyFour\Ghostwriter\Storage\FileEditReviewStore;
 use NineteenNinetyFour\Ghostwriter\Storage\FileGuideStore;
@@ -136,13 +144,27 @@ class ServiceProvider extends AddonServiceProvider
         // class, or bind the contract itself in a service provider.
         $this->app->bindIf(EntryWriter::class, fn ($app) => $app->make(config('ghostwriter.writer', SchemaEntryWriter::class)));
 
+        // Settings → Connections: every service's key, from .env (which
+        // always wins) or as set up on the Connections page, kept encrypted
+        // in the database (or storage/ghostwriter/credentials/ without one).
+        // Keys kept before Connections (Connect with OpenRouter, library
+        // accounts) move into it the first time it is used.
+        $this->app->singletonIf(CredentialStore::class, EncryptedCredentialStore::class);
+        $this->app->singleton(Connections::class, function ($app) {
+            $connections = new Connections(new ConfigCredentials, $app->make(CredentialStore::class));
+            LegacyCredentials::adopt($connections);
+
+            return $connections;
+        });
+
         // One connection to the models for the whole request or worker, from
-        // Ghostwriter Core. Keys and settings are read on every call. A
-        // project can bind its own HttpClients, to go through a proxy, say.
-        $this->app->bindIf(HttpClients::class, GuzzleHttpClients::class);
-        // A key from "Connect with OpenRouter" is kept encrypted; a key in
-        // .env always wins over it.
-        $this->app->bindIf(ProviderKeys::class, EncryptedProviderKeys::class);
+        // Ghostwriter Core, watched so a key a service stops accepting shows
+        // on its card. Keys and settings are read on every call. A project
+        // can bind its own HttpClients, to go through a proxy, say.
+        $this->app->bindIf(HttpClients::class, fn ($app) => new KeyWatch(new GuzzleHttpClients, $app->make(Connections::class)));
+        // A key from "Connect with OpenRouter" lands on OpenRouter's card;
+        // a key in .env always wins over it.
+        $this->app->bindIf(ProviderKeys::class, fn ($app) => new StoredProviderKeys($app->make(Connections::class)));
         $this->app->bindIf(ConnectsProvider::class, fn ($app) => new OpenRouterConnection(
             new ConfigCredentials,
             $app->make(ProviderKeys::class),
@@ -151,8 +173,15 @@ class ServiceProvider extends AddonServiceProvider
             baseUrl: (new ConfigProviderSettings($app->make(Settings::class)))->baseUrl('openrouter'),
             logger: Log::channel(config('ghostwriter.log_channel')),
         ));
+        // Check & save: one cheap call to the service, or, while an
+        // end-to-end scenario plays on a local site, nobody.
+        $this->app->bindIf(ChecksKeys::class, fn ($app) => FakeScenarios::playing() ? new FakeKeyCheck : new KeyCheck(
+            $app->make(HttpClients::class),
+            new ConfigProviderSettings($app->make(Settings::class)),
+            shutterstockSandbox: StockLibraries::shutterstockSandbox(),
+        ));
         $this->app->singleton(Providers::class, fn ($app) => new Providers(
-            new ConnectedCredentials(new ConfigCredentials, $app->make(ProviderKeys::class)),
+            $app->make(Connections::class),
             $app->make(HttpClients::class),
             new ConfigProviderSettings($app->make(Settings::class)),
             Log::channel(config('ghostwriter.log_channel')),
@@ -183,7 +212,7 @@ class ServiceProvider extends AddonServiceProvider
         // any time, so it is read on each search.
         $this->app->singleton(StockSearch::class, fn ($app) => new StockSearch(
             $app->make(HttpClients::class),
-            new ConfigCredentials,
+            $app->make(Connections::class),
             openverse: fn (): bool => $app->make(Settings::class)->openverse(),
             logger: Log::channel(config('ghostwriter.log_channel')),
         ));
@@ -222,8 +251,9 @@ class ServiceProvider extends AddonServiceProvider
         // The stock image ledger: one YAML file per record under content/,
         // read once per request while unchanged.
         $this->app->singletonIf(StockImageStore::class, FileStockImageStore::class);
-        // Paid libraries' connected-account tokens, encrypted with the app key.
-        $this->app->bindIf(LibraryTokens::class, EncryptedLibraryTokens::class);
+        // Paid libraries' connected-account tokens, beside their keys in
+        // the Connections store, encrypted with the app key.
+        $this->app->bindIf(LibraryTokens::class, fn ($app) => new StoredLibraryTokens($app->make(CredentialStore::class)));
         $this->app->bind(DomainOptions::class, fn ($app) => DomainOptions::statamic(
             shared: (bool) config('ghostwriter.shared_conversations', true),
             jobTimeout: $app->make(Settings::class)->timeout(),
@@ -331,6 +361,10 @@ class ServiceProvider extends AddonServiceProvider
             PromptLibrary::directory() => resource_path('ghostwriter/prompts'),
         ], 'ghostwriter-prompts');
 
+        // The Connections table: `php artisan migrate` makes it on a site
+        // with a database. Without it, keys are kept in an encrypted file.
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+
         // Core's SEO strings in German, French, Dutch and Spanish, keyed by
         // their English source as everything else `__()` translates here.
         $this->loadJsonTranslationsFrom(__DIR__.'/../lang');
@@ -424,6 +458,7 @@ class ServiceProvider extends AddonServiceProvider
                     $nav->item('Voice guide')->route('ghostwriter.voice.show')->can('access ghostwriter'),
                     $nav->item('Image style')->route('ghostwriter.imagery.show')->can('access ghostwriter'),
                     $nav->item('Stock images')->route('ghostwriter.stock.index')->can('access ghostwriter'),
+                    $nav->item(Strings::for(app()->getLocale())->get('nav'))->route('ghostwriter.connections.show')->can('edit '.Settings::ADDON.' settings'),
                     ($settings = app(Settings::class)->url())
                         ? $nav->item('Settings')->url($settings)->can('edit '.Settings::ADDON.' settings')
                         : null,

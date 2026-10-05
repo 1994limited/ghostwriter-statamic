@@ -4,13 +4,14 @@ namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
+use NineteenNinetyFour\Ghostwriter\Connections\EncryptedCredentialStore;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\StoredLibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Capabilities;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Ports\LibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Testing\FakeLibrary;
 use NineteenNinetyFour\Ghostwriter\Jobs\FindImages;
 use NineteenNinetyFour\Ghostwriter\Settings;
 use NineteenNinetyFour\Ghostwriter\Stock\DemoLibrary;
-use NineteenNinetyFour\Ghostwriter\Stock\EncryptedLibraryTokens;
 use NineteenNinetyFour\Ghostwriter\Stock\StockLibraries;
 use NineteenNinetyFour\Ghostwriter\Tests\TestCase;
 use Statamic\Facades\AssetContainer;
@@ -47,7 +48,7 @@ class StockConnectTest extends TestCase
 
     public function test_the_tokens_are_kept_encrypted(): void
     {
-        $this->assertInstanceOf(EncryptedLibraryTokens::class, app(LibraryTokens::class));
+        $this->assertInstanceOf(StoredLibraryTokens::class, app(LibraryTokens::class));
     }
 
     public function test_connect_account_signs_in_and_keeps_the_tokens_encrypted(): void
@@ -58,10 +59,10 @@ class StockConnectTest extends TestCase
         $location = (string) $connect->headers->get('Location');
         $this->assertStringStartsWith('https://cms.example.com/cp/ghostwriter/libraries/demo/callback?code=', $location, 'The callback is absolute, from the site\'s own URL.');
 
-        $this->get($location)->assertRedirect(app(Settings::class)->url());
+        $this->get($location)->assertRedirect(cp_route('ghostwriter.connections.show'));
         $this->assertTrue($this->library->connected());
 
-        $file = (string) file_get_contents($this->workspace.'/library-tokens.json');
+        $file = (string) file_get_contents(EncryptedCredentialStore::path());
         $token = app(LibraryTokens::class)->get('demo')->accessToken;
         $this->assertStringNotContainsString($token, $file, 'Encrypted at rest.');
 

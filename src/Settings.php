@@ -2,19 +2,20 @@
 
 namespace NineteenNinetyFour\Ghostwriter;
 
-use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
-use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectedKey;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Credentials\ConnectsProvider;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Models;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\Credentials;
-use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\ProviderKeys;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\Connections;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\Strings;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\OnPublish;
 use Statamic\Facades\Addon;
 use Statamic\Facades\User;
 
 /**
  * Where Ghostwriter's options come from: config/ghostwriter.php (and so
- * .env) first, then the addon's settings screen in the Control Panel. A
+ * .env) first, then the addon's settings screen in the Control Panel.
+ * Keys aren't settings: they are set up in Settings → Connections (or in
+ * .env, which wins), through core's Connections. A
  * value set in code wins, so a site can fix one per environment; the
  * settings screen shows that field locked, with a note saying so.
  */
@@ -200,47 +201,34 @@ class Settings
 
     /**
      * The settings screen's Stock photos section, filled in: a row for each
-     * paid library (whether its keys are set, never the keys, and Check
+     * paid library (where it stands in Connections, never a key, and Check
      * connection), a switch for each one set up, and the libraries "Search
-     * in" can start on.
+     * in" can start on. Keys and Connect account are in Settings → Connections.
      *
      * @param  array<string, mixed>  $contents
      * @return array<string, mixed>
      */
     public function withStock(array $contents, Stock\StockLibraries $libraries): array
     {
-        $rows = collect($libraries->rows())->map(function (array $row) {
-            $keys = collect($row['keys'])->map(fn (bool $set, string $variable) => '<code style="font-size:.8rem">'.e($variable).'</code> '.self::pill($set ? __('Set') : __('Not set'), $set))->implode(' ');
-            $status = match (true) {
+        $connections = app(Connections::class);
+        $strings = Strings::for(app()->getLocale());
+        $rows = collect($libraries->rows())->map(function (array $row) use ($connections, $strings) {
+            $known = $connections->services()->get($row['id']);
+            $status = $known ? $connections->status($row['id']) : null;
+            $pill = $status ? self::pill($status->label($strings), $status->usable() && ! $status->broken) : '';
+            $setUp = $row['ready'] && ! $row['demo'] ? '<a href="'.e(cp_route('ghostwriter.connections.show')).'" style="font-size:.8rem;text-decoration:underline">'.e($strings->get('elsewhere.link')).'</a>' : '';
+            $line = match (true) {
                 $row['demo'] => __('Charges nothing and calls nobody. Only on local and test sites, never in production.'),
                 ! $row['ready'] => __('Coming: a later version of Ghostwriter adds this library. Its keys can be set now.'),
-                in_array(false, $row['keys'], true) => __('Set both in .env to use it.'),
                 default => null,
             };
             $check = $row['demo'] || ($row['ready'] && ! in_array(false, $row['keys'], true))
                 ? '<button type="button" data-ghostwriter-check-connection="'.e($row['id']).'" style="font-size:.8rem;padding:.15rem .6rem;border:1px solid currentColor;border-radius:.375rem;opacity:.85">'.e(__('Check connection')).'</button>'
                 : '';
 
-            // Connect account / Disconnect, for a library that licenses for a
-            // person's signed-in account.
-            $connect = '';
-
-            if ($row['connect'] !== null) {
-                $c = $row['connect'];
-                $button = 'font-size:.8rem;padding:.15rem .6rem;border:1px solid currentColor;border-radius:.375rem;opacity:.85';
-                $connect = '<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;font-size:.8rem">'
-                    .self::pill($c['connected'] ? __('Account connected') : __('Account not connected'), $c['connected'])
-                    .($c['connected']
-                        ? '<button type="button" data-ghostwriter-disconnect="'.e($c['disconnect_url']).'" data-ghostwriter-library="'.e($row['label']).'" style="'.$button.'">'.e(__('Disconnect')).'</button>'
-                        : '<a href="'.e($c['connect_url']).'" style="'.$button.';text-decoration:none">'.e(__('Connect account')).'</a>')
-                    .'</div>'
-                    .($row['demo'] ? '' : '<div style="font-size:.8rem;opacity:.75">'.e(__('Licensing needs your account connected. In your app\'s settings with the library, add this callback:')).' <code>'.e($c['callback']).'</code></div>');
-            }
-
             return '<li style="margin:.6rem 0;display:flex;flex-direction:column;gap:.3rem">'
-                .'<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center"><strong>'.e($row['label']).'</strong>'.$keys.' '.$check.'</div>'
-                .($status ? '<div style="font-size:.8rem;opacity:.75">'.e($status).'</div>' : '')
-                .$connect
+                .'<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center"><strong>'.e($row['label']).'</strong>'.$pill.' '.$check.' '.$setUp.'</div>'
+                .($line ? '<div style="font-size:.8rem;opacity:.75">'.e($line).'</div>' : '')
                 .'<div data-ghostwriter-connection="'.e($row['id']).'" style="font-size:.8rem" role="status"></div>'
                 .'</li>';
         })->implode('');
@@ -288,42 +276,14 @@ class Settings
     }
 
     /**
-     * The AI provider section with OpenRouter's row: Connect with
-     * OpenRouter (or Disconnect), Check connection, the credit left, and a
-     * note that requests pass through OpenRouter; and the models offered
-     * for each tier.
+     * The AI provider section with the models offered for each OpenRouter
+     * tier. Connecting OpenRouter is on its card in Settings → Connections.
      *
      * @param  array<string, mixed>  $contents
      * @return array<string, mixed>
      */
     public function withOpenRouter(array $contents, ConnectsProvider $connection): array
     {
-        $button = 'font-size:.8rem;padding:.15rem .6rem;border:1px solid currentColor;border-radius:.375rem;opacity:.85';
-        $check = '<button type="button" data-ghostwriter-provider-check="'.e(cp_route('ghostwriter.providers.check', 'openrouter')).'" style="'.$button.'">'.e(__('Check connection')).'</button>';
-        $kept = app(ProviderKeys::class)->get('openrouter');
-        $masked = is_string($kept) && trim($kept) !== '' ? ConnectedKey::mask(trim($kept)) : null;
-
-        [$state, $buttons, $line] = match (true) {
-            $connection->usesEnvKey() => [self::pill(__('Using OPENROUTER_API_KEY from .env'), true), $check, null],
-            $connection->connected() => [
-                self::pill($masked ? __('Connected to OpenRouter (:key)', ['key' => $masked]) : __('Connected to OpenRouter'), true),
-                $check.'<button type="button" data-ghostwriter-provider-disconnect="'.e(cp_route('ghostwriter.providers.disconnect', 'openrouter')).'" style="'.$button.'">'.e(__('Disconnect')).'</button>',
-                __('Disconnect only forgets the key here. To revoke it, delete the key at openrouter.ai/settings/keys.'),
-            ],
-            default => [
-                self::pill(__('Not connected'), false),
-                '<a href="'.e(cp_route('ghostwriter.providers.connect', 'openrouter')).'" style="'.$button.';text-decoration:none">'.e(__('Connect with OpenRouter')).'</a>',
-                __('Sign in to OpenRouter to use Claude, GPT or Gemini with one account, paid for with OpenRouter credit.'),
-            ],
-        };
-
-        $html = '<div style="display:flex;flex-direction:column;gap:.35rem">'
-            .'<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center"><strong>OpenRouter</strong>'.$state.' '.$buttons.'</div>'
-            .($line ? '<div style="font-size:.8rem;opacity:.75">'.e($line).'</div>' : '')
-            .'<div data-ghostwriter-provider-connection="openrouter" style="font-size:.8rem" role="status" aria-live="polite"></div>'
-            .'<div style="font-size:.8rem;opacity:.75">'.e(__('Requests, including images, pass through OpenRouter on their way to the model\'s company, and OpenRouter\'s own privacy policy applies.')).'</div>'
-            .'</div>';
-
         $choices = Models::OPENROUTER_TEXT_CHOICES;
 
         foreach ($contents['tabs'] ?? [] as $tab => $content) {
@@ -337,11 +297,6 @@ class Settings
                         $contents['tabs'][$tab]['sections'][$i]['fields'][$j]['field']['options'] = $choices;
                     }
                 }
-
-                $contents['tabs'][$tab]['sections'][$i]['fields'][] = [
-                    'handle' => 'openrouter_connection',
-                    'field' => ['type' => 'html', 'html' => $html, 'hide_display' => true],
-                ];
             }
         }
 
@@ -361,30 +316,39 @@ class Settings
      */
     public function keyStatus(): array
     {
-        $credentials = new ConfigCredentials;
+        $credentials = app(Connections::class);
 
         return collect(Credentials::ENV)->mapWithKeys(fn (string $variable, string $service) => [$variable => $credentials->key($service) !== null])->all();
     }
 
     /**
-     * The settings screen's blueprint with a read-only list of the API keys
-     * and whether each is set, in the API keys section above the AI provider.
+     * The settings screen's Connections section: each service and where it
+     * stands (never a key, only its last four characters), and the way to
+     * Settings → Connections, where keys are set up.
      *
      * @param  array<string, mixed>  $contents
      * @return array<string, mixed>
      */
     public function withKeyStatus(array $contents): array
     {
-        $rows = collect($this->keyStatus())
-            ->map(fn (bool $set, string $variable) => '<li style="display:flex;gap:.5rem;align-items:center;margin:.2rem 0"><code style="font-size:.8rem">'.e($variable).'</code>'.self::pill($set ? 'Set' : 'Not set', $set).'</li>')
+        $connections = app(Connections::class);
+        $strings = Strings::for(app()->getLocale());
+        $rows = collect($connections->services()->list())
+            ->map(function ($service) use ($connections, $strings) {
+                $status = $connections->status($service->id);
+
+                return '<li style="display:flex;gap:.5rem;align-items:center;margin:.2rem 0"><span>'.e($service->name).'</span>'.self::pill($status->label($strings), $status->usable() && ! $status->broken).'</li>';
+            })
             ->implode('');
+        $link = '<a href="'.e(cp_route('ghostwriter.connections.show')).'" style="display:inline-block;margin-top:.5rem;font-size:.8rem;padding:.15rem .6rem;border:1px solid currentColor;border-radius:.375rem;text-decoration:none">'.e($strings->get('elsewhere.link')).'</a>';
 
         foreach ($contents['tabs'] ?? [] as $tab => $content) {
             foreach ($content['sections'] ?? [] as $i => $section) {
-                if (($section['display'] ?? null) === 'API keys') {
+                if (($section['display'] ?? null) === 'Connections') {
+                    $contents['tabs'][$tab]['sections'][$i]['instructions'] = $strings->get('elsewhere.keys');
                     $contents['tabs'][$tab]['sections'][$i]['fields'] = [[
                         'handle' => 'key_status',
-                        'field' => ['type' => 'html', 'html' => '<ul style="list-style:none;margin:0;padding:0">'.$rows.'</ul>', 'hide_display' => true],
+                        'field' => ['type' => 'html', 'html' => '<ul style="list-style:none;margin:0;padding:0">'.$rows.'</ul>'.$link, 'hide_display' => true],
                     ]];
                 }
             }

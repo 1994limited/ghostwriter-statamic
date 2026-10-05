@@ -3,8 +3,8 @@
 namespace NineteenNinetyFour\Ghostwriter\Stock;
 
 use Illuminate\Support\Facades\Log;
-use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Ports\HttpClients;
+use NineteenNinetyFour\Ghostwriter\Core\Connections\Connections;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\Account;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\ConnectsAccount;
 use NineteenNinetyFour\Ghostwriter\Core\Images\Libraries\LicensableLibrary;
@@ -269,7 +269,7 @@ class StockLibraries
 
         return new ScopedStockSearch(
             $this->http,
-            new ConfigCredentials,
+            app(Connections::class),
             fn (): bool => $this->settings->openverse(),
             $logger,
             array_values($this->paid()),
@@ -346,7 +346,7 @@ class StockLibraries
             $rows[] = ['id' => DemoLibrary::ID, 'label' => 'Demo stock (no charge)', 'keys' => [], 'ready' => true, 'demo' => true, 'connect' => $this->connection(DemoLibrary::ID)];
         }
 
-        $credentials = new ConfigCredentials;
+        $credentials = app(Connections::class);
 
         foreach (self::PAID as $id => $library) {
             $rows[] = [
@@ -393,7 +393,7 @@ class StockLibraries
      */
     private function make(string $id, string $adapter): object
     {
-        $credentials = new ConfigCredentials;
+        $credentials = app(Connections::class);
 
         return match ($id) {
             'shutterstock' => new Shutterstock(
@@ -433,7 +433,7 @@ class StockLibraries
 
     private function keysSet(string $id): bool
     {
-        $credentials = new ConfigCredentials;
+        $credentials = app(Connections::class);
 
         foreach (array_keys(self::PAID[$id]['keys']) as $service) {
             if ($credentials->key($service) === null) {

@@ -39,7 +39,7 @@ composer require 1994/ghostwriter-statamic
 php artisan vendor:publish --tag=ghostwriter-statamic --force
 ```
 
-Then add your key to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-...`, and keep a queue worker running (`php artisan queue:work --timeout=960`). See [Installation](docs/installation.md) for the details.
+Then set up your key under **Tools → Ghostwriter → Connections** (or add it to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-...`), run `php artisan migrate` so keys are kept in the database, and keep a queue worker running (`php artisan queue:work --timeout=960`). See [Installation](docs/installation.md) for the details.
 
 ## Quick start
 

@@ -116,9 +116,10 @@ class StockLibrariesTest extends TestCase
 
         $this->assertStringContainsString('Demo stock (no charge)', $html);
         $this->assertStringContainsString('data-ghostwriter-check-connection="demo"', $html);
-        $this->assertStringContainsString('GETTY_API_KEY', $html);
-        $this->assertStringContainsString('SHUTTERSTOCK_API_KEY</code> <span', $html);
-        $this->assertStringContainsString('SHUTTERSTOCK_API_SECRET', $html);
+        $this->assertStringContainsString('Getty Images and iStock', $html);
+        $this->assertStringContainsString('Shutterstock</strong><span', $html);
+        $this->assertStringContainsString('Set in config', $html, 'Shutterstock\'s key is set in config: its status, never the key.');
+        $this->assertStringContainsString('/cp/ghostwriter/connections', $html);
         $this->assertStringContainsString('Coming: a later version of Ghostwriter adds this library.', $html, 'Getty, still.');
         $this->assertStringNotContainsString('sk-live-not-shown', $html);
         $this->assertStringNotContainsString('data-ghostwriter-check-connection="shutterstock"', $html, 'Not until its secret is set too.');
@@ -130,9 +131,7 @@ class StockLibrariesTest extends TestCase
         $section = ['tabs' => ['main' => ['sections' => [['display' => 'Stock photos', 'fields' => []]]]]];
         $html = app(Settings::class)->withStock($section, app(StockLibraries::class))['tabs']['main']['sections'][0]['fields'][0]['field']['html'];
         $this->assertStringContainsString('data-ghostwriter-check-connection="shutterstock"', $html);
-        $this->assertStringContainsString('Account not connected', $html);
-        $this->assertStringContainsString('Connect account', $html);
-        $this->assertStringContainsString('localhost/cp/ghostwriter/libraries/shutterstock/callback', $html, 'The host and path to register, not the full address.');
+        $this->assertStringNotContainsString('Connect account', $html, 'Connect account is on the Connections page now.');
         $this->assertStringNotContainsString('ss-secret-not-shown', $html);
         $this->assertSame(['free' => 'Free libraries', 'demo' => 'Demo stock (no charge)', 'everything' => 'Everything'], $fields['stock_default_source']->get('options'));
         $this->assertFalse($fields->has('stock_on_publish'), 'Replaced by the Finish this page setting, which covers previews too.');

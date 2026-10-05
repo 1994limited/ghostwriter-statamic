@@ -36,7 +36,7 @@ Add that line to your deploy script after `composer install`, so the assets reac
 
 ## Add your API key
 
-Add the key for your provider to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-...`. See [API keys](api-keys.md) for every key Ghostwriter can use.
+Set up the key for your provider under **Tools → Ghostwriter → Connections**: open the provider's page, make a key, paste it, **Check & save**. Or add it to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-...`, which always wins. Run `php artisan migrate` once so Connections keeps keys in your database (without a database they are kept in an encrypted file). See [API keys](api-keys.md) for every key Ghostwriter can use, and [Connections](connections.md).
 
 ## Who can use it
 

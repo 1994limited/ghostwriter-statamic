@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\CollectionController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\CommentsController;
+use NineteenNinetyFour\Ghostwriter\Http\Controllers\ConnectionsController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\DashboardController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\EntryController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\FinishController;
@@ -59,6 +60,11 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('images/{id}', [ImagesController::class, 'status'])->name('images.status');
     Route::get('images/{id}/preview', [ImagesController::class, 'preview'])->name('images.preview');
     Route::post('images/{id}/use', [ImagesController::class, 'use'])->name('images.use');
+
+    Route::get('connections', [ConnectionsController::class, 'show'])->name('connections.show');
+    Route::get('connections/status', [ConnectionsController::class, 'status'])->name('connections.status');
+    Route::post('connections/{service}', [ConnectionsController::class, 'save'])->name('connections.save');
+    Route::post('connections/{service}/disconnect', [ConnectionsController::class, 'disconnect'])->name('connections.disconnect');
 
     Route::get('libraries/{library}/connect', [LibraryConnectionController::class, 'connect'])->name('libraries.connect');
     Route::get('libraries/{library}/callback', [LibraryConnectionController::class, 'callback'])->name('libraries.callback');
