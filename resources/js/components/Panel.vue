@@ -131,6 +131,8 @@ export default {
             switched: null,
             draftWide: true,
             timer: null,
+            // Looks at the collection in a row that didn't get through.
+            loadMisses: 0,
             // The answers to the writer's questions, and the ones skipped,
             // by question id; "Add anything else" opened; sending them.
             replies: {},
@@ -465,11 +467,16 @@ export default {
             try {
                 ({ data } = await this.$axios.get(this.url(`collections/${this.collection}`), { params: { blueprint: this.blueprint } }));
             } catch (error) {
-                // A look that didn't get through: look again, rather than wait for ever.
-                if (polling && transient(error)) return this.later(() => this.load());
+                // A look that didn't get through (the panel opening, or a kind
+                // being learnt): look again, rather than show an empty panel.
+                this.loadMisses += 1;
+
+                if (transient(error) && this.loadMisses <= 5) return this.later(() => this.load());
 
                 return this.fail(error);
             }
+
+            this.loadMisses = 0;
 
             this.info = data;
 
