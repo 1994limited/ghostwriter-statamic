@@ -18,7 +18,7 @@ import { SuggestGuide } from '../suggest/guide.js';
 import { suggestAdapter } from '../suggest/statamic.js';
 import { onEditorsChange } from '../suggest/bard.js';
 import { statamicAdapter } from '../finish/statamic.js';
-import { request } from '../stock/request.js';
+import { request, transient } from '../stock/request.js';
 
 const POLL = 3000;
 
@@ -123,6 +123,13 @@ export default {
             try {
                 data = await this.post('suggest/guide', this.payload());
             } catch (error) {
+                // A look that didn't get through while the review runs: look again, rather than wait for ever.
+                if (this.polling && transient(error)) {
+                    this.timer = setTimeout(() => (document.visibilityState === 'visible' ? this.load() : null), POLL);
+
+                    return;
+                }
+
                 if (!initial) this.guide.flash(error.message);
 
                 return;
