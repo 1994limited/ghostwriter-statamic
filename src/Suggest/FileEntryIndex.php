@@ -6,6 +6,7 @@ use DateTimeImmutable;
 use Illuminate\Support\Facades\File;
 use NineteenNinetyFour\Ghostwriter\Core\Anchor\NormalisedText;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Lock;
+use NineteenNinetyFour\Ghostwriter\Core\Revisit\Links;
 use NineteenNinetyFour\Ghostwriter\Core\Seo\LinkCandidates;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\CheckContext;
 use NineteenNinetyFour\Ghostwriter\Core\Suggest\DigestEntry;
@@ -118,7 +119,7 @@ class FileEntryIndex implements EntryIndex, LinkIndex, LinkLookup
         $site ??= Site::default()->handle();
         $locale = self::locale($site);
 
-        return LinkCandidates::rank($this->candidates($site, $text, $locale), $text, $group, $site, $except, $limit, $linked, $now, $locale);
+        return LinkCandidates::rank($this->candidates($site, $text, $locale, $except), $text, $group, $site, $except, $limit, $linked, $now, $locale);
     }
 
     /**
@@ -165,6 +166,8 @@ class FileEntryIndex implements EntryIndex, LinkIndex, LinkLookup
             $row = IndexRow::make($ref, IndexScope::Full, $row->title, $row->url, $summary, $row->type, $row->kind, $row->liveFrom, $row->liveUntil, $row->noindex, $row->key, $row->link, $row->updated, $row->published, $row->indexed, self::locale($ref->site));
         }
 
+        // Where the page links on the site, so pages linking to it rank higher for it (LinkCandidates).
+        $row = $row->withRelations(links: Links::in($context, $context->gaps->hosts)['internal']);
         $data = [...$row->withScope(IndexScope::Full)->toArray(), 'entry' => $ref->toArray(), 'title' => $title, 'url' => $url, 'paragraphs' => $paragraphs];
 
         $this->change($ref->site, $ref->group, function (array $rows) use ($ref, $data) {
@@ -313,7 +316,7 @@ class FileEntryIndex implements EntryIndex, LinkIndex, LinkLookup
         $stems = [];
 
         foreach ($this->rows($site) as $key => $row) {
-            foreach ($row->allStems() as $stem) {
+            foreach (LinkCandidates::indexKeys($row) as $stem) {
                 $stems[$stem][] = $key;
             }
         }
@@ -323,12 +326,13 @@ class FileEntryIndex implements EntryIndex, LinkIndex, LinkLookup
 
     /**
      * The rows related() scores: every row of a small site; on a big one,
-     * the rows the stem index says share a stem with the draft, and rows
-     * written since the index was.
+     * the rows the stem index says may share a stem with the draft, key
+     * pages, the page's own row (what it's filed under and links to) and
+     * rows written since the index was.
      *
      * @return iterable<IndexRow>
      */
-    private function candidates(int|string|null $site, string $text, ?string $locale): iterable
+    private function candidates(int|string|null $site, string $text, ?string $locale, ?EntryRef $except = null): iterable
     {
         $all = $this->entries($site);
         $stems = count($all) > LinkCandidates::STEM_INDEX_ABOVE ? $this->readJson(FileRevisitStore::path().'/'.self::name($site).'/'.self::STEMS) : null;
@@ -339,7 +343,7 @@ class FileEntryIndex implements EntryIndex, LinkIndex, LinkLookup
 
         $keys = [];
 
-        foreach (LinkCandidates::draftStems($text, $locale) as $stem) {
+        foreach (LinkCandidates::lookupKeys($text, $locale) as $stem) {
             foreach (is_array($stems['stems'][$stem] ?? null) ? $stems['stems'][$stem] : [] as $key) {
                 $keys[(string) $key] = true;
             }
@@ -349,7 +353,7 @@ class FileEntryIndex implements EntryIndex, LinkIndex, LinkLookup
         $rows = [];
 
         foreach ($all as $key => $data) {
-            if (isset($keys[$key]) || (string) ($data['indexed'] ?? '') > $built) {
+            if (isset($keys[$key]) || (string) ($data['indexed'] ?? '') > $built || ($data['key'] ?? false) === true || $key === $except?->key()) {
                 $row = self::rowOf($data, $site);
 
                 if ($row !== null) {
