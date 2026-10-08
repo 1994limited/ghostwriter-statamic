@@ -7,6 +7,8 @@
 import { Button, Field, Input } from '@statamic/cms/ui';
 import ExamplePicker from './ExamplePicker.vue';
 
+let count = 0;
+
 export default {
     components: { Button, ExamplePicker, Field, Input },
 
@@ -19,15 +21,18 @@ export default {
     emits: ['learn'],
 
     data() {
-        return { title: '', picked: [] };
+        count += 1;
+
+        // Field's label is tied to the box by id, so the box has an accessible name.
+        return { uid: `gw-learn-${count}`, title: '', picked: [] };
     },
 };
 </script>
 
 <template>
     <div class="space-y-5 text-start">
-        <Field :label="__('What is this kind of content called?')" :instructions="__('For example “Case study” or “Service page”. Leave blank and Ghostwriter will name it.')">
-            <Input v-model="title" :disabled="disabled" />
+        <Field :id="`${uid}-title`" :label="__('What is this kind of content called?')" :instructions="__('For example “Case study” or “Service page”. Leave blank and Ghostwriter will name it.')">
+            <Input v-model="title" :id="`${uid}-title`" :disabled="disabled" />
         </Field>
 
         <Field
