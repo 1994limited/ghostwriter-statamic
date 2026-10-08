@@ -10,6 +10,7 @@ import ghost from '../icon.js';
 import { Alert, Button, Input, Modal, Subheading, Textarea } from '@statamic/cms/ui';
 import StockCard from './StockCard.vue';
 import { previewIn } from '../stock/store.js';
+import { transient } from '../stock/request.js';
 
 export default {
     components: { Alert, Button, Input, Modal, StockCard, Subheading, Textarea },
@@ -224,11 +225,18 @@ export default {
 
             if (data.status === 'working') {
                 this.timer = setTimeout(async () => {
+                    let next;
+
                     try {
-                        this.receive((await this.$axios.get(data.status_url)).data);
+                        next = (await this.$axios.get(data.status_url)).data;
                     } catch (error) {
-                        this.fail(error);
+                        // A look that didn't get through: look again, rather than wait for ever.
+                        if (transient(error)) return this.receive(data);
+
+                        return this.fail(error);
                     }
+
+                    this.receive(next);
                 }, 2500);
             }
         },

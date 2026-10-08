@@ -27,6 +27,7 @@ import PagePreview from './PagePreview.vue';
 import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
 import { justSettled, useLabel } from '../preview/layouts.js';
+import { transient } from '../stock/request.js';
 import { pendingPins, runOutcome, toSend } from '../preview/comments.js';
 import CommentItem from './CommentItem.vue';
 
@@ -458,20 +459,25 @@ export default {
         },
 
         async load() {
+            const polling = this.learning;
+            let data;
+
             try {
-                const wasLearning = this.learning;
-                const { data } = await this.$axios.get(this.url(`collections/${this.collection}`), { params: { blueprint: this.blueprint } });
-
-                this.info = data;
-
-                if (data.state.status === 'working') {
-                    this.later(() => this.load());
-                } else {
-                    if (wasLearning && data.state.status === 'idle') this.adding = false;
-                    if (data.types.length === 1 && data.kinds.length === 0 && data.ideas.length === 0 && !this.adding && !this.session) this.choose(data.types[0]);
-                }
+                ({ data } = await this.$axios.get(this.url(`collections/${this.collection}`), { params: { blueprint: this.blueprint } }));
             } catch (error) {
-                this.fail(error);
+                // A look that didn't get through: look again, rather than wait for ever.
+                if (polling && transient(error)) return this.later(() => this.load());
+
+                return this.fail(error);
+            }
+
+            this.info = data;
+
+            if (data.state.status === 'working') {
+                this.later(() => this.load());
+            } else {
+                if (polling && data.state.status === 'idle') this.adding = false;
+                if (data.types.length === 1 && data.kinds.length === 0 && data.ideas.length === 0 && !this.adding && !this.session) this.choose(data.types[0]);
             }
         },
 
@@ -535,16 +541,26 @@ export default {
         },
 
         async open(id) {
-            try {
-                const { data } = await this.$axios.get(this.url(`sessions/${id}`));
+            // Looking again at the piece on show, while Ghostwriter works on it.
+            const polling = this.session?.id === id;
+            let data;
 
-                this.receive(data);
+            try {
+                ({ data } = await this.$axios.get(this.url(`sessions/${id}`)));
             } catch (error) {
+                // A look that didn't get through (the network changed, or
+                // the server was busy): look again, rather than wait for ever.
+                if (polling && transient(error)) return this.later(() => this.open(id));
+
                 this.fail(error);
 
                 // Gone, or not this person's: start afresh next time.
                 if (!this.session) this.$emit('session', null);
+
+                return;
             }
+
+            this.receive(data);
         },
 
         receive(data) {
