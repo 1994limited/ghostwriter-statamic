@@ -185,7 +185,37 @@ class StatamicLinkSource
             published: (bool) $item->published() && $status !== 'draft',
             indexed: now()->toAtomString(),
             locale: $this->checks->language($site),
+            terms: self::terms($item),
         );
+    }
+
+    /**
+     * The taxonomy terms an entry is filed under, as term IDs
+     * ("tags::meadows"), from its collection's taxonomies: what related
+     * pages share (LinkCandidates).
+     *
+     * @return list<string>
+     */
+    public static function terms(Entry $entry): array
+    {
+        $terms = [];
+
+        try {
+            foreach ($entry->collection()?->taxonomies() ?? [] as $taxonomy) {
+                $handle = (string) $taxonomy->handle();
+                $values = $entry->get($handle);
+
+                foreach (is_array($values) ? $values : (is_string($values) ? [$values] : []) as $slug) {
+                    if (is_string($slug) && $slug !== '') {
+                        $terms[] = str_contains($slug, '::') ? $slug : $handle.'::'.$slug;
+                    }
+                }
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        return array_values(array_unique($terms));
     }
 
     /**
@@ -305,6 +335,8 @@ class StatamicLinkSource
             published: (bool) $term->published(),
             indexed: now()->toAtomString(),
             locale: $this->checks->language($site),
+            // A term page is related to every page filed under it.
+            terms: [(string) $term->id()],
         );
     }
 

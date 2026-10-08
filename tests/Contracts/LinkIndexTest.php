@@ -98,6 +98,18 @@ final class LinkIndexTest extends TestCase
         return app(RevisitStore::class)->get($entry) !== null;
     }
 
+    public function test_a_page_linking_to_the_page_ranks_higher_for_it(): void
+    {
+        $this->saveEntry('process', 'site_pages', 'How we work', ['body' => 'Every project starts the same way. '.str_repeat('We listen, we walk the garden and we take notes. ', 3).'Read [about our studio](statamic://entry::design) first.']);
+        $process = app(FileEntryIndex::class)->row(new EntryRef('site_pages', 'process', 'default'));
+
+        $this->assertNotNull($process);
+        $this->assertContains('entry::design', $process->links, 'A full row keeps where the page links.');
+
+        $keys = array_map(fn ($entry) => $entry->entry?->key(), $this->linkIndex()->related("Opening hours\n\nClosed on Mondays.", 'site_pages', 'default', new EntryRef('site_pages', 'design', 'default')));
+        $this->assertSame('site_pages:process@default', $keys[0], 'It links to the page: first, though it shares no words.');
+    }
+
     public function test_the_addon_binds_its_own(): void
     {
         $this->assertInstanceOf(FileEntryIndex::class, $this->linkIndex());
