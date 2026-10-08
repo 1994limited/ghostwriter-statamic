@@ -22,6 +22,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Domain\Queue\Waiting;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\BriefThread;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Studio\Studio as CoreStudio;
+use NineteenNinetyFour\Ghostwriter\Core\Text\Draft;
 use NineteenNinetyFour\Ghostwriter\Http\Presenter;
 use NineteenNinetyFour\Ghostwriter\Jobs\AnalyseCollection;
 use NineteenNinetyFour\Ghostwriter\Jobs\FillBrief;
@@ -951,7 +952,7 @@ class WritingTest extends TestCase
         // The conversation records that this turn wrote the draft; the turn
         // that only asked a question recorded nothing.
         $this->assertSame('written', end($session->messages)['draft']['change']);
-        $this->assertSame(str_word_count(self::DRAFT), end($session->messages)['draft']['words']);
+        $this->assertSame(Draft::wordsIn(self::DRAFT), end($session->messages)['draft']['words']);
         $this->assertArrayNotHasKey('draft', $session->messages[1]);
         $this->assertSame('What Does a Website Cost?', $session->title());
         $this->assertSame(Session::IDLE, $session->status);
