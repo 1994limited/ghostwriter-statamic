@@ -8,6 +8,9 @@
 - Keys are kept **encrypted with APP_KEY** in the new `ghostwriter_credentials` table (`php artisan migrate`), or, without a database, in `storage/ghostwriter/credentials/credentials.json` (with its own `.gitignore`). Never in content or the settings YAML. See `docs/connections.md`.
 - Every key is read through core's `Connections` resolver, so a key set up on the page works with nothing in `.env`. **A key in `.env` or config always wins.**
 
+### Fixed
+- **Teach a kind's name box is labelled.** "What is this kind of content called?" wasn't tied to its box, so a screen reader announced an unnamed text box. The Field and the Input now share an id, as the brief card's working title does.
+
 ### Changed
 - Connect with OpenRouter's key (`storage/ghostwriter/provider-keys.json`) and Shutterstock's account tokens (`library-tokens.json`) move into the Connections store the first time Ghostwriter runs, and the old files are removed.
 - The settings screen's API keys section is now **Connections**: where each service stands, and a link to set them up. The OpenRouter row and Connect account moved to the Connections page; "add X to .env" now reads "Set up in Connections (or set X in .env)" there, in Get started and in the no-key alert. Get started's **Connect a model** step links to Connections.
