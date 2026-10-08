@@ -286,3 +286,21 @@ export function marksFor(places) {
 
 /** How long a switched-to layout's changes stay outlined, in ms. */
 export const SWITCH_HIGHLIGHT_MS = 2200;
+
+/**
+ * Whether the links or the other layouts have just come in: the piece was
+ * checking its links, or looking for layouts, and now isn't. The server
+ * reads the piece before the marks that say they're under way, and lays
+ * the results over it before clearing them, so the answer that first says
+ * they're done may still hold the piece as it was just before: the panel
+ * looks once more.
+ *
+ * @param {object|null} before  the piece as the panel had it
+ * @param {object} after  the answer just in
+ * @returns {boolean}
+ */
+export function justSettled(before, after) {
+    if (!before || before.id !== after?.id) return false;
+
+    return Boolean((before.seo?.checking && !after.seo?.checking) || (before.layouts?.planning && !after.layouts?.planning));
+}

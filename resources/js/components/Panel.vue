@@ -26,7 +26,7 @@ import { linkKey } from '../finish/linkkeys.js';
 import PagePreview from './PagePreview.vue';
 import LearnForm from './LearnForm.vue';
 import SetupAlert from './SetupAlert.vue';
-import { useLabel } from '../preview/layouts.js';
+import { justSettled, useLabel } from '../preview/layouts.js';
 import { pendingPins, runOutcome, toSend } from '../preview/comments.js';
 import CommentItem from './CommentItem.vue';
 
@@ -583,6 +583,9 @@ export default {
             }
 
             const opened = data.id !== this.session?.id;
+            // The links or the other layouts have just come in: this answer
+            // may hold the piece as it was just before, so look once more.
+            const settled = justSettled(this.session, data);
 
             this.session = data;
 
@@ -600,7 +603,7 @@ export default {
             const drawing = (data.images ?? []).some((image) => image.status === 'working');
 
             // The SEO pass, then the planner, may still be at work after the draft lands.
-            if (data.status === 'working' || drawing || data.layouts?.planning || data.seo?.checking || data.search?.writing) this.later(() => this.open(data.id));
+            if (data.status === 'working' || drawing || data.layouts?.planning || data.seo?.checking || data.search?.writing || settled) this.later(() => this.open(data.id));
 
             // Try again in the Search section has finished.
             if (wroteAnother) this.announce(data.search?.failed ?? this.__('Search title and description written again.'));

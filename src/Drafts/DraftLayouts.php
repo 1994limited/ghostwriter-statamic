@@ -162,22 +162,35 @@ class DraftLayouts
             }
 
             $written = $copy->draft;
-            $usage = $this->layouts->afterWriter($copy, null, $response, $conversation, $writer, $this->withMeta($this->withLinks($site, $copy, $writer), $copy, $writer), function (string $stage) use ($sessionId) {
+            $checking = false;
+            $laid = false;
+            $usage = $this->layouts->afterWriter($copy, null, $response, $conversation, $writer, $this->withMeta($this->withLinks($site, $copy, $writer), $copy, $writer), function (string $stage) use ($sessionId, $copy, $written, &$checking, &$laid) {
                 if ($stage === SeoPass::CHECKING) {
+                    $checking = true;
                     self::checking($sessionId);
-                } else {
+
+                    return;
+                }
+
+                // The links are in: laid over the piece before it is marked
+                // usable, so the draft used while the planner works has them.
+                if ($checking) {
+                    $laid = $this->layLinks($sessionId, $copy, $written);
                     self::checked($sessionId);
                 }
             });
 
-            $this->sessions->change($sessionId, function (Session $latest) use ($copy, $usage, $site, $written, $writer) {
+            $this->sessions->change($sessionId, function (Session $latest) use ($copy, $usage, $site, $written, $writer, $laid) {
                 $latest->extras = $copy->extras;
 
                 // The SEO pass's links are the draft's own, unless it was
                 // edited meanwhile (it isn't usable until they're in). The
                 // search title, description and address are kept either
-                // way, with what was written into the entry before.
-                if ($latest->draft === $written) {
+                // way, with what was written into the entry before. Laid
+                // already when the planner started, and the editor's since.
+                if ($laid) {
+                    // Nothing to lay.
+                } elseif ($latest->draft === $written) {
                     $latest->draft = $copy->draft;
                     $latest->seo = $copy->seo;
                 } elseif ($copy->seo !== []) {
@@ -192,6 +205,37 @@ class DraftLayouts
             self::checked($sessionId);
             self::planned($sessionId);
         }
+    }
+
+    /**
+     * The SEO pass's links (and headings, search title and description)
+     * laid over the piece as soon as they're in, before the planner's call:
+     * the draft, its SEO state, and the units and layouts that follow from
+     * it, if its draft is still the one they started from. False when it
+     * isn't (a new message was sent meanwhile); the end of plan() then
+     * lays what it can, as before.
+     */
+    private function layLinks(string $sessionId, Session $copy, ?string $written): bool
+    {
+        $laid = false;
+
+        try {
+            $this->sessions->change($sessionId, function (Session $latest) use ($copy, $written, &$laid) {
+                if ($latest->draft !== $written) {
+                    return;
+                }
+
+                $latest->draft = $copy->draft;
+                $latest->seo = $copy->seo;
+                $latest->units = $copy->units;
+                $latest->plans = $copy->plans;
+                $laid = true;
+            });
+        } catch (Throwable $exception) {
+            $this->log($exception);
+        }
+
+        return $laid;
     }
 
     /**
