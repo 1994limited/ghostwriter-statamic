@@ -302,7 +302,12 @@ class SessionController
      */
     public function apply(Request $request, string $session, DraftValues $values, EntryGaps $gaps, DraftLayouts $layouts): JsonResponse
     {
+        // Read before the piece: its links are laid over it before the mark
+        // is cleared, so a piece read after the mark is gone has them.
+        $checking = DraftLayouts::isChecking($session);
         $session = $this->session($session);
+
+        abort_if($checking, 409, 'Ghostwriter is still checking the links.');
         $type = $this->type($session->kind)->forSession($session);
         $this->parsedDraft($session);
 

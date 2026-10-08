@@ -1,7 +1,7 @@
 // The layout cards' and extras' logic, in Node with no DOM: node --test resources/js/preview/*.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardName, cardsFor, changesText, keysForPlaces, marksFor, compareRemembered, rememberCompare, changed, extraPayload, isStat, moveTo, partLabel, sharedStart, startBlock, thumbOrder, thumbScale, useLabel } from './layouts.js';
+import { cardName, cardsFor, changesText, justSettled, keysForPlaces, marksFor, compareRemembered, rememberCompare, changed, extraPayload, isStat, moveTo, partLabel, sharedStart, startBlock, thumbOrder, thumbScale, useLabel } from './layouts.js';
 
 const plans = [
     { id: 'w', name: 'As written', description: 'The writer’s own layout', blocks: 3, suggested: false, stale: false, writer: true, outline: ['Hero', 'Text', 'Call to action'] },
@@ -174,4 +174,15 @@ test('the places a layout changed are found in the render’s block map', () => 
 test('in Blocks and Text, a layout’s places are its blocks, or whole fields', () => {
     assert.deepEqual(marksFor([{ field: 'page_builder', block: 2, section: 1 }, { field: 'page_builder', block: 2, section: 0 }, { field: 'body', block: null, section: 4 }]), { fields: ['body'], blocks: { page_builder: [2] } });
     assert.deepEqual(marksFor(null), { fields: [], blocks: {} });
+});
+
+test('the panel looks once more when the links or the other layouts have just come in', () => {
+    const piece = (checking, planning, id = 's1') => ({ id, seo: { checking }, layouts: { planning } });
+
+    assert.equal(justSettled(piece(true, true), piece(false, true)), true, 'links in');
+    assert.equal(justSettled(piece(false, true), piece(false, false)), true, 'layouts in');
+    assert.equal(justSettled(piece(false, false), piece(false, false)), false, 'nothing under way');
+    assert.equal(justSettled(piece(true, true), piece(true, true)), false, 'still under way');
+    assert.equal(justSettled(piece(true, true), piece(false, false, 's2')), false, 'another piece');
+    assert.equal(justSettled(null, piece(false, false)), false, 'first opened');
 });

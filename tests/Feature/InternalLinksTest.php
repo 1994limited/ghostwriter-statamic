@@ -107,6 +107,56 @@ final class InternalLinksTest extends TestCase
         ]);
     }
 
+    public function test_the_links_are_on_the_piece_before_it_is_usable_while_the_planner_works(): void
+    {
+        $session = $this->startedSession();
+        $planning = null;
+        $applied = null;
+
+        $this->ai->respond('writer', "<reply>Here it is.</reply>\n<draft>\n".self::DRAFT."\n</draft>");
+        $this->ai->respondStructured('seo-editor', ['notes' => '…', 'links' => [['unit' => 'u3', 'exact' => 'tell us about your garden', 'prefix' => '', 'target' => 'e1', 'hint' => '', 'why' => '…']]]);
+        $this->ai->respondStructured('seo-verifier', ['verdicts' => [['notes' => '…', 'id' => 'l1', 'verdict' => 'keep', 'reason' => '…']]]);
+        $this->ai->respond('layout-planner', function () use ($session, &$planning, &$applied) {
+            // "Finding other layouts…": the draft can be used, and it has its links.
+            $planning = app(Presenter::class)->detail($this->sessions()->find($session->id));
+            $applied = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->assertOk()->json();
+
+            return json_encode(['plans' => []]);
+        });
+
+        $this->runJob(new RunSessionTurn($session->id));
+
+        $this->assertNotNull($planning, 'The planner was asked.');
+        $this->assertTrue($planning['layouts']['planning']);
+        $this->assertFalse($planning['seo']['checking']);
+        $this->assertStringContainsString('[tell us about your garden](statamic://entry::contact)', (string) $planning['draft']);
+        $this->assertSame('I linked to one of your pages: Contact us.', $planning['seo']['notice']);
+        $this->assertStringContainsString('statamic://entry::contact', json_encode($applied['values'], JSON_UNESCAPED_SLASHES), 'Used while the planner works, the draft has its links.');
+
+        // Laid once: still there when the planner's answer is in.
+        $session = $this->sessions()->find($session->id);
+        $this->assertStringContainsString('[tell us about your garden](statamic://entry::contact)', (string) $session->draft);
+        $this->assertCount(1, SeoState::of($session)->links);
+    }
+
+    public function test_use_this_draft_is_refused_while_the_links_are_checked(): void
+    {
+        $session = $this->startedSession();
+        $refused = null;
+
+        $this->ai->respond('writer', "<reply>Here it is.</reply>\n<draft>\n".self::DRAFT."\n</draft>");
+        $this->ai->respond('seo-editor', function () use ($session, &$refused) {
+            $refused = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['values' => []])->status();
+
+            return json_encode(['notes' => '…', 'links' => []]);
+        });
+        $this->ai->respondStructured('layout-planner', ['plans' => []]);
+
+        $this->runJob(new RunSessionTurn($session->id));
+
+        $this->assertSame(409, $refused);
+    }
+
     public function test_remove_link_keeps_the_words_and_nothing_else_changes(): void
     {
         $session = $this->startedSession();
