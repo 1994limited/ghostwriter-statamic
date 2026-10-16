@@ -24,24 +24,28 @@ use NineteenNinetyFour\Ghostwriter\Http\Controllers\SuggestController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\TypeController;
 use NineteenNinetyFour\Ghostwriter\Http\Controllers\VoiceController;
 use NineteenNinetyFour\Ghostwriter\Http\Middleware\AuthorizeGhostwriter;
+use NineteenNinetyFour\Ghostwriter\ServiceProvider;
 
-Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwriter::class)->group(function () {
+// Routes that start work calling a model are rate limited per person.
+$model = 'throttle:'.ServiceProvider::RATE_LIMITER;
+
+Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwriter::class)->group(function () use ($model) {
     Route::get('/', DashboardController::class)->name('index');
 
     Route::get('setup', [SetupController::class, 'show'])->name('setup.show');
     Route::get('setup/status', [SetupController::class, 'status'])->name('setup.status');
     Route::post('setup/hide', [SetupController::class, 'hide'])->name('setup.hide');
-    Route::post('setup/collections', [SetupController::class, 'collections'])->name('setup.collections');
+    Route::post('setup/collections', [SetupController::class, 'collections'])->name('setup.collections')->middleware($model);
 
     Route::get('voice', [VoiceController::class, 'show'])->name('voice.show');
     Route::get('voice/status', [VoiceController::class, 'status'])->name('voice.status');
-    Route::post('voice/scan', [VoiceController::class, 'scan'])->name('voice.scan');
+    Route::post('voice/scan', [VoiceController::class, 'scan'])->name('voice.scan')->middleware($model);
     Route::patch('voice', [VoiceController::class, 'update'])->name('voice.update');
-    Route::post('voice/refine', [VoiceController::class, 'refine'])->name('voice.refine');
+    Route::post('voice/refine', [VoiceController::class, 'refine'])->name('voice.refine')->middleware($model);
 
     Route::post('finish/check', [FinishController::class, 'check'])->name('finish.check');
-    Route::post('finish/fill', [FinishController::class, 'fill'])->name('finish.fill');
-    Route::post('finish/links', [FinishController::class, 'links'])->name('finish.links');
+    Route::post('finish/fill', [FinishController::class, 'fill'])->name('finish.fill')->middleware($model);
+    Route::post('finish/links', [FinishController::class, 'links'])->name('finish.links')->middleware($model);
     Route::get('finish/links/{token}', [FinishController::class, 'linksStatus'])->name('finish.links.status');
     Route::post('finish/guide', [FinishController::class, 'guide'])->name('finish.guide');
 
@@ -49,21 +53,21 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('revisit/snooze', [RevisitController::class, 'snooze'])->name('revisit.snooze');
 
     Route::post('suggest/guide', [SuggestController::class, 'guide'])->name('suggest.guide');
-    Route::post('suggest/start', [SuggestController::class, 'start'])->name('suggest.start');
+    Route::post('suggest/start', [SuggestController::class, 'start'])->name('suggest.start')->middleware($model);
     Route::post('suggest/{review}/decide', [SuggestController::class, 'decide'])->name('suggest.decide');
-    Route::post('suggest/{review}/another', [SuggestController::class, 'another'])->name('suggest.another');
+    Route::post('suggest/{review}/another', [SuggestController::class, 'another'])->name('suggest.another')->middleware($model);
     Route::post('suggest/{review}/alt', [SuggestController::class, 'alt'])->name('suggest.alt');
     Route::post('suggest/{review}/unalt', [SuggestController::class, 'unalt'])->name('suggest.unalt');
 
     Route::get('images/tools', [ImagesController::class, 'tools'])->name('images.tools');
-    Route::post('images', [ImagesController::class, 'start'])->name('images.start');
+    Route::post('images', [ImagesController::class, 'start'])->name('images.start')->middleware($model);
     Route::get('images/{id}', [ImagesController::class, 'status'])->name('images.status');
     Route::get('images/{id}/preview', [ImagesController::class, 'preview'])->name('images.preview');
     Route::post('images/{id}/use', [ImagesController::class, 'use'])->name('images.use');
 
     Route::get('connections', [ConnectionsController::class, 'show'])->name('connections.show');
     Route::get('connections/status', [ConnectionsController::class, 'status'])->name('connections.status');
-    Route::post('connections/{service}', [ConnectionsController::class, 'save'])->name('connections.save');
+    Route::post('connections/{service}', [ConnectionsController::class, 'save'])->name('connections.save')->middleware($model);
     Route::post('connections/{service}/disconnect', [ConnectionsController::class, 'disconnect'])->name('connections.disconnect');
 
     Route::get('libraries/{library}/connect', [LibraryConnectionController::class, 'connect'])->name('libraries.connect');
@@ -72,8 +76,8 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::get('providers/{provider}/connect', [ProviderConnectionController::class, 'connect'])->name('providers.connect');
     Route::get('providers/{provider}/callback', [ProviderConnectionController::class, 'callback'])->name('providers.callback');
     Route::post('providers/{provider}/disconnect', [ProviderConnectionController::class, 'disconnect'])->name('providers.disconnect');
-    Route::post('providers/{provider}/check', [ProviderConnectionController::class, 'check'])->name('providers.check');
-    Route::post('stock/libraries/{library}/check', [StockController::class, 'check'])->name('stock.check');
+    Route::post('providers/{provider}/check', [ProviderConnectionController::class, 'check'])->name('providers.check')->middleware($model);
+    Route::post('stock/libraries/{library}/check', [StockController::class, 'check'])->name('stock.check')->middleware($model);
     Route::get('stock', [StockLedgerController::class, 'show'])->name('stock.index');
     Route::get('stock/export.csv', [StockLedgerController::class, 'csv'])->name('stock.csv');
     Route::get('stock/{id}/record', [StockLedgerController::class, 'record'])->name('stock.record');
@@ -91,7 +95,7 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
 
     Route::get('plan', [PlanController::class, 'show'])->name('plan.show');
     Route::get('plan/status', [PlanController::class, 'status'])->name('plan.status');
-    Route::post('plan/suggest', [PlanController::class, 'suggest'])->name('plan.suggest');
+    Route::post('plan/suggest', [PlanController::class, 'suggest'])->name('plan.suggest')->middleware($model);
     Route::post('plan/ideas', [PlanController::class, 'store'])->name('plan.store');
     Route::post('plan/accept', [PlanController::class, 'accept'])->name('plan.accept');
     Route::delete('plan/ideas', [PlanController::class, 'clear'])->name('plan.clear');
@@ -100,32 +104,32 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
 
     Route::get('imagery', [ImageryController::class, 'show'])->name('imagery.show');
     Route::get('imagery/status', [ImageryController::class, 'status'])->name('imagery.status');
-    Route::post('imagery/scan', [ImageryController::class, 'scan'])->name('imagery.scan');
+    Route::post('imagery/scan', [ImageryController::class, 'scan'])->name('imagery.scan')->middleware($model);
     Route::patch('imagery', [ImageryController::class, 'update'])->name('imagery.update');
 
     // Used by the panel that opens on an entry's publish form.
-    Route::post('kinds/suggest', [CollectionController::class, 'suggestKindsEverywhere'])->name('kinds.suggest_all');
+    Route::post('kinds/suggest', [CollectionController::class, 'suggestKindsEverywhere'])->name('kinds.suggest_all')->middleware($model);
     Route::get('collections/{collection}', [CollectionController::class, 'show'])->name('collections.show');
     Route::get('collections/{collection}/kinds', [CollectionController::class, 'kinds'])->name('kinds.show');
-    Route::post('collections/{collection}/kinds/suggest', [CollectionController::class, 'suggestKinds'])->name('kinds.suggest');
-    Route::post('collections/{collection}/kinds/learn-all', [CollectionController::class, 'learnAllKinds'])->name('kinds.learn_all');
-    Route::post('collections/{collection}/kinds/{id}/learn', [CollectionController::class, 'learnKind'])->name('kinds.learn');
+    Route::post('collections/{collection}/kinds/suggest', [CollectionController::class, 'suggestKinds'])->name('kinds.suggest')->middleware($model);
+    Route::post('collections/{collection}/kinds/learn-all', [CollectionController::class, 'learnAllKinds'])->name('kinds.learn_all')->middleware($model);
+    Route::post('collections/{collection}/kinds/{id}/learn', [CollectionController::class, 'learnKind'])->name('kinds.learn')->middleware($model);
     Route::post('collections/{collection}/kinds/{id}/dismiss', [CollectionController::class, 'dismissKind'])->name('kinds.dismiss');
-    Route::post('collections/{collection}/analyse', [CollectionController::class, 'analyse'])->name('collections.analyse');
+    Route::post('collections/{collection}/analyse', [CollectionController::class, 'analyse'])->name('collections.analyse')->middleware($model);
 
     Route::get('types/{type}', [TypeController::class, 'edit'])->name('types.edit');
     Route::patch('types/{type}', [TypeController::class, 'update'])->name('types.update');
     Route::delete('types/{type}', [TypeController::class, 'destroy'])->name('types.destroy');
 
     Route::post('entries/{entry}/session', [EntryController::class, 'session'])->name('entries.session');
-    Route::post('types/{type}/sessions', [SessionController::class, 'store'])->name('sessions.store');
+    Route::post('types/{type}/sessions', [SessionController::class, 'store'])->name('sessions.store')->middleware($model);
     Route::get('sessions/{session}', [SessionController::class, 'show'])->name('sessions.show');
     Route::get('sessions/{session}/open', [SessionController::class, 'open'])->name('sessions.open');
-    Route::post('sessions/{session}/messages', [SessionController::class, 'message'])->name('sessions.message');
-    Route::post('sessions/{session}/answers', [SessionController::class, 'answers'])->name('sessions.answers');
-    Route::post('sessions/{session}/retry', [SessionController::class, 'retry'])->name('sessions.retry');
-    Route::post('sessions/{session}/brief/try-again', [SessionController::class, 'tryAgain'])->name('sessions.brief.try_again');
-    Route::post('sessions/{session}/brief/agree', [SessionController::class, 'agree'])->name('sessions.brief.agree');
+    Route::post('sessions/{session}/messages', [SessionController::class, 'message'])->name('sessions.message')->middleware($model);
+    Route::post('sessions/{session}/answers', [SessionController::class, 'answers'])->name('sessions.answers')->middleware($model);
+    Route::post('sessions/{session}/retry', [SessionController::class, 'retry'])->name('sessions.retry')->middleware($model);
+    Route::post('sessions/{session}/brief/try-again', [SessionController::class, 'tryAgain'])->name('sessions.brief.try_again')->middleware($model);
+    Route::post('sessions/{session}/brief/agree', [SessionController::class, 'agree'])->name('sessions.brief.agree')->middleware($model);
     Route::patch('sessions/{session}/brief', [SessionController::class, 'editBrief'])->name('sessions.brief.update');
     Route::patch('sessions/{session}/field', [SessionController::class, 'editField'])->name('sessions.field');
     Route::patch('sessions/{session}/draft', [SessionController::class, 'draft'])->name('sessions.draft');
@@ -135,14 +139,14 @@ Route::prefix('ghostwriter')->name('ghostwriter.')->middleware(AuthorizeGhostwri
     Route::post('sessions/{session}/preview', [PreviewController::class, 'store'])->name('sessions.preview');
     Route::post('sessions/{session}/preview/outline', [PreviewController::class, 'outline'])->name('sessions.preview.outline');
     Route::patch('sessions/{session}/layout', [LayoutsController::class, 'choose'])->name('sessions.layout');
-    Route::post('sessions/{session}/layouts/refresh', [LayoutsController::class, 'refresh'])->name('sessions.layouts.refresh');
+    Route::post('sessions/{session}/layouts/refresh', [LayoutsController::class, 'refresh'])->name('sessions.layouts.refresh')->middleware($model);
     Route::patch('sessions/{session}/extras/{item}', [LayoutsController::class, 'editExtra'])->name('sessions.extras.update');
     Route::delete('sessions/{session}/extras/{item}', [LayoutsController::class, 'deleteExtra'])->name('sessions.extras.destroy');
     Route::post('sessions/{session}/links/remove', [LayoutsController::class, 'removeLink'])->name('sessions.links.remove');
     Route::patch('sessions/{session}/search', [LayoutsController::class, 'editSearch'])->name('sessions.search.update');
     Route::post('sessions/{session}/search/use', [LayoutsController::class, 'useSearch'])->name('sessions.search.use');
-    Route::post('sessions/{session}/search/try-again', [LayoutsController::class, 'retrySearch'])->name('sessions.search.try_again');
-    Route::post('sessions/{session}/comments/apply', [CommentsController::class, 'apply'])->name('sessions.comments.apply');
+    Route::post('sessions/{session}/search/try-again', [LayoutsController::class, 'retrySearch'])->name('sessions.search.try_again')->middleware($model);
+    Route::post('sessions/{session}/comments/apply', [CommentsController::class, 'apply'])->name('sessions.comments.apply')->middleware($model);
     Route::post('sessions/{session}/comments/{answer}/{number}/resolve', [CommentsController::class, 'resolve'])->whereNumber(['answer', 'number'])->name('sessions.comments.resolve');
     Route::post('sessions/{session}/comments/{answer}/{number}/put-back', [CommentsController::class, 'putBack'])->whereNumber(['answer', 'number'])->name('sessions.comments.put_back');
     Route::post('sessions/{session}/entry', [SessionController::class, 'entry'])->name('sessions.entry');

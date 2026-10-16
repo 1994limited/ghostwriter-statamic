@@ -16,6 +16,7 @@ use NineteenNinetyFour\Ghostwriter\Stock\Licensing;
 use NineteenNinetyFour\Ghostwriter\Stock\StockPresenter;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
+use Statamic\Facades\User;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -142,6 +143,9 @@ class StockLedgerController
     public function remove(string $id, CompStore $comps): JsonResponse
     {
         $image = $this->images->find($id) ?? abort(404);
+
+        // The stand-in is an asset like any other: deleting it is for those who may delete in its container.
+        abort_unless(User::current()?->can("delete {$image->asset->volume} assets"), 403, __('You don\'t have permission to delete assets in this container.'));
 
         abort_unless($image->is(StockImage::PREVIEW) || $image->is(StockImage::FAILED), 422, __('Only a preview can be removed.'));
         abort_if($image->usages() !== [], 422, __('A page still uses this preview. Take it out of the page first, then remove it.'));

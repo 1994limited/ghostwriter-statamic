@@ -144,6 +144,8 @@ When an entry is saved as published (now, or on a future date), publishing a wor
 
 ![A count to check refused on publishing, by its field](images/finish-check-publish.png)
 
+This applies to what's published in the Control Panel, in the collections Ghostwriter writes for. Elsewhere it holds back only a stock photo previewed but not licensed. Saves made outside the Control Panel (console commands, imports, queued jobs, other addons' code) are never refused.
+
 Saving it unpublished always works, and drafts Ghostwriter writes start unpublished (see [Use this draft](writing.md#use-this-draft)). Markers are never removed silently: a sentence with its fact cut out reads worse than one that plainly needs it.
 
 Set **When a page with something unfinished is published** (Ghostwriter → Settings → Finish this page) to **Warn**, or `GHOSTWRITER_ON_UNFINISHED_PUBLISH=warn`, to publish with one warning naming everything instead. Visible `[[ask: …]]` text then goes live, so Block is the default.

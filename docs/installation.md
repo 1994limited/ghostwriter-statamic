@@ -22,7 +22,7 @@ From your project's root:
 composer require 1994/ghostwriter-statamic
 ```
 
-This also installs `1994/ghostwriter-core` (`^1.0`) from Packagist: the part Ghostwriter shares with its Filament and Craft versions. No extra repository is needed.
+This also installs `1994/ghostwriter-core` (`^1.9`) from Packagist: the part Ghostwriter shares with its Filament and Craft versions. No extra repository is needed.
 
 Ghostwriter doesn't use the Laravel AI SDK (`laravel/ai`). It has its own connection to Anthropic, OpenAI and Gemini, and doesn't read `config/ai.php`, except that a key still set there is used when the matching `.env` variable is empty. If `config/ai.php` was only there for Ghostwriter, you can delete it.
 
@@ -36,7 +36,15 @@ Add that line to your deploy script after `composer install`, so the assets reac
 
 ## Add your API key
 
-Set up the key for your provider under **Tools → Ghostwriter → Connections**: open the provider's page, make a key, paste it, **Check & save**. Or add it to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-...`, which always wins. Run `php artisan migrate` once so Connections keeps keys in your database (without a database they are kept in an encrypted file). See [API keys](api-keys.md) for every key Ghostwriter can use, and [Connections](connections.md).
+First run the migration, which makes the one table Ghostwriter adds, `ghostwriter_credentials`, where keys set up in Connections are kept, encrypted with your `APP_KEY`:
+
+```bash
+php artisan migrate
+```
+
+A site without a database can skip this: the keys are kept in an encrypted file, `storage/ghostwriter/credentials/credentials.json`, instead.
+
+Then set up the key for your provider under **Tools → Ghostwriter → Connections**: open the provider's page, make a key, paste it, **Check & save**. Or add it to `.env`, for example `ANTHROPIC_API_KEY=sk-ant-...`, which always wins. If `APP_KEY` ever changes, keys kept in Connections can't be read any more: set them up again. See [API keys](api-keys.md) for every key Ghostwriter can use, and [Connections](connections.md).
 
 ## Who can use it
 
@@ -67,6 +75,21 @@ php artisan queue:restart
 
 A running worker keeps the old code until it restarts, hence the last line. See the [changelog](../CHANGELOG.md) for what changed.
 
+### Upgrading from 1.2 to 1.3
+
+```bash
+composer update 1994/ghostwriter-statamic 1994/ghostwriter-core
+php artisan vendor:publish --tag=ghostwriter-statamic --force
+php artisan migrate
+php artisan ghostwriter:revisit --full
+php artisan queue:restart
+```
+
+- **Assets.** The Control Panel assets changed: publish them again with `--force`, as above.
+- **Migration.** 1.3 adds one table, `ghostwriter_credentials`, for keys set up in the new **Connections** screen. Without a database, skip `migrate`: keys are kept in an encrypted file instead.
+- **Keys move into Connections by themselves.** Keys in `.env` keep working and still win. The key from Connect with OpenRouter (`storage/ghostwriter/provider-keys.json`) and the Shutterstock account (`library-tokens.json`) are moved into Connections the first time Ghostwriter runs, and the old files removed. They're encrypted with `APP_KEY`, so keep it the same between deploys.
+- **Content to revisit.** `ghostwriter:revisit --full` reads every page once, so the new list is complete straight away. Otherwise it fills in over the daily pass.
+
 ### From 1.0 to 1.1
 
 Nothing to migrate.
@@ -83,6 +106,6 @@ Nothing to migrate.
 composer remove 1994/ghostwriter-statamic
 ```
 
-Ghostwriter adds no database tables. Its guides, kinds and plan stay in `resources/ghostwriter/`, its settings in `resources/addons/ghostwriter-statamic.yaml`, and its working files in `storage/ghostwriter/`, until you delete them. Assets it saved stay in your containers: photos, made images and the striped placeholder.
+Its one table, `ghostwriter_credentials`, stays until you drop it. Its guides, kinds and plan stay in `resources/ghostwriter/`, its settings in `resources/addons/ghostwriter-statamic.yaml`, and its working files in `storage/ghostwriter/`, until you delete them. Assets it saved stay in your containers: photos, made images and the striped placeholder.
 
 Next: [Get started](getting-started.md).

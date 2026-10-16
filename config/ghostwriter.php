@@ -29,6 +29,10 @@ return [
     // jobs are given three times this, plus a minute. Set here only.
     'timeout' => (int) env('GHOSTWRITER_TIMEOUT', 300),
 
+    // How many times a minute each person may start work that calls a
+    // model (a draft, a scan, a check). 0 turns the limit off.
+    'rate_limit' => (int) env('GHOSTWRITER_RATE_LIMIT', 30),
+
     // With OpenRouter: the model for each tier, by OpenRouter id, such as
     // "anthropic/claude-opus-5.5". "writing" is the writer, briefs, guides
     // and planning; "quick" is choosing photos and filling a gap. Null uses

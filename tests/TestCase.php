@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Tests;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
@@ -317,11 +318,20 @@ abstract class TestCase extends AddonTestCase
     }
 
     /** What a writer may do, Ghostwriter aside: the Statamic permissions the tests lean on. */
-    protected const WRITER_PERMISSIONS = ['view suggest_pages entries', 'edit suggest_pages entries', 'view articles entries', 'edit articles entries', 'create articles entries', 'edit other authors articles entries', 'view pages entries', 'edit pages entries', 'create pages entries', 'view stories entries', 'edit stories entries', 'create stories entries', 'upload assets assets'];
+    protected const WRITER_PERMISSIONS = ['view suggest_pages entries', 'edit suggest_pages entries', 'view articles entries', 'edit articles entries', 'create articles entries', 'edit other authors articles entries', 'view pages entries', 'edit pages entries', 'create pages entries', 'view stories entries', 'edit stories entries', 'create stories entries', 'view posts entries', 'edit posts entries', 'create posts entries', 'upload assets assets'];
 
     protected function signIn(bool $permitted = true): \Statamic\Contracts\Auth\User
     {
         return $this->signInWith($permitted ? ['access ghostwriter', ...self::WRITER_PERMISSIONS] : []);
+    }
+
+    /**
+     * Code from here on runs as in a Control Panel request (what
+     * Statamic::isCpRoute() asks), as the publish guard needs.
+     */
+    protected function inControlPanel(string $path = 'collections'): void
+    {
+        $this->app->instance('request', Request::create('/'.config('statamic.cp.route', 'cp').'/'.$path, 'PATCH'));
     }
 
     /**

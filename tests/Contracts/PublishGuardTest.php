@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Tests\Contracts;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
@@ -64,6 +65,10 @@ final class PublishGuardTest extends TestCase
                 ['handle' => 'image', 'field' => ['type' => 'assets', 'container' => 'assets', 'max_files' => 1, 'display' => 'Image', 'folder' => 'covers']],
             ]])->save();
         }
+
+        // Statamic's guard holds back what's published in the Control
+        // Panel: these saves are made as from a request there.
+        $this->inControlPanel();
 
         $this->signInWith(['access ghostwriter', 'license stock images', 'publish stories entries', ...self::WRITER_PERMISSIONS, 'view events entries', 'edit events entries', 'create events entries']);
         Entry::make()->id('host')->collection('stories')->slug('host')->published(false)->data(['title' => 'Host'])->save();
@@ -141,6 +146,53 @@ final class PublishGuardTest extends TestCase
     {
         $this->guardMode(OnPublish::Block);
         $outcome = $this->guardPublish($this->guardEntry('Read [the old page](statamic://entry::gone) first.'));
+
+        $this->assertFalse($outcome->saved);
+        $this->assertStringContainsString('deleted', $outcome->errorText());
+    }
+
+    public function test_a_collection_ghostwriter_doesnt_write_for_publishes_with_a_link_to_a_page_thats_gone(): void
+    {
+        $this->guardMode(OnPublish::Block);
+        config(['ghostwriter.collections' => ['stories']]);
+
+        $outcome = $this->guardPublish($this->guardEntry('Read [the old page](statamic://entry::gone) first. [[ask: price]]', collection: 'events'));
+
+        $this->assertTrue($outcome->saved, json_encode($outcome->errors) ?: '');
+        $this->assertSame([], $outcome->warnings);
+    }
+
+    public function test_a_collection_ghostwriter_doesnt_write_for_still_holds_back_an_unlicensed_stock_preview(): void
+    {
+        $this->guardMode(OnPublish::Block);
+        $preview = $this->stockPreview();
+        config(['ghostwriter.collections' => ['stories']]);
+
+        $outcome = $this->guardPublish($this->guardEntry('Read [the old page](statamic://entry::gone) first.', collection: 'events')->set('image', $preview));
+
+        $this->assertFalse($outcome->saved);
+        $this->assertSame(['image'], array_keys($outcome->errors));
+    }
+
+    public function test_a_save_outside_the_control_panel_is_never_held_back(): void
+    {
+        $this->guardMode(OnPublish::Block);
+        $this->app->instance('request', Request::create('/'));
+
+        $outcome = $this->guardPublish($this->guardEntry('Read [the old page](statamic://entry::gone) first. Tickets cost [[ask: adult ticket price]].'));
+
+        $this->assertTrue($outcome->saved, json_encode($outcome->errors) ?: '');
+        $this->assertSame([], $outcome->warnings);
+    }
+
+    public function test_the_publish_form_in_a_collection_ghostwriter_writes_for_is_still_refused(): void
+    {
+        $this->guardMode(OnPublish::Block);
+        config(['ghostwriter.collections' => ['stories']]);
+        $draft = $this->guardEntry('Read [the old page](statamic://entry::gone) first.');
+        $draft->save();
+
+        $outcome = $this->form($draft);
 
         $this->assertFalse($outcome->saved);
         $this->assertStringContainsString('deleted', $outcome->errorText());

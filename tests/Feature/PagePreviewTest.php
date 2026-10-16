@@ -184,6 +184,13 @@ final class PagePreviewTest extends TestCase
         // Not a super user: no exception class or file.
         $this->assertStringNotContainsString('CollectionNotFoundException', (string) $response->getContent());
         $this->assertSame('SAMEORIGIN', $response->headers->get('X-Frame-Options'));
+
+        // Anyone else holding the link gets a plain line, not the exception's words.
+        auth()->logout();
+        $stranger = $this->get($this->path($preview['url']));
+        $stranger->assertStatus(500);
+        $this->assertStringNotContainsString('no_such_collection', (string) $stranger->getContent());
+        $this->assertStringContainsString('The page template ran into an error.', (string) $stranger->getContent());
     }
 
     public function test_statamics_own_live_preview_is_left_alone(): void
