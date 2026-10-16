@@ -46,6 +46,15 @@
 .dark .gw-editable:focus { @apply bg-gray-900; }
 
 /*
+    Overview tiles: every value sits in the same line box, so "Written" lines
+    up with "7 ideas waiting". The words set the line (and so the baseline);
+    the bigger number shares that baseline at line-height 1, so it can't push
+    the row down.
+*/
+.gw-tile-value { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.25rem; min-height: 1.75rem; line-height: 1.75rem; }
+.gw-tile-value__number { font-size: 1.25rem; line-height: 1; }
+
+/*
     A layout just switched to: what it changes is outlined in Blocks and
     Text, fading out over about two seconds (a still outline, then gone,
     under reduced motion), as the Preview's overlay does on the page.
