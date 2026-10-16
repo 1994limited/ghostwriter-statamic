@@ -6,7 +6,7 @@ This page covers the settings screen, `config/ghostwriter.php`, where Ghostwrite
 
 **Ghostwriter → Settings** (`/cp/addons/ghostwriter-statamic/settings`), for [managers](permissions.md#managing-ghostwriter) only:
 
-![The settings screen, showing API keys and the AI provider](images/settings.png)
+![The settings screen: the collections Ghostwriter writes for and learns from, Get started and kinds, and the start of the Connections summary](images/settings.png)
 
 | Setting | What it does |
 | --- | --- |
