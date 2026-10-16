@@ -119,7 +119,8 @@ class StockPublishTest extends TestCase
         $this->postJson(cp_route('ghostwriter.stock.request', $preview['id']))->assertOk();
         $this->assertSame($preview['id'], $this->get(cp_route('ghostwriter.stock.index'))->viewData('page')['props']['records'][0]['id']);
 
-        // A preview in use can't be removed; one unused can.
+        // A preview in use can't be removed, even by someone who may delete assets.
+        $this->signInWith(['access ghostwriter', 'license stock images', 'publish stories entries', 'delete assets assets', ...self::WRITER_PERMISSIONS]);
         $this->postJson(cp_route('ghostwriter.stock.remove', $preview['id']))->assertStatus(422)->assertJsonPath('message', 'A page still uses this preview. Take it out of the page first, then remove it.');
 
         $this->postJson(cp_route('ghostwriter.stock.license', $preview['id']), ['option' => 'demo-pack'])->assertOk();
@@ -129,6 +130,25 @@ class StockPublishTest extends TestCase
         $this->assertStringContainsString('One (Hero image)', $csv);
 
         $this->get(cp_route('ghostwriter.stock.record', $preview['id']))->assertOk()->assertJsonPath('licence.order_id', 'demo-order-1');
+    }
+
+    public function test_removing_a_preview_needs_permission_to_delete_assets_in_its_container(): void
+    {
+        $this->signInToLicense();
+        $used = $this->preview('demo-101');
+        $preview = $this->preview('demo-102');
+        // The page keeps the first: the second is on no page.
+        Entry::find('one')->set('cover', $this->path($used))->save();
+        $this->assertNotNull(AssetContainer::find('assets')->asset($this->path($preview)));
+
+        $this->postJson(cp_route('ghostwriter.stock.remove', $preview['id']))
+            ->assertForbidden()
+            ->assertJsonPath('message', "You don't have permission to delete assets in this container.");
+        $this->assertNotNull(AssetContainer::find('assets')->asset($this->path($preview)), 'Refused: the stand-in stays.');
+
+        $this->signInWith(['access ghostwriter', 'delete assets assets', ...self::WRITER_PERMISSIONS]);
+        $this->postJson(cp_route('ghostwriter.stock.remove', $preview['id']))->assertOk()->assertJsonPath('message', 'Preview removed.');
+        $this->assertNull(AssetContainer::find('assets')->asset($this->path($preview)));
     }
 
     public function test_cleanup_deletes_expired_comps_and_unused_previews_and_settles_licences_in_doubt(): void

@@ -475,7 +475,7 @@ class SessionController
     private function examples(ContentType $type, array $ids): array
     {
         return collect($ids)
-            ->filter(fn (string $id) => Entry::find($id)?->collectionHandle() === $type->group)
+            ->filter(fn (string $id) => CollectionController::visible(Entry::find($id), $type->group))
             ->values()
             ->all();
     }
@@ -554,6 +554,8 @@ class SessionController
         $type = $this->types->find($handle);
 
         abort_unless($type && $this->types->enabled($type->group), 404);
+        // What is written here is drafted from the collection's entries.
+        abort_unless(CollectionController::canView($type->group), 403, __('You don\'t have permission to view entries in this collection.'));
 
         return $type;
     }

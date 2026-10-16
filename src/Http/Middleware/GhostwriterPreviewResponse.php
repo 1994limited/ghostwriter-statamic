@@ -100,15 +100,23 @@ class GhostwriterPreviewResponse
         $exception = property_exists($response, 'exception') ? $response->exception : null;
         $status = $response->getStatusCode();
 
+        // The exception's own words only for someone signed in to use
+        // Ghostwriter: anyone else holding the preview link gets a plain line.
+        $user = User::current();
+        $trusted = $user !== null && $user->can('access ghostwriter');
+
         $detail = [
             'status' => $status,
-            'message' => $exception
-                ? Str::limit(trim(strtok(strip_tags($exception->getMessage()), "\n") ?: ''), 300)
-                : ($status === 404 ? 'The page was not found.' : 'The server answered '.$status.'.'),
+            'message' => match (true) {
+                $exception !== null && $trusted => Str::limit(trim(strtok(strip_tags($exception->getMessage()), "\n") ?: ''), 300),
+                $exception !== null => 'The page template ran into an error.',
+                $status === 404 => 'The page was not found.',
+                default => 'The server answered '.$status.'.',
+            },
         ];
 
         // The exception's class and where it was thrown, for those who run the site.
-        if ($exception && User::current()?->isSuper()) {
+        if ($exception && $user?->isSuper()) {
             $detail['exception'] = get_class($exception);
             $detail['file'] = Str::after($exception->getFile(), base_path().'/').':'.$exception->getLine();
             $detail['template'] = (string) rescue(fn () => $item->template(), '', false);

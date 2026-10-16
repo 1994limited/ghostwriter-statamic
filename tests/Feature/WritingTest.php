@@ -572,6 +572,45 @@ class WritingTest extends TestCase
         $this->assertNull(app(TypeRepository::class)->find('articles'));
     }
 
+    public function test_a_collection_whose_entries_the_person_cant_view_is_not_sent_to_the_model(): void
+    {
+        Bus::fake([AnalyseCollection::class, SuggestKinds::class]);
+        $this->makePostsCollection();
+        Entry::make()->id('post-a')->collection('posts')->slug('a')->published(true)->data(['title' => 'A post'])->save();
+        // A writer for articles only.
+        $this->signInWith(['access ghostwriter', 'view articles entries', 'edit articles entries', 'create articles entries']);
+
+        $this->getJson(cp_route('ghostwriter.collections.show', 'posts'))->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.collections.analyse', 'posts'), ['examples' => ['post-a']])->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.kinds.suggest', 'posts'))->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.kinds.learn_all', 'posts'))->assertForbidden();
+        $this->postJson(cp_route('ghostwriter.sessions.store', 'any:posts'), ['details' => 'A post about the move.'])->assertForbidden();
+        Bus::assertNotDispatched(AnalyseCollection::class);
+
+        // Every collection at once: only those this person may see.
+        $this->postJson(cp_route('ghostwriter.kinds.suggest_all'))->assertOk()->assertJsonMissingPath('collections.posts');
+        Bus::assertDispatchedAfterResponse(SuggestKinds::class, fn (SuggestKinds $job) => $job->collections === ['articles']);
+
+        // Articles: "Model it on" lists them; an example from posts is not taken.
+        $this->assertNotEmpty($this->getJson(cp_route('ghostwriter.collections.show', 'articles'))->assertOk()->json('entries'));
+        $this->postJson(cp_route('ghostwriter.collections.analyse', 'articles'), ['examples' => ['post-a']])->assertOk();
+        Bus::assertDispatchedAfterResponse(AnalyseCollection::class, fn ($job) => $job->examples === []);
+    }
+
+    public function test_starting_model_work_is_rate_limited_per_person(): void
+    {
+        Bus::fake([SuggestKinds::class]);
+        config(['ghostwriter.rate_limit' => 2]);
+        $this->signIn();
+
+        $this->postJson(cp_route('ghostwriter.kinds.suggest', 'articles'))->assertOk();
+        $this->postJson(cp_route('ghostwriter.kinds.suggest', 'articles'))->assertOk();
+        $this->postJson(cp_route('ghostwriter.kinds.suggest', 'articles'))->assertTooManyRequests();
+
+        // Looking isn't limited.
+        $this->getJson(cp_route('ghostwriter.kinds.show', 'articles'))->assertOk();
+    }
+
     public function test_only_configured_collections_are_offered(): void
     {
         $this->makePostsCollection();

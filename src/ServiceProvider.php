@@ -2,10 +2,13 @@
 
 namespace NineteenNinetyFour\Ghostwriter;
 
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigCredentials;
 use NineteenNinetyFour\Ghostwriter\Ai\ConfigProviderSettings;
 use NineteenNinetyFour\Ghostwriter\Ai\ModelCheck;
@@ -109,6 +112,9 @@ use Statamic\Statamic;
 
 class ServiceProvider extends AddonServiceProvider
 {
+    /** The rate limiter on routes that start model calls. */
+    public const RATE_LIMITER = 'ghostwriter-model';
+
     protected $vite = [
         'input' => [
             'resources/js/cp.js',
@@ -356,6 +362,17 @@ class ServiceProvider extends AddonServiceProvider
     {
         // Scripted model replies for the end-to-end tests: off unless set up on a local site.
         FakeScenarios::register($this->app);
+
+        // Each person may start so many model calls a minute (the routes
+        // marked throttle:ghostwriter-model): a stuck button or a script
+        // can't run up the provider bill. Not with scripted replies.
+        RateLimiter::for(self::RATE_LIMITER, function (Request $request) {
+            $perMinute = (int) config('ghostwriter.rate_limit', 30);
+
+            return $perMinute <= 0 || FakeScenarios::enabled($this->app)
+                ? Limit::none()
+                : Limit::perMinute($perMinute)->by('ghostwriter:'.($request->user()?->getAuthIdentifier() ?? $request->ip()));
+        });
 
         $this->publishes([
             PromptLibrary::directory() => resource_path('ghostwriter/prompts'),

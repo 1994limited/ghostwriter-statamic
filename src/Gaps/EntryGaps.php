@@ -9,6 +9,7 @@ use NineteenNinetyFour\Ghostwriter\Core\Arrange\Extras\ExtraSources;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\Session;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Sessions\SessionGuard;
 use NineteenNinetyFour\Ghostwriter\Core\Domain\Stock\StockImages;
+use NineteenNinetyFour\Ghostwriter\Core\Gaps\Detectors\UnlicensedStock;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Fix;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\FixAction;
 use NineteenNinetyFour\Ghostwriter\Core\Gaps\Gap;
@@ -165,14 +166,19 @@ class EntryGaps
     }
 
     /**
-     * The publish guard's verdict on an entry being saved.
+     * The publish guard's verdict on an entry being saved. With
+     * `$everything` false (a collection Ghostwriter doesn't write for) only
+     * stock photos previewed but not licensed are looked for: nothing else
+     * there is Ghostwriter's to hold back.
      */
-    public function readiness(Entry $entry): Readiness
+    public function readiness(Entry $entry, bool $everything = true): Readiness
     {
         $blueprint = $entry->blueprint();
         $data = $entry->values()->all();
+        $mode = $this->settings->onUnfinishedPublish();
+        $readiness = $everything ? PublishReadiness::standard($mode) : new PublishReadiness(new GapFinder([new UnlicensedStock]), $mode);
 
-        return PublishReadiness::standard($this->settings->onUnfinishedPublish())
+        return $readiness
             ->check($this->context($blueprint, $data, null, $entry->id() ? (string) $entry->id() : null, site: $entry->locale(), sources: $entry->id() ? self::sources($this->sessionOf($entry)) : null));
     }
 

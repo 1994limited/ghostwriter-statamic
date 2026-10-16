@@ -60,7 +60,7 @@ class DashboardController
                 'exists' => $guides->guide(Guide::IMAGERY)->exists(),
                 'url' => cp_route('ghostwriter.imagery.show'),
             ],
-            'collections' => $types->collections()->map(fn ($collection) => [
+            'collections' => $types->collections()->filter(fn ($collection) => CollectionController::canView($collection->handle()))->values()->map(fn ($collection) => [
                 'handle' => $collection->handle(),
                 'title' => $collection->title(),
                 'entries' => Entry::query()->where('collection', $collection->handle())->count(),

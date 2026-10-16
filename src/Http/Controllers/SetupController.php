@@ -91,7 +91,9 @@ class SetupController
             return;
         }
 
+        // Only collections whose entries this person may see are sent to the model.
         $due = $types->collections()
+            ->filter(fn ($collection) => CollectionController::canView($collection->handle()))
             ->filter(fn ($collection) => $states->suggestions($collection->handle())->due(Entry::query()->where('collection', $collection->handle())->where('published', true)->count()))
             ->map->handle()->values()->all();
 

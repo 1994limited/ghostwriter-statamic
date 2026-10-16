@@ -10,10 +10,20 @@ Ghostwriter adds one permission, in a role under **Permissions**: **Write conten
 
 People with it see Ghostwriter in the navigation (under Tools), the **Write with Ghostwriter** and **Edit with Ghostwriter** buttons, the image button on assets fields, and the dashboard widget.
 
+Anyone with it can:
+
+- write and edit entries with Ghostwriter, use Finish this page, Suggest edits, comments and the image button;
+- edit the voice guide and the image style guide, or have them written again;
+- teach, edit and delete kinds of content, and accept or dismiss suggested kinds;
+- add, edit and remove ideas on the content plan, and ask for more;
+- look at Content to revisit, and the stock images list.
+
 Ghostwriter never lets anyone do what they couldn't do by hand:
 
-- Putting a draft into a new entry needs Statamic's own permission to create entries in that collection, and editing an entry needs the permission to edit it.
+- Ghostwriter only reads a collection's entries for someone who may view them (Statamic's **View** permission on the collection). Without it, the collection isn't offered for writing or for learning kinds, its entries aren't listed under "Model it on", and nothing from it is sent to the model on their behalf. Content to revisit lists only the collections you can view.
+- Putting a draft into a new entry needs Statamic's own permission to create entries in that collection, and editing an entry needs the permission to edit it. Snoozing a page on Content to revisit needs permission to edit it.
 - Saving an image into an assets field needs the permission to upload to that field's container.
+- **Remove preview** on the stock images list deletes the preview's asset, so it needs Statamic's permission to delete assets in that container.
 
 ## Licensing stock photos
 
@@ -24,6 +34,7 @@ Ghostwriter never lets anyone do what they couldn't do by hand:
 Managers are super users, and people with Statamic's permission to edit the addon's settings (**Ghostwriter settings** under the addon permissions, `edit 1994/ghostwriter-statamic settings`). Only they can:
 
 - open Ghostwriter's settings (the cog on the Overview, and **Settings** in the navigation);
+- open **Connections**, and set up, replace, check or disconnect any key or account there (provider keys, photo libraries, Shutterstock);
 - choose collections on Get started's second step;
 - hide Get started, or show it again;
 - delete a piece someone else started, when conversations are shared.

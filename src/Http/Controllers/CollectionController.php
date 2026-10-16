@@ -27,6 +27,7 @@ use Statamic\Contracts\Entries\Collection as StatamicCollection;
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry as Entries;
+use Statamic\Facades\User;
 
 /**
  * What the Ghostwriter panel needs to know about a collection, and the
@@ -68,7 +69,7 @@ class CollectionController
         ]);
 
         $examples = collect($validated['examples'] ?? [])
-            ->filter(fn (string $id) => Entries::find($id)?->collectionHandle() === $collection)
+            ->filter(fn (string $id) => self::visible(Entries::find($id), $collection))
             ->values()
             ->all();
 
@@ -115,7 +116,7 @@ class CollectionController
     {
         abort_unless($this->studio->configured(), 422, 'No API key is set for the '.$this->studio->provider().' provider.');
 
-        $handles = $this->types->collections()->map->handle()->values()->all();
+        $handles = $this->types->collections()->map->handle()->filter(fn (string $handle) => self::canView($handle))->values()->all();
         $due = array_values(array_filter($handles, fn (string $handle) => $this->startSuggesting($handle)));
 
         if ($due !== []) {
@@ -261,7 +262,10 @@ class CollectionController
      */
     private function entries(StatamicCollection $collection): \Illuminate\Support\Collection
     {
-        $entries = Entries::query()->where('collection', $collection->handle())->get()->keyBy->id();
+        // Only those this person may see: the picker's list, and what may be sent to the model.
+        $entries = Entries::query()->where('collection', $collection->handle())->get()
+            ->filter(fn (Entry $entry) => self::visible($entry, $collection->handle()))
+            ->keyBy->id();
 
         $present = fn (Entry $entry, int $depth = 0) => [
             'id' => $entry->id(),
@@ -328,8 +332,31 @@ class CollectionController
         return true;
     }
 
+    /**
+     * A collection Ghostwriter writes for, whose entries this person may
+     * see: what Ghostwriter learns or drafts from here is sent to the model.
+     */
     private function ensureEnabled(string $collection): void
     {
         abort_unless(Collection::findByHandle($collection) && $this->types->enabled($collection), 404);
+        abort_unless(self::canView($collection), 403, __('You don\'t have permission to view entries in this collection.'));
+    }
+
+    /** Whether the person signed in may see entries in a collection (Statamic's "view {collection} entries"). */
+    public static function canView(string $collection): bool
+    {
+        return (bool) User::current()?->can("view {$collection} entries");
+    }
+
+    /**
+     * Whether an entry is in the collection and the person signed in may
+     * see it: the collection's view permission, and Statamic's entry
+     * policy (another author's entry, where that is restricted).
+     */
+    public static function visible(?Entry $entry, string $collection): bool
+    {
+        $user = User::current();
+
+        return $entry !== null && $entry->collectionHandle() === $collection && $user !== null && $user->can('view', $entry);
     }
 }

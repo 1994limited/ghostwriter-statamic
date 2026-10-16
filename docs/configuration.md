@@ -6,7 +6,7 @@ This page covers the settings screen, `config/ghostwriter.php`, where Ghostwrite
 
 **Ghostwriter → Settings** (`/cp/addons/ghostwriter-statamic/settings`), for [managers](permissions.md#managing-ghostwriter) only:
 
-![The settings screen, showing API keys and the AI provider](images/settings.png)
+![The settings screen: the collections Ghostwriter writes for and learns from, Get started and kinds, and the start of the Connections summary](images/settings.png)
 
 | Setting | What it does |
 | --- | --- |
@@ -50,6 +50,7 @@ php artisan vendor:publish --tag=ghostwriter-config
 | `openrouter.models.writing`, `openrouter.models.quick` | `null` (the screen; then OpenRouter's defaults) | With OpenRouter, the model for each tier. See [OpenRouter](api-keys.md#openrouter) |
 | `model` | `null` (the provider's default) | |
 | `timeout` | `300` | Seconds to wait for one response |
+| `rate_limit` | `30` | How many times a minute each person may start work that calls a model (a draft, a scan, a check). Past it, they're asked to wait a moment. `0` turns the limit off |
 | `keys.anthropic`, `keys.openai`, `keys.gemini`, `keys.openrouter` | from `.env` | API keys. When one is empty, a key in `config/ai.php` is used, if there is one |
 | `base_urls.anthropic`, `base_urls.openai`, `base_urls.gemini`, `base_urls.openrouter` | `null` | A gateway that speaks the provider's API. See [Gateways and proxies](api-keys.md#gateways-and-proxies) |
 | `anthropic_fallbacks` | `true` | Pass a request Claude declines to the model Anthropic recommends, on models that support it |
@@ -78,11 +79,11 @@ php artisan vendor:publish --tag=ghostwriter-config
 | `drafts_unpublished` | `true` | **Use this draft** switches the form's Published toggle off on a new or unpublished entry. See [Use this draft](writing.md#use-this-draft) |
 | `writer` | `SchemaEntryWriter::class` | The class that turns a draft into entry data; bind your own to take over |
 
-Environment variables: `GHOSTWRITER_PROVIDER`, `GHOSTWRITER_MODEL`, `GHOSTWRITER_TIMEOUT`, `GHOSTWRITER_ANTHROPIC_BASE_URL`, `GHOSTWRITER_OPENAI_BASE_URL`, `GHOSTWRITER_GEMINI_BASE_URL`, `GHOSTWRITER_OPENROUTER_BASE_URL`, `GHOSTWRITER_OPENROUTER_WRITING_MODEL`, `GHOSTWRITER_OPENROUTER_QUICK_MODEL`, `GHOSTWRITER_ANTHROPIC_FALLBACKS`, `GHOSTWRITER_LOG_CHANNEL`, `GHOSTWRITER_IMAGE_PROVIDER`, `GHOSTWRITER_IMAGE_MODEL`, `GHOSTWRITER_OPENVERSE`, `GHOSTWRITER_PLACEHOLDER_IMAGES`, `GHOSTWRITER_SUGGEST_KINDS`, `GHOSTWRITER_SHARED_CONVERSATIONS`, `GHOSTWRITER_DRAFTS_UNPUBLISHED`, `GHOSTWRITER_PREVIEW`, `GHOSTWRITER_PREVIEW_SCRIPT_HOSTS`, `GHOSTWRITER_PREVIEW_TIMEOUT`, and the keys in [API keys](api-keys.md).
+Environment variables: `GHOSTWRITER_PROVIDER`, `GHOSTWRITER_MODEL`, `GHOSTWRITER_TIMEOUT`, `GHOSTWRITER_RATE_LIMIT`, `GHOSTWRITER_ANTHROPIC_BASE_URL`, `GHOSTWRITER_OPENAI_BASE_URL`, `GHOSTWRITER_GEMINI_BASE_URL`, `GHOSTWRITER_OPENROUTER_BASE_URL`, `GHOSTWRITER_OPENROUTER_WRITING_MODEL`, `GHOSTWRITER_OPENROUTER_QUICK_MODEL`, `GHOSTWRITER_ANTHROPIC_FALLBACKS`, `GHOSTWRITER_LOG_CHANNEL`, `GHOSTWRITER_IMAGE_PROVIDER`, `GHOSTWRITER_IMAGE_MODEL`, `GHOSTWRITER_OPENVERSE`, `GHOSTWRITER_PLACEHOLDER_IMAGES`, `GHOSTWRITER_SUGGEST_KINDS`, `GHOSTWRITER_SHARED_CONVERSATIONS`, `GHOSTWRITER_DRAFTS_UNPUBLISHED`, `GHOSTWRITER_PREVIEW`, `GHOSTWRITER_PREVIEW_SCRIPT_HOSTS`, `GHOSTWRITER_PREVIEW_TIMEOUT`, and the keys in [API keys](api-keys.md).
 
 ## Where things are kept
 
-Ghostwriter adds no database tables. Everything is a file.
+Ghostwriter adds one database table, `ghostwriter_credentials`, for the keys set up in [Connections](connections.md#where-keys-are-kept). Run `php artisan migrate` to make it. Without a database, those keys are kept in an encrypted file instead (`storage/ghostwriter/credentials/credentials.json`). Everything else is a file.
 
 | What | Where | Commit it? |
 | --- | --- | --- |
@@ -97,7 +98,7 @@ Ghostwriter adds no database tables. Everything is a file.
 | The stock image ledger (one file per stock photo, with its licence) | `content/ghostwriter/stock/*.yaml` | Yes |
 | Stock previews (watermarked, private, deleted when their period ends) | `storage/ghostwriter/stock/` | No |
 | When work was queued (for the "still waiting" notice) | `storage/ghostwriter/queued/` | No |
-| The key from Connect with OpenRouter (encrypted) | `storage/ghostwriter/provider-keys.json` | No |
+| Keys set up in Connections (encrypted with `APP_KEY`) | The `ghostwriter_credentials` table, or `storage/ghostwriter/credentials/credentials.json` without a database | No |
 | Whether Get started is hidden | `storage/ghostwriter/onboarding.json` | No |
 | Collections already looked over for kinds, and suggested kinds | `storage/ghostwriter/types.json`, `kinds.json` | No |
 | How the guides and plan runs stand | `storage/ghostwriter/voice.json`, `imagery.json`, `plan.json` | No |
