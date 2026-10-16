@@ -212,11 +212,13 @@ export default {
         // Ghostwriter's before), and not while the editor is in the field.
         setSlug(slug, fromTitle = []) {
             this.stopSlug?.();
-            this.stopSlug = keepSlug({
+            const stop = keepSlug({
                 slug,
                 fromTitle,
                 ours: this.slugsSet ?? [],
-                get: () => this.form.values?.slug,
+                // The field as the editor sees it: the form's value catches up
+                // a moment after typing, which is just when a retry may run.
+                get: () => document.getElementById('field_slug')?.value ?? this.form.values?.slug,
                 set: (value) => this.form.setFieldValue('slug', value),
                 typing: () => {
                     const field = document.getElementById('field_slug');
@@ -224,6 +226,15 @@ export default {
                     return !!field && field.contains(document.activeElement);
                 },
             });
+            // Anyone typing in the slug field ends the retries for good.
+            const typed = (event) => {
+                if (event.target?.id === 'field_slug') this.stopSlug?.();
+            };
+            document.addEventListener('input', typed, true);
+            this.stopSlug = () => {
+                stop();
+                document.removeEventListener('input', typed, true);
+            };
             this.slugsSet = [...(this.slugsSet ?? []), slug];
         },
 
