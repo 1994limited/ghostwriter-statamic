@@ -16,6 +16,7 @@
 -->
 <script>
 import ghost from '../icon.js';
+import { keepSlug } from '../drafts/slug.js';
 import { Alert, Badge, Button, ButtonGroup, Dropdown, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator, Stack } from '@statamic/cms/ui';
 import Panel from './Panel.vue';
 
@@ -85,6 +86,7 @@ export default {
     },
 
     beforeUnmount() {
+        this.stopSlug?.();
         Statamic.$events.$off('ghostwriter.counts', this.onCounts);
         this.slot?.remove();
         this.noticeSlot?.remove();
@@ -205,28 +207,50 @@ export default {
         // The address for a new entry (the Search section's): into
         // Statamic's own slug field, after the title. The field makes a slug
         // from a new title a moment later (a request), which would replace
-        // it, so it is set again once that has settled, unless the editor
-        // is in the field by then.
-        setSlug(slug) {
-            const set = () => {
-                const field = document.getElementById('field_slug');
+        // it, so it is set again once that has settled: only over a slug
+        // nobody typed (empty, the field's own from the draft's title, or
+        // Ghostwriter's before), and not while the editor is in the field.
+        setSlug(slug, fromTitle = []) {
+            this.stopSlug?.();
+            const stop = keepSlug({
+                slug,
+                fromTitle,
+                ours: this.slugsSet ?? [],
+                // The field as the editor sees it: the form's value catches up
+                // a moment after typing, which is just when a retry may run.
+                get: () => document.getElementById('field_slug')?.value ?? this.form.values?.slug,
+                set: (value) => this.form.setFieldValue('slug', value),
+                typing: () => {
+                    const field = document.getElementById('field_slug');
 
-                if (field && field.contains(document.activeElement)) return;
-                if (this.form.values?.slug !== slug) this.form.setFieldValue('slug', slug);
+                    return !!field && field.contains(document.activeElement);
+                },
+            });
+            // Anyone typing in the slug field ends the retries for good.
+            const typed = (event) => {
+                if (event.target?.id === 'field_slug') this.stopSlug?.();
             };
-
-            this.$nextTick(set);
-            [400, 1200, 2500].forEach((wait) => setTimeout(set, wait));
+            document.addEventListener('input', typed, true);
+            this.stopSlug = () => {
+                stop();
+                document.removeEventListener('input', typed, true);
+            };
+            this.slugsSet = [...(this.slugsSet ?? []), slug];
         },
 
-        apply({ values, meta, notes, gaps }) {
+        apply({ values, meta, notes, gaps, slug_from_title: fromTitle = [] }) {
             // Field by field, so everything the draft does not cover keeps the
             // value and meta it already had. Meta goes first: fields such as
             // Bard and Replicator read it as soon as their value arrives.
             Object.entries(meta).forEach(([handle, value]) => this.form.setFieldMeta(handle, value));
+            // The slug as the form held it when the draft was asked for:
+            // the server found it nobody's (empty, from the title, or
+            // Ghostwriter's), or it wouldn't have sent an address.
+            const before = this.form.values?.slug;
+
             Object.entries(values).forEach(([handle, value]) => handle !== 'slug' && this.form.setFieldValue(handle, value));
 
-            if (typeof values.slug === 'string' && values.slug !== '') this.setSlug(values.slug);
+            if (typeof values.slug === 'string' && values.slug !== '') this.setSlug(values.slug, typeof before === 'string' && before !== '' ? [...fromTitle, before] : fromTitle);
 
             const unpublished = this.startUnpublished();
 

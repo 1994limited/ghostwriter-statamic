@@ -368,6 +368,9 @@ class SessionController
 
         return response()->json([
             'values' => $values,
+            // What the slug field may hold for the address to be set again:
+            // the slugs it makes from the draft's title.
+            'slug_from_title' => $built->slug !== null ? $built->titleSlugs : [],
             'meta' => $fields->meta()->only(array_keys($data))->all(),
             'notes' => $notes,
             'gaps' => $gaps->present($report, $blueprint),
