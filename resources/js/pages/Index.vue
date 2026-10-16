@@ -215,9 +215,9 @@ export default {
         </Panel>
         <Panel v-else-if="!hiddenSetup" class="mb-6">
             <div class="flex items-center justify-between gap-6 px-4 py-3">
-                <p class="min-w-0 text-sm">
-                    <span class="font-medium">{{ __('You’re set up.') }}</span>
-                    <span class="text-gray-500"> {{ setup.can_toggle ? __('Hide Get started whenever you like.') : __('Get started stays here until someone who looks after the settings hides it.') }}</span>
+                <!-- The space between the two sentences is its own interpolation: Vue's whitespace condensing drops a lone space at the start of an element. -->
+                <p class="min-w-0 text-sm" data-ghostwriter-setup-done>
+                    <span class="font-medium">{{ __('You’re set up.') }}</span>{{ ' ' }}<span class="text-gray-500">{{ setup.can_toggle ? __('Hide Get started whenever you like.') : __('Get started stays here until someone who looks after the settings hides it.') }}</span>
                 </p>
                 <div class="flex shrink-0 gap-2">
                     <Button size="sm" variant="ghost" :href="setup.url + (setup.next ? '#step-' + setup.next.number : '')" :text="setup.next ? __('Optional steps') : __('Get started')" />
@@ -230,22 +230,22 @@ export default {
         <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Link :href="voice.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Voice guide') }}</div>
-                <div class="mt-1 font-medium">{{ voice.exists ? __('Written') : __('Not written yet') }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value>{{ voice.exists ? __('Written') : __('Not written yet') }}</div>
                 <div class="text-sm text-gray-500">{{ voice.exists ? __('Updated :when', { when: voice.updated_at }) : __('Everything written follows it') }}</div>
             </Link>
             <Link :href="imagery.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Image style') }}</div>
-                <div class="mt-1 font-medium">{{ imagery.exists ? __('Written') : __('Not written yet') }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value>{{ imagery.exists ? __('Written') : __('Not written yet') }}</div>
                 <div class="text-sm text-gray-500">{{ __('How your pictures look, in words') }}</div>
             </Link>
             <Link :href="plan.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content plan') }}</div>
-                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.ideas }}</span> {{ __n('idea waiting|ideas waiting', counts.ideas) }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #2b3a64)">{{ counts.ideas }}</span> {{ __n('idea waiting|ideas waiting', counts.ideas) }}</div>
                 <div class="text-sm text-gray-500">{{ __('What the site is missing') }}</div>
             </Link>
             <a href="#in-progress" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('In progress') }}</div>
-                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ counts.in_progress }}</span> {{ __n('piece|pieces', counts.in_progress) }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #2b3a64)">{{ counts.in_progress }}</span> {{ __n('piece|pieces', counts.in_progress) }}</div>
                 <div class="text-sm text-gray-500">{{ __('Drafts and edits under way') }}</div>
             </a>
         </div>
@@ -259,7 +259,7 @@ export default {
         >
             <div class="min-w-0">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content to revisit') }}</div>
-                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ revisit.worth }}</span> {{ __n('page worth a look|pages worth a look', revisit.worth) }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #2b3a64)">{{ revisit.worth }}</span> {{ __n('page worth a look|pages worth a look', revisit.worth) }}</div>
                 <div v-if="revisit.top.length" class="mt-1 truncate text-sm text-gray-500">{{ revisit.top.map((row) => `${row.title} (${row.reason})`).join(' · ') }}</div>
                 <div v-else class="text-sm text-gray-500">{{ __('Dates, links, alt text and empty fields, checked without AI.') }}</div>
             </div>
@@ -276,7 +276,7 @@ export default {
         >
             <div>
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Stock images') }}</div>
-                <div class="mt-1 font-medium"><span class="text-xl" style="color: var(--gw-accent, #2b3a64)">{{ stock.previews }}</span> {{ __n('stock preview to license|stock previews to license', stock.previews) }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #2b3a64)">{{ stock.previews }}</span> {{ __n('stock preview to license|stock previews to license', stock.previews) }}</div>
                 <div class="text-sm" :class="stock.warning ? 'text-amber-800 dark:text-amber-300!' : 'text-gray-500'">{{ stock.warning ? __('Some are on live pages or their preview has expired. License them, or choose other images.') : __('Pages holding a preview can’t be published until it is licensed.') }}</div>
             </div>
             <span class="shrink-0 text-sm underline">{{ __('Open Stock images') }}</span>
