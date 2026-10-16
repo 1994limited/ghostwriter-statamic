@@ -2,6 +2,7 @@
 
 namespace NineteenNinetyFour\Ghostwriter\Tests\Feature;
 
+use Illuminate\Support\Str;
 use NineteenNinetyFour\Ghostwriter\Ai\Studio;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\Exceptions\ProviderException;
 use NineteenNinetyFour\Ghostwriter\Core\Ai\TextRequest;
@@ -112,6 +113,7 @@ final class SearchMetaTest extends TestCase
 
         $this->assertSame(self::DESCRIPTION, $applied['values']['meta_description']);
         $this->assertSame('winter-garden-care', $applied['values']['slug']);
+        $this->assertSame([Str::slug($applied['values']['title'])], $applied['slug_from_title'], 'What the slug field makes from the draft\'s title: the form may set the address over it, over nothing else.');
         $this->assertArrayNotHasKey('seo_title', $applied['values'], 'The page title fits: no SEO title of its own.');
         $this->assertNotContains('seo-missing', array_column($applied['gaps']['gaps'], 'kind'));
         $this->assertTrue(SeoState::of($this->sessions()->find($session->id))->written->owns(SeoField::DESCRIPTION, self::DESCRIPTION), 'Known as Ghostwriter\'s own from now on.');
@@ -121,6 +123,11 @@ final class SearchMetaTest extends TestCase
         // A slug someone typed in the form stays.
         $typed = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['blueprint' => 'service', 'values' => ['title' => 'Winter garden care', 'slug' => 'winter-visits']])->assertOk()->json();
         $this->assertArrayNotHasKey('slug', $typed['values']);
+        $this->assertSame([], $typed['slug_from_title']);
+
+        // The slug the form made from an earlier title isn't anyone's: replaced.
+        $earlier = $this->postJson(cp_route('ghostwriter.sessions.apply', $session->id), ['blueprint' => 'service', 'values' => ['title' => 'Winter visits', 'slug' => 'winter-visits']])->assertOk()->json();
+        $this->assertSame('winter-garden-care', $earlier['values']['slug']);
     }
 
     public function test_a_persons_description_and_a_published_address_are_never_written(): void

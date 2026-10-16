@@ -109,9 +109,9 @@ class DraftValues
             $notes = self::withoutChosen($notes, $chosen, $data);
         }
 
-        [$data, $written, $slug] = $this->search($session, $type, $blueprint, $data, $values, $original);
+        [$data, $written, $slug, $titleSlugs] = $this->search($session, $type, $blueprint, $data, $values, $original);
 
-        return new BuiltValues($data, $notes, $left, $specs, $schema, $written, $slug);
+        return new BuiltValues($data, $notes, $left, $specs, $schema, $written, $slug, $titleSlugs);
     }
 
     /**
@@ -125,7 +125,7 @@ class DraftValues
      *
      * @param  array<string, mixed>  $data  As the entry stores it.
      * @param  mixed  $values  The publish form's values.
-     * @return array{0: array<string, mixed>, 1: SeoProvenance, 2: ?string}
+     * @return array{0: array<string, mixed>, 1: SeoProvenance, 2: ?string, 3: array<int, string>}
      */
     private function search(Session $session, ContentType $type, Blueprint $blueprint, array $data, mixed $values, ?Entry $original): array
     {
@@ -133,7 +133,7 @@ class DraftValues
         $meta = $state->meta;
 
         if ($meta->title === '' && $meta->description === '' && $meta->slug === null) {
-            return [$data, new SeoProvenance, null];
+            return [$data, new SeoProvenance, null, []];
         }
 
         try {
@@ -143,7 +143,7 @@ class DraftValues
         }
 
         if ($context === null) {
-            return [$data, new SeoProvenance, null];
+            return [$data, new SeoProvenance, null, []];
         }
 
         // The SEO fields as the form holds them (the entry's saved values
@@ -170,7 +170,12 @@ class DraftValues
             }
         }
 
-        return [$data, $applied->written, $slug];
+        // The slugs the form's slug field will make from the draft's title
+        // once it is in: the form may replace the address with one of
+        // those, never with anything else.
+        $titleSlugs = $slug !== null ? SearchContext::titleSlugs((string) ($data['title'] ?? ''), (string) $context->entry->site) : [];
+
+        return [$data, $applied->written, $slug, $titleSlugs];
     }
 
     /**

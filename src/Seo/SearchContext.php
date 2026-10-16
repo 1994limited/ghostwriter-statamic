@@ -125,7 +125,18 @@ class SearchContext
     {
         $slug = trim((string) $slug);
 
-        return $slug === '' || $slug === $ours || $slug === Str::slug($title, '-', Site::get($site)?->lang() ?? 'en') || $slug === Str::slug($title);
+        return $slug === '' || $slug === $ours || in_array($slug, self::titleSlugs($title, $site), true);
+    }
+
+    /**
+     * The slugs Statamic's slug field makes from a title: in the site's
+     * language, and plain.
+     *
+     * @return array<int, string>
+     */
+    public static function titleSlugs(string $title, string $site): array
+    {
+        return array_values(array_unique(array_filter([Str::slug($title, '-', Site::get($site)?->lang() ?? 'en'), Str::slug($title)])));
     }
 
     /** The entry a session edits, or the one it became. */

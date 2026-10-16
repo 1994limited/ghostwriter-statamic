@@ -10,7 +10,9 @@ use NineteenNinetyFour\Ghostwriter\Core\Seo\SeoProvenance;
  * What DraftValues built: the entry's data in storage form, with the notes
  * on it and what it leaves for a person (Finish this page's list), the
  * SEO text Ghostwriter wrote into it (for the session, on apply), and the
- * address to set on a new entry (the form's `slug`; null: leave it).
+ * address to set on a new entry (the form's `slug`; null: leave it), with
+ * the slugs Statamic's slug field makes from the draft's title (the form
+ * may set one of those itself, which the address may replace).
  */
 final class BuiltValues
 {
@@ -18,6 +20,7 @@ final class BuiltValues
      * @param  array<string, mixed>  $data
      * @param  array<int, string>  $notes
      * @param  array<int, array<string, mixed>>  $specs  SchemaReader's fields.
+     * @param  array<int, string>  $titleSlugs
      */
     public function __construct(
         public readonly array $data,
@@ -27,5 +30,6 @@ final class BuiltValues
         public readonly Schema $schema,
         public readonly SeoProvenance $written = new SeoProvenance,
         public readonly ?string $slug = null,
+        public readonly array $titleSlugs = [],
     ) {}
 }
