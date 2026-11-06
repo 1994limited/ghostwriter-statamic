@@ -381,7 +381,7 @@ export default {
                             class="relative flex flex-col overflow-hidden rounded-md border border-gray-200 hover:border-gray-500! dark:border-gray-700!"
                         >
                             <button type="button" class="block text-start disabled:opacity-50!" :disabled="busy" :title="[photo.reason || photo.alt, `${photo.credit} · ${photo.licence}`].filter(Boolean).join('\n')" @click="use(photo)">
-                                <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #2b3a64)">{{ __('Best match') }}</span>
+                                <span v-if="photo.picked" class="absolute top-1.5 left-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" style="color: var(--gw-ink, #1E4E9C)">{{ __('Best match') }}</span>
                                 <span v-if="photo.editorial" class="absolute top-1.5 right-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-900" :title="photo.restrictions || __('Editorial use only')">{{ __('Editorial') }}</span>
                                 <span class="relative block">
                                     <img :src="photo.thumb" :alt="photo.alt || ''" loading="lazy" class="block aspect-[4/3] w-full object-cover" @error="broken[photo.source + photo.id] = true" />

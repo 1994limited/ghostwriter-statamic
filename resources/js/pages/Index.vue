@@ -204,7 +204,7 @@ export default {
                     <Heading :text="__('Get started') + ' · ' + __(':done of :total done', { done: setup.done, total: setup.total })" />
                     <Subheading v-if="setup.next" :text="__('Next: :title', { title: setup.next.title }) + (setup.next.optional ? ' (' + __('optional') + ')' : '')" />
                     <div class="mt-2 h-1 w-64 max-w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700!">
-                        <div class="h-full rounded-full" style="background: var(--gw-accent, #2b3a64)" :style="{ width: `${Math.round((setup.done / setup.total) * 100)}%` }"></div>
+                        <div class="h-full rounded-full" style="background: var(--gw-accent, #1E4E9C)" :style="{ width: `${Math.round((setup.done / setup.total) * 100)}%` }"></div>
                     </div>
                 </div>
                 <div class="flex shrink-0 gap-2">
@@ -240,12 +240,12 @@ export default {
             </Link>
             <Link :href="plan.url" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content plan') }}</div>
-                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #2b3a64)">{{ counts.ideas }}</span> {{ __n('idea waiting|ideas waiting', counts.ideas) }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #1E4E9C)">{{ counts.ideas }}</span> {{ __n('idea waiting|ideas waiting', counts.ideas) }}</div>
                 <div class="text-sm text-gray-500">{{ __('What the site is missing') }}</div>
             </Link>
             <a href="#in-progress" class="rounded-lg border border-gray-200 p-4 hover:border-gray-400! dark:border-gray-700! dark:hover:border-gray-500!">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('In progress') }}</div>
-                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #2b3a64)">{{ counts.in_progress }}</span> {{ __n('piece|pieces', counts.in_progress) }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #1E4E9C)">{{ counts.in_progress }}</span> {{ __n('piece|pieces', counts.in_progress) }}</div>
                 <div class="text-sm text-gray-500">{{ __('Drafts and edits under way') }}</div>
             </a>
         </div>
@@ -259,7 +259,7 @@ export default {
         >
             <div class="min-w-0">
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Content to revisit') }}</div>
-                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #2b3a64)">{{ revisit.worth }}</span> {{ __n('page worth a look|pages worth a look', revisit.worth) }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #1E4E9C)">{{ revisit.worth }}</span> {{ __n('page worth a look|pages worth a look', revisit.worth) }}</div>
                 <div v-if="revisit.top.length" class="mt-1 truncate text-sm text-gray-500">{{ revisit.top.map((row) => `${row.title} (${row.reason})`).join(' · ') }}</div>
                 <div v-else class="text-sm text-gray-500">{{ __('Dates, links, alt text and empty fields, checked without AI.') }}</div>
             </div>
@@ -276,7 +276,7 @@ export default {
         >
             <div>
                 <div class="text-xs font-medium tracking-wide text-gray-500 uppercase">{{ __('Stock images') }}</div>
-                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #2b3a64)">{{ stock.previews }}</span> {{ __n('stock preview to license|stock previews to license', stock.previews) }}</div>
+                <div class="gw-tile-value mt-1 font-medium" data-ghostwriter-tile-value><span class="gw-tile-value__number" style="color: var(--gw-accent, #1E4E9C)">{{ stock.previews }}</span> {{ __n('stock preview to license|stock previews to license', stock.previews) }}</div>
                 <div class="text-sm" :class="stock.warning ? 'text-amber-800 dark:text-amber-300!' : 'text-gray-500'">{{ stock.warning ? __('Some are on live pages or their preview has expired. License them, or choose other images.') : __('Pages holding a preview can’t be published until it is licensed.') }}</div>
             </div>
             <span class="shrink-0 text-sm underline">{{ __('Open Stock images') }}</span>
@@ -325,7 +325,7 @@ export default {
                         v-if="suggestionsOf(collection) && !openKinds[collection.handle]"
                         type="button"
                         class="mt-2 text-sm font-medium hover:underline!"
-                        style="color: var(--gw-accent, #2b3a64)"
+                        style="color: var(--gw-accent, #1E4E9C)"
                         @click="openKinds[collection.handle] = true"
                     >{{ __n(':count suggested kind to review|:count suggested kinds to review', suggestionsOf(collection)) }} →</button>
                     <KindSuggestions

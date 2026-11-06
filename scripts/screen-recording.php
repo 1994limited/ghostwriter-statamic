@@ -102,7 +102,7 @@ $card = function (string $heading, string $line = '', bool $end = false, float $
         .'.logo{width:360px;margin-bottom:56px}.logo svg{width:100%;height:auto}'
         .'h1{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:84px;line-height:1.08;margin:0 0 22px;letter-spacing:-0.01em;max-width:1100px}'
         .'p{font-size:34px;line-height:1.4;margin:0;color:#5E5A52;max-width:1000px}'
-        .'.end{align-items:center;text-align:center}.end .mark{width:140px;margin-bottom:36px}.end h1{font-size:72px}.end code{display:inline-block;margin-top:40px;padding:18px 30px;border:1.5px solid #CFC5B2;border-radius:12px;font-size:28px;color:#2B3A64;background:#fff}'
+        .'.end{align-items:center;text-align:center}.end .mark{width:140px;margin-bottom:36px}.end h1{font-size:72px}.end code{display:inline-block;margin-top:40px;padding:18px 30px;border:1.5px solid #CFC5B2;border-radius:12px;font-size:28px;color:#1E4E9C;background:#fff}'
         .'.rule{position:absolute;left:140px;right:140px;bottom:90px;height:1.5px;background:#E0D8C8}.by{position:absolute;right:140px;bottom:40px;font-size:22px;color:#5E5A52}'
         .'</style></head><body>'
         .($end

@@ -12,7 +12,7 @@
     frame, so the video is the same every time it is rendered.
 */
 :root {
-    --ink: #2B3A64; --ink-tint: #8E99BC; --paper: #F3EEE4; --fold: #CFC5B2;
+    --ink: #1E4E9C; --ink-tint: #9CB1D3; --paper: #F3EEE4; --fold: #CFC5B2;
     --graphite: #1C1E24; --pencil: #5E5A52; --rule: #E0D8C8; --label: #EBE4D6;
     --ui: "Public Sans", system-ui, sans-serif; --serif: "Newsreader", Georgia, serif;
 }
@@ -43,7 +43,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
 .cursor { display: inline-block; width: 2px; height: 1.1em; background: var(--ink); vertical-align: -2px; margin-left: 2px; }
 
 /* The ghost: the colour mark, bobbing, moved between scenes. */
-.ghost { position: absolute; width: 84px; height: 84px; transform-origin: center; filter: drop-shadow(0 10px 18px rgba(43,58,100,.18)); }
+.ghost { position: absolute; width: 84px; height: 84px; transform-origin: center; filter: drop-shadow(0 10px 18px rgba(30,78,156,.18)); }
 .ghost svg { width: 100%; height: 100%; animation: bob 2.4s ease-in-out infinite; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
 
@@ -161,7 +161,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
 
 <!-- 1. Title -->
 <section class="scene" id="s1">
-    <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg><span>Ghostwriter</span></div>
+    <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg><span>Ghostwriter</span></div>
     <div class="tag">Writes like you.</div>
 </section>
 
@@ -183,7 +183,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
             <p><strong>Never:</strong> "stakeholders", "going forward", "we are pleased to announce".</p>
         </div>
     </div>
-    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
+    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
     <div class="caption">Learns how your site writes</div>
 </section>
 
@@ -193,14 +193,14 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
         <h2>Create entry <small>Articles</small></h2>
         <div class="field"><label>Title</label><div class="box"></div></div>
         <div class="field"><label>Body</label><div class="box tall"></div></div>
-        <div class="field"><label>Image</label><div class="box" style="display:flex;gap:12px;align-items:center"><span class="btn">Browse assets</span><span class="btn"><svg class="mark" viewBox="0 0 14 14"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"/><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"/></svg>Ghostwriter</span></div></div>
+        <div class="field"><label>Image</label><div class="box" style="display:flex;gap:12px;align-items:center"><span class="btn">Browse assets</span><span class="btn"><svg class="mark" viewBox="0 0 14 14"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"/><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"/></svg>Ghostwriter</span></div></div>
     </div>
     <div class="card panel">
-        <div class="head"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg>Ghostwriter</div>
+        <div class="head"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg>Ghostwriter</div>
         <div class="field q1"><label>What's the news?</label><div class="box tall"><span class="type">The Saturday market moves to the Mill Lane</span><span class="type l2">car park while the square is</span><span class="type l2" style="animation-delay:13.6s">resurfaced. Back in March.</span></div></div>
         <div class="field q2"><label>Tone?</label><div class="box"><span class="type">As usual.</span></div></div>
     </div>
-    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
+    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
     <div class="caption">Give it a short brief</div>
 </section>
 
@@ -214,17 +214,17 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
             <span class="type l2">while the square is resurfaced. Same traders, same hours,</span>
             <span class="type l3">a few yards down the hill.</span>
         </div></div>
-        <div class="field"><label>Image</label><div class="box" style="display:flex;gap:12px;align-items:center"><span class="btn">Browse assets</span><span class="btn"><svg class="mark" viewBox="0 0 14 14"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"/><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"/></svg>Ghostwriter</span></div></div>
+        <div class="field"><label>Image</label><div class="box" style="display:flex;gap:12px;align-items:center"><span class="btn">Browse assets</span><span class="btn"><svg class="mark" viewBox="0 0 14 14"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"/><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"/></svg>Ghostwriter</span></div></div>
     </div>
     <div class="card panel">
-        <div class="head"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg>Ghostwriter</div>
+        <div class="head"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg>Ghostwriter</div>
         <span class="btn primary use">Use this draft</span>
         <div class="draft">
             <label>Title</label><div class="t">The Saturday market is moving, for now</div>
             <label>Body</label><div class="b">From this weekend the stalls will set up in the Mill Lane car park while the square is resurfaced. Same traders, same hours, a few yards down the hill.</div>
         </div>
     </div>
-    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
+    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
     <div class="caption">It drafts in your voice, into the entry form</div>
 </section>
 
@@ -234,7 +234,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
         <h2>Create entry <small>Articles</small></h2>
         <div class="field"><label>Title</label><div class="box">The Saturday market is moving, for now</div></div>
         <div class="field"><label>Body</label><div class="box tall" style="font-size:19px">From this weekend the stalls will set up in the Mill Lane car park while the square is resurfaced. Same traders, same hours, a few yards down the hill.</div></div>
-        <div class="field"><label>Image</label><div class="box" style="display:flex;gap:12px;align-items:center;min-height:120px;padding-left:190px"><span class="btn">Browse assets</span><span class="btn"><svg class="mark" viewBox="0 0 14 14"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"/><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"/></svg>Ghostwriter</span></div></div>
+        <div class="field"><label>Image</label><div class="box" style="display:flex;gap:12px;align-items:center;min-height:120px;padding-left:190px"><span class="btn">Browse assets</span><span class="btn"><svg class="mark" viewBox="0 0 14 14"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"/><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"/></svg>Ghostwriter</span></div></div>
     </div>
     <div class="chosen"></div>
     <div class="photos">
@@ -245,7 +245,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
             <div class="tile"><div class="img"></div><span>the square, fenced</span></div>
         </div>
     </div>
-    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
+    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
     <div class="caption">Finds pictures that match yours</div>
 </section>
 
@@ -258,13 +258,13 @@ html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; backgro
         <div class="idea"><div><b>Meet the new market traders</b><small>Features · The market moved; the stalls have no page.</small></div><span class="btn primary">Draft this</span></div>
         <div class="idea"><div><b>How to report a pothole</b><small>Guides · The commonest question on the contact form.</small></div></div>
     </div>
-    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
+    <div class="ghost"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg></div>
     <div class="caption">And keeps a plan of what's missing</div>
 </section>
 
 <!-- 7. End -->
 <section class="scene" id="s7">
-    <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#2B3A64" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#8E99BC" d="M9 10H11.5L9 12.5Z"></path></g></svg><span>Ghostwriter</span></div>
+    <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 14 14"><g transform="translate(0 0) scale(1)"><path fill="#1E4E9C" fill-rule="evenodd" d="M2.5 12.5V6a4.5 4.5 0 0 1 9 0V9.5H8.5V12.5Z M4.75 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z M7.95 6.25a.65.65 0 1 0 1.3 0a.65.65 0 1 0-1.3 0Z"></path><path fill="#9CB1D3" d="M9 10H11.5L9 12.5Z"></path></g></svg><span>Ghostwriter</span></div>
     <div class="tag">Writes like you. Stays out of sight.</div>
     <div class="meta"><span>For Statamic and Craft CMS</span><span>ghostwriterplugins.com</span></div>
 </section>

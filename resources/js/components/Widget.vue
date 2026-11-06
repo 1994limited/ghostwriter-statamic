@@ -57,13 +57,13 @@ export default {
                     <span v-if="setup.next" class="truncate text-gray-500">{{ __('Next') }}: {{ setup.next.title }}</span>
                 </div>
                 <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700!">
-                    <div class="h-full rounded-full" style="background: var(--gw-accent, #2b3a64)" :style="{ width: `${percent}%` }"></div>
+                    <div class="h-full rounded-full" style="background: var(--gw-accent, #1E4E9C)" :style="{ width: `${percent}%` }"></div>
                 </div>
             </a>
 
             <div class="flex gap-6 px-4 py-3 text-sm">
-                <a :href="urls.index" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #2b3a64)">{{ inProgress.length + moreInProgress }}</strong> {{ __('in progress') }}</a>
-                <a :href="urls.plan" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #2b3a64)">{{ planOpen }}</strong> {{ __n('idea waiting|ideas waiting', planOpen) }}</a>
+                <a :href="urls.index" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #1E4E9C)">{{ inProgress.length + moreInProgress }}</strong> {{ __('in progress') }}</a>
+                <a :href="urls.plan" class="hover:underline!"><strong class="text-lg" style="color: var(--gw-accent, #1E4E9C)">{{ planOpen }}</strong> {{ __n('idea waiting|ideas waiting', planOpen) }}</a>
             </div>
 
             <ul v-if="inProgress.length">
