@@ -6,7 +6,7 @@
 
 On an existing entry, open the menu beside **Edit with Ghostwriter** and choose **Suggest edits**. The menu starts with **Finish this page** and **Review suggestions**, each with its count and only while it has one, then **Suggest edits**. The button's own count is both together: amber while anything is left to finish, plain when there are only suggestions to review.
 
-![The Ghostwriter menu open beside Edit with Ghostwriter: the count on the button, Finish this page with its count, and Suggest edits with what it does](images/header-menu.png)
+![The Ghostwriter menu open beside Edit with Ghostwriter: the count on the button, Finish this page with its count, and Suggest edits with what it does](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/header-menu.png)
 
 A confirm says what it does and what it costs before anything is sent:
 
@@ -30,7 +30,7 @@ Each step shows the change **in its sentence**, the old words struck through and
 
 **SEO titles and descriptions** are read as your site prints them. With **SEO Pro**, that is the entry's own value, or the one it inherits: the collection's default (such as `@seo:excerpt`, which reads the Excerpt, or a Bard field as plain text), then the site's defaults. An inherited description that fits is left alone, rather than flagged as missing. Without SEO Pro, plain `seo_title` and `meta_description` fields are read, with their own character limit.
 
-![Suggest edits on a journal entry: a Clarity suggestion in the guide, the old words struck through and the new ones below, with Accept, Edit, Write another and Dismiss, and the words marked in the Body field](images/suggest-edits.png)
+![Suggest edits on a journal entry: a Clarity suggestion in the guide, the old words struck through and the new ones below, with Accept, Edit, Write another and Dismiss, and the words marked in the Body field](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/suggest-edits.png)
 
 ### Stepping through
 
@@ -103,7 +103,7 @@ A link counts as broken only after it fails twice in a row (404, 410, or a name 
 - The first time it's opened before the daily pass has ever run, every page is read once in the background.
 - On a phone, each page is a card.
 
-![Content to revisit: the tiles (2 pages worth a look, 3 mention a past year as current, 0 broken links, 1 image without alt text), the collection filter, and the list with each page's reasons, priority and Review](images/content-to-revisit.png)
+![Content to revisit: the tiles (2 pages worth a look, 3 mention a past year as current, 0 broken links, 1 image without alt text), the collection filter, and the list with each page's reasons, priority and Review](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/content-to-revisit.png)
 
 ## Settings
 

@@ -14,13 +14,13 @@ Under **Ask what is missing**:
 
 The suggestions open in **Ghostwriter suggests**, all ticked. Untick the ones you don't want, then **Add N to the plan**. Unticked ones are kept as dismissed, so they aren't suggested again. With none ticked, the button reads **Add none, dismiss the rest**. **Drop them all** discards the lot. If there is nothing new, it says "Nothing new to suggest this time."
 
-![Ghostwriter suggests, with three ideas ticked, Drop them all and Add 3 to the plan](images/plan-suggestions.png)
+![Ghostwriter suggests, with three ideas ticked, Drop them all and Add 3 to the plan](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/plan-suggestions.png)
 
 ## Suggestions waiting
 
 Closing **Ghostwriter suggests** (or pressing Esc) keeps the suggestions: they cost a model call. A card at the top of the plan says "N suggestions waiting", and **Review** opens them again. Only **Drop them all** discards them.
 
-![The 3 suggestions waiting card with Review](images/plan-waiting.png)
+![The 3 suggestions waiting card with Review](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/plan-waiting.png)
 
 ## Adding your own
 
@@ -32,7 +32,7 @@ Under **Add your own**, give a **Working title**, choose the collection, and add
 - **Ideas**, grouped by collection, the newest first. Ideas Ghostwriter suggested carry a **Suggested** badge. Each has **Draft this** and **Not this one**.
 - Finished and dismissed ideas are folded away under **Show N finished and dismissed**. A finished idea links to its entry with **Open entry**. **Put back** returns a dismissed idea to the list; finished ones can't be put back, as that would make a second copy of a piece already written.
 
-![The content plan, with a piece in progress, ideas grouped by collection with Suggested badges, and Ask what is missing](images/plan.png)
+![The content plan, with a piece in progress, ideas grouped by collection with Suggested badges, and Ask what is missing](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/plan.png)
 
 ## Writing an idea
 

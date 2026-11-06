@@ -6,7 +6,7 @@ This page covers the settings screen, `config/ghostwriter.php`, where Ghostwrite
 
 **Ghostwriter → Settings** (`/cp/addons/ghostwriter-statamic/settings`), for [managers](permissions.md#managing-ghostwriter) only:
 
-![The settings screen: the collections Ghostwriter writes for and learns from, Get started and kinds, and the start of the Connections summary](images/settings.png)
+![The settings screen: the collections Ghostwriter writes for and learns from, Get started and kinds, and the start of the Connections summary](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/settings.png)
 
 | Setting | What it does |
 | --- | --- |
@@ -28,7 +28,7 @@ Settings are kept in `resources/addons/ghostwriter-statamic.yaml`. API keys are 
 
 A value set in `config/ghostwriter.php`, or by its `.env` variable, wins over the settings screen. The field then shows locked, with the config's value and a note: "Set in config/ghostwriter.php (or .env) to "anthropic", which wins over this screen. Change it there." What was saved on the screen is kept, and comes back if you take the value out of the config.
 
-![The AI provider section with Provider locked by config, and its note](images/settings-locked.png)
+![The AI provider section with Provider locked by config, and its note](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/settings-locked.png)
 
 The settings that work this way are `provider`, `model`, `collections`, `voice.collections`, `suggest_kinds`, `images.provider`, `images.model`, `images.placeholders` and `images.openverse`. Leave one `null` (or a list empty) to let the screen decide.
 

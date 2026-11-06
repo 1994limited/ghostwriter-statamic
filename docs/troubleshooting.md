@@ -22,7 +22,7 @@ Long drafts can take several minutes on the larger models. Raise `timeout` in [`
 
 When a turn fails, the panel says **That didn’t work** with the reason. **Try again** sends the same message again; there is no need to type it out.
 
-![That didn't work, with the provider's error and Try again](images/writing-failed.png)
+![That didn't work, with the provider's error and Try again](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-failed.png)
 
 ## Busy, overloaded or rate limited
 

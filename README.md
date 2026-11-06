@@ -8,7 +8,7 @@
 <p align="center">A Statamic 6 addon that learns how your site writes and what its pictures look like, then drafts and edits entries in that voice from a short brief and a conversation, beside the entry form.</p>
 
 <p align="center">
-  <img src="docs/images/writing-draft.png" alt="The Ghostwriter panel with a draft of a page in Blocks view, beside the conversation that wrote it" width="800">
+  <img src="https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-draft.png" alt="The Ghostwriter panel with a draft of a page in Blocks view, beside the conversation that wrote it" width="800">
 </p>
 
 ## What it does

@@ -2,7 +2,7 @@
 
 Some things only a person can finish: the price of a ticket, where a button should go, the photo for the hero. Ghostwriter never makes these up. It marks the place instead, and **Finish this page** finds every mark in an entry, highlights it on the entry's form and walks you through it. A page can't be published while something still needs you.
 
-![The guide on a journal entry: the count on the Ghostwriter menu, the Body field outlined and tagged "2 · Needs a link", the fact to add and the link to choose marked in its text, the Ghostwriter mark at the words, and the guide offering Link to Contact, Choose an entry and Remove the link](images/finish-this-page.png)
+![The guide on a journal entry: the count on the Ghostwriter menu, the Body field outlined and tagged "2 · Needs a link", the fact to add and the link to choose marked in its text, the Ghostwriter mark at the words, and the guide offering Link to Contact, Choose an entry and Remove the link](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/finish-this-page.png)
 
 It works on any entry in a collection Ghostwriter writes for, whoever wrote it.
 
@@ -49,7 +49,7 @@ Each highlighted field has a numbered tag ("2 · Needs a link"); click it to go 
 
 A plain text box (a text field, or a cell of a Grid or Table) can't underline part of its text, so one holding a gap gets a row of small chips under it, one per gap: "Add: years trading", "Check: 3", "Choose a link: contact page". The field keeps its highlight and tag. The chips follow your typing, and they're never part of the value.
 
-![A Grid's cells, each with a chip under it naming its gap](images/finish-grid-chips.png)
+![A Grid's cells, each with a chip under it naming its gap](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/finish-grid-chips.png)
 
 ### The guide
 
@@ -63,7 +63,7 @@ Click the count, or the Ghostwriter button in the bottom corner, to open the gui
 - **Template text:** **Remove it**.
 - **Links Ghostwriter added:** **Keep it** or **Remove the link**. See below.
 
-![A new page after Use this draft: the Text set tagged "3 · Needs a link", the words "tell us about your garden" marked in it, and the guide on step 3 of 4 saying the link doesn't go anywhere yet, with Link to Contact first, then Choose an entry and Remove the link](images/finish-link-suggested.png)
+![A new page after Use this draft: the Text set tagged "3 · Needs a link", the words "tell us about your garden" marked in it, and the guide on step 3 of 4 saying the link doesn't go anywhere yet, with Link to Contact first, then Choose an entry and Remove the link](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/finish-link-suggested.png)
 
 ### Counts to check
 
@@ -81,9 +81,9 @@ If the list has changed since (in your answers, your messages or the draft), the
 
 When no list like it is there any more, it asks whether the count is still right, with **Change it** and **Remove it**; when the number was edited by hand and no longer matches its list, it offers the list's own count. Each is counted on the menu, tagged "Check me" on its field, underlined in Bard like a fact to add, and [blocks publishing](#publishing) until it's resolved.
 
-![The guide on a count to check: Looks right, Change it, Remove it](images/finish-check.png)
+![The guide on a count to check: Looks right, Change it, Remove it](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/finish-check.png)
 
-![The list changed since: Use "4" instead](images/finish-check-stale.png)
+![The list changed since: Use "4" instead](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/finish-check-stale.png)
 
 ### Links Ghostwriter added
 
@@ -96,7 +96,7 @@ When a draft you used has [links Ghostwriter added](writing.md#links-to-your-oth
 
 It's marked as a suggestion ("A suggestion: it won't stop the page going live"), the field is tagged **Linked**, and it never counts on the menu or blocks publishing.
 
-![The guide on a link Ghostwriter added: "planting plan from us" in a Text block tagged Linked, with Keep it and Remove the link](images/finish-links.png)
+![The guide on a link Ghostwriter added: "planting plan from us" in a Text block tagged Linked, with Keep it and Remove the link](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/finish-links.png)
 
 **Back**, **Skip for now** and **Next** move between gaps. A skipped gap stays highlighted and still counts. Every fix goes into the form only: nothing is saved until you press Save.
 
@@ -142,7 +142,7 @@ When an entry is saved as published (now, or on a future date), publishing a wor
 
 > Check "3 areas" before publishing.
 
-![A count to check refused on publishing, by its field](images/finish-check-publish.png)
+![A count to check refused on publishing, by its field](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/finish-check-publish.png)
 
 This applies to what's published in the Control Panel, in the collections Ghostwriter writes for. Elsewhere it holds back only a stock photo previewed but not licensed. Saves made outside the Control Panel (console commands, imports, queued jobs, other addons' code) are never refused.
 

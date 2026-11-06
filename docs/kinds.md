@@ -22,7 +22,7 @@ Suggestions appear under the collection as **N suggested kinds to review**. Each
 - **Not this** dismisses it. Dismissed kinds aren't suggested again.
 - **Learn all N** asks first ("This takes about a minute each."), then learns every suggestion in the collection, one after another.
 
-![Suggested kinds for the Journal, each with its description, why, examples, Learn this and Not this](images/kinds-suggested.png)
+![Suggested kinds for the Journal, each with its description, why, examples, Learn this and Not this](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/kinds-suggested.png)
 
 ## Teaching a kind yourself
 
@@ -33,7 +33,7 @@ Suggestions appear under the collection as **N suggested kinds to review**. Each
 
 **Learn this** starts it. Ghostwriter reads the entries, about a minute, and writes the questions, guidance and checklist from them. The new kind appears on the Overview when it is done. Two kinds with the same name get their own handles (`event`, `event-2`); nothing is overwritten.
 
-![The Teach Ghostwriter a kind of content form, with a name and entries to model it on](images/teach-kind.png)
+![The Teach Ghostwriter a kind of content form, with a name and entries to model it on](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/teach-kind.png)
 
 ## Editing a kind
 
@@ -47,7 +47,7 @@ Click a kind on the Overview to open it. You can change:
 
 **Save** keeps the changes. **Delete** asks first, then removes the kind and says **Kind deleted**; entries already written with it aren't affected.
 
-![The Project story kind: its description, questions, guidance, checklist and examples](images/kind-editor.png)
+![The Project story kind: its description, questions, guidance, checklist and examples](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/kind-editor.png)
 
 **Something like what is already here**, on **What are you writing?**, is different: those are groups Ghostwriter finds by how entries are built, without teaching, and they aren't edited here.
 

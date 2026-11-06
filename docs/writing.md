@@ -26,7 +26,7 @@ Choose what this entry is:
 - **Or carry on with:** pieces already under way, with who started each one.
 - **Teach a kind:** teach Ghostwriter a new kind, from entries you pick.
 
-![The kind chooser: a learned kind, From the content plan, Something else and Or carry on with](images/writing-choose.png)
+![The kind chooser: a learned kind, From the content plan, Something else and Or carry on with](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-choose.png)
 
 ## The brief
 
@@ -46,7 +46,7 @@ Change any answer in the card, then:
 
 The card is a labelled region: a screen reader hears "The brief is filled in. Check it, then start writing." when it arrives, and the keyboard lands on it.
 
-![The brief card in the conversation, with the working title and the kind's questions filled in from a two-line reply](images/writing-brief.png)
+![The brief card in the conversation, with the working title and the kind's questions filled in from a two-line reply](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-brief.png)
 
 **Draft this** on an idea in the [content plan](content-plan.md) skips the question: the card arrives already filled in from the idea, ready to check.
 
@@ -58,7 +58,7 @@ If the brief can't be filled in, Ghostwriter says so with **Try again**; or repl
 
 Ghostwriter writes on the first turn whenever it can. If it needs something only you know, it asks first: four short questions at most, headed **Ghostwriter needs your answer** and announced to screen readers. Each question has its own box, labelled with the question, with a hint under it when one helps; a question with a few set answers has radio buttons instead, and one it can do without is marked *(optional)*. **Skip** a question you can't answer: Ghostwriter writes around it or marks the place for you to fill in. **Add anything else** opens the reply box for anything more. **Send answers** (or ⌘↵ / Ctrl+↵ in any box, which never saves the entry) sends them all as one message, and **Just draft it with what you have** has it write now and mark the gaps. Once sent, the questions stay in the conversation with your answers under them.
 
-![Ghostwriter needs your answer: two numbered questions, each with its own box and Skip, the second marked optional, with Send answers, Just draft it with what you have and Add anything else](images/writing-questions.png)
+![Ghostwriter needs your answer: two numbered questions, each with its own box and Skip, the second marked optional, with Send answers, Just draft it with what you have and Add anything else](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-questions.png)
 
 Once the writing has started, the brief card collapses to **Show the brief**. Open it to read or change the brief, then **Save the brief**: nothing is rewritten straight away, and Ghostwriter works from the new brief from your next message. A piece carried on later, or a colleague's shared conversation, shows the card in the same place.
 
@@ -86,11 +86,11 @@ In a narrow window (a tablet or a phone), the conversation and the draft take tu
 
 The word count is at the top. Images are chosen on the entry's own fields once the draft is in the form; see [Images with a draft](images.md#images-with-a-draft).
 
-![A page-builder draft in the Blocks tab: the title, then the Hero and Text blocks in order, with the layouts above and the answered questions in the conversation](images/writing-draft.png)
+![A page-builder draft in the Blocks tab: the title, then the Hero and Text blocks in order, with the layouts above and the answered questions in the conversation](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-draft.png)
 
 The panel follows the Control Panel's dark mode.
 
-![The same draft in dark mode](images/writing-draft-dark.png)
+![The same draft in dark mode](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-draft-dark.png)
 
 ### The Preview tab
 
@@ -133,7 +133,7 @@ Comment on the page itself and let Ghostwriter revise just those parts. Turn on 
 
 Adding, editing, resolving and putting back cost nothing. Only **Apply** asks the model, once, however many comments it carries (up to 12).
 
-![Comment mode on the Preview: the Hero block outlined with "Hero · click to comment", its numbered pin, and the count on Comment](images/writing-comments.png)
+![Comment mode on the Preview: the Hero block outlined with "Hero · click to comment", its numbered pin, and the count on Comment](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-comments.png)
 
 ### Layouts
 
@@ -155,13 +155,13 @@ In Blocks and Text, writing that is still one piece of the draft can be clicked 
 
 The layouts are a radio group: Tab to the chosen one, and the arrow keys move between them and choose. Each is announced with its name, whether it's suggested, its blocks, what it changes and its description. In a narrow panel the row wraps, and the cards scroll sideways.
 
-![The Preview tab with the Layout row above it: As written (Suggested) chosen, and Quote up top, which says "Quote moved up"](images/writing-layouts.png)
+![The Preview tab with the Layout row above it: As written (Suggested) chosen, and Quote up top, which says "Quote moved up"](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-layouts.png)
 
-![The same in dark mode](images/writing-layouts-dark.png)
+![The same in dark mode](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-layouts-dark.png)
 
-![Compare layouts: each layout as a card with a thumbnail of the page, its blocks and a line about it, and Hide thumbnails](images/writing-compare.png)
+![Compare layouts: each layout as a card with a thumbnail of the page, its blocks and a line about it, and Hide thumbnails](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-compare.png)
 
-![On a phone: Conversation and Draft at the top, the Draft showing, the layouts wrapped onto two lines above the preview](images/writing-layouts-phone.png)
+![On a phone: Conversation and Draft at the top, the Draft showing, the layouts wrapped onto two lines above the preview](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-layouts-phone.png)
 
 ### Extras
 
@@ -173,7 +173,7 @@ With the draft, Ghostwriter prepares **extras** for the kinds of block your blue
 - **A fact to add or a count to check shows as a chip**, as on the Preview tab, and clicking the chip opens the same box to answer or check it there. Click the words around it (or Tab to them and press Enter) to change them, and you'll see them as they're kept, markers included (`[[ask: years trading]]`).
 - **Click any part to change it** (a stat is its number and its label), as with the draft. **✕** deletes an item, and a layout that used it carries on without it. Neither asks the model anything.
 
-![The Extras list in the Text tab, with source labels and a count to review](images/writing-extras.png)
+![The Extras list in the Text tab, with source labels and a count to review](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-extras.png)
 
 ### The preview, for site developers
 
@@ -219,7 +219,7 @@ A first draft is linked to a few of your site's other pages, as an editor would,
 
 **Which pages can be linked to.** Any page of the same site with an address: every collection with a route, not only those Ghostwriter writes for, and taxonomy terms with a page of their own and some text on it. Drafts, scheduled and expired entries, redirects, pages marked noindex (in SEO Pro or with a noindex toggle), the home page and utility pages (search, log in, basket, thank you and the like) are left out, and so is the page itself. Ghostwriter keeps a list of these pages, beside the sessions, kept current when an entry or term is saved or deleted and by the daily pass (see [Content to revisit](suggest-edits.md#keeping-it-current)). It keeps up to 5,000 pages a collection, the key pages first (those in a navigation or at the top of a structured collection), then the newest; a super admin sees a note on the Overview when a collection has more.
 
-![The Text tab with two dotted links Ghostwriter added, the popover on "planting plan from us": How a planting plan comes together, Journal, its address and why, with Open page and Remove link](images/writing-links.png)
+![The Text tab with two dotted links Ghostwriter added, the popover on "planting plan from us": How a planting plan comes together, Journal, its address and why, with Open page and Remove link](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-links.png)
 
 ### Search
 
@@ -257,7 +257,7 @@ In SEO Pro, the text goes in as the entry's own (custom) value, and the field's 
 
 When the draft leaves something only you can finish (a fact it didn't have, a link to choose, an image placeholder), [Finish this page](finish-this-page.md) takes over: the count appears on the Ghostwriter menu, beside **Write with Ghostwriter**, the fields are highlighted, and the guide opens on the first gap. Anything else worth knowing is listed in one notice above the form, under "Draft added to the form. Check it over, then save.", until you close it, such as fields and blocks the draft used that this blueprint doesn't have, and options that don't exist, which were left out. Without either, a short message says the draft went in.
 
-![The entry form after Use this draft: the count on the Ghostwriter menu, the hero image's placeholder highlighted with the mark beside it, the guide on its first step with Find a photo, and the message that drafts start unpublished](images/writing-used.png)
+![The entry form after Use this draft: the count on the Ghostwriter menu, the hero image's placeholder highlighted with the mark beside it, the guide on its first step with Find a photo, and the message that drafts start unpublished](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/writing-used.png)
 
 ## Carrying on later
 

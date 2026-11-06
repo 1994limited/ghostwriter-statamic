@@ -61,7 +61,7 @@ Then open **Ghostwriter → Settings → Stock photos**:
 
 ## Previews in your pages
 
-![A Demo stock preview in an Image set's assets field, marked "5 · License me", with its Stock photo panel open: the Preview · not licensed badge, the photo's title, library, ID and credit, and License](images/stock-photos.png)
+![A Demo stock preview in an Image set's assets field, marked "5 · License me", with its Stock photo panel open: the Preview · not licensed badge, the photo's title, library, ID and credit, and License](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/stock-photos.png)
 
 - **On the field.** An assets field holding a preview shows a **Preview · not licensed** badge beside **Find a photo**, with the preview's thumbnail. It opens the preview, with **License**, or for people without the licence permission, "Ask a manager to license" and **Request licence**.
 - **In the asset editor.** The asset gets a **Stock photo** panel: its state, library, ID, order and credit, with the same buttons.

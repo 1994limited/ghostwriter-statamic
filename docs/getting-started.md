@@ -10,7 +10,7 @@ A model call (writing a guide, looking over a collection) runs in the background
 
 Shows which provider Ghostwriter writes with, such as "Writing with Claude (Anthropic).", and the key it reads. If the key isn't set, add it to `.env` and reload the page. If another provider's key is set instead, it says so. See [API keys](api-keys.md).
 
-![Get started open on step 1, Connect a model, with every step done](images/get-started-connect.png)
+![Get started open on step 1, Connect a model, with every step done](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/get-started-connect.png)
 
 ## 2. Choose where it writes
 
@@ -32,7 +32,7 @@ This is the only place kinds are suggested by themselves. Everywhere else, they 
 
 Each suggestion shows what the kind is, why it's worth teaching, and a few of the entries it was found in. **Learn this** on the ones you write often; each gets its own brief. **Not this** dismisses one. **Learn all N** asks first, then learns every suggestion in a collection, one after another. See [Kinds of content](kinds.md).
 
-![Step 4 with suggested kinds for Pages and Journal, each with Learn this and Not this](images/get-started-kinds.png)
+![Step 4 with suggested kinds for Pages and Journal, each with Learn this and Not this](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/get-started-kinds.png)
 
 Every collection can be written for without this step; it then uses a general brief.
 

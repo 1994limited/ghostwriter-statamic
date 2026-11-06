@@ -6,7 +6,7 @@ This page covers finding and making images: the image button on assets fields, i
 
 Every assets field on an entry's create or edit screen, in a collection Ghostwriter writes for, has a **Find a photo** button, with the ghost, beside the field's own controls, for people with the Ghostwriter permission. The field needs a container. On a field that takes only other kinds of file (validated as `mimes:pdf`, say), Ghostwriter says it can't help.
 
-![The Hero image field with the Find a photo button beside its own controls](images/image-button.png)
+![The Hero image field with the Find a photo button beside its own controls](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/image-button.png)
 
 Click it to open **Image for** and the field's name, with two tabs: **Find a photo** and **Make one**. Where only one is available, only that tab shows; with neither, the dialog says which keys to add.
 
@@ -21,7 +21,7 @@ Searches free photo libraries: Openverse (no key needed), and Unsplash, Pexels a
 3. The best three come first, with **Best match** on the ones the model picked. **View N more** shows the rest of those that fit.
 4. Click a photo, or its **Use this** button. The credit under each one links to it on the library's site.
 
-![The Find a photo tab, with the searches run, three results, two marked Best match, and View 3 more](images/image-find.png)
+![The Find a photo tab, with the searches run, three results, two marked Best match, and View 3 more](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/image-find.png)
 
 **How photos are ranked.** The model looks at each result beside the words around the field and what the library says the photo shows, and leaves out clear misses. This happens whether or not other entries have images in that place; with none, a line says "Compared with the page; there are no other images here to match." If nothing fits, the model names better searches and a second round runs. If that finds nothing either, the top results come back with a line saying none fitted.
 
@@ -46,7 +46,7 @@ Needs an OpenAI or Gemini key; without one, the tab isn't shown. See [API keys](
 
 A logo or brand mark is never made or found. For a logo, add the file to the field yourself, or give it as your own image in step 2.
 
-![The Make one tab with a made picture, Make another and Use this](images/image-make.png)
+![The Make one tab with a made picture, Make another and Use this](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/image-make.png)
 
 ## What happens when you choose one
 

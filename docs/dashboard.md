@@ -18,11 +18,11 @@ This page covers Ghostwriter's own home page, the Overview, and the widget for S
 
 The cog in the header opens the settings, for managers only.
 
-![The Overview: Get started with its progress, the four tiles, Content to revisit, and the collections with Kinds and Write](images/overview.png)
+![The Overview: Get started with its progress, the four tiles, Content to revisit, and the collections with Kinds and Write](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/overview.png)
 
 It follows the Control Panel's dark mode.
 
-![The Overview in dark mode](images/overview-dark.png)
+![The Overview in dark mode](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/overview-dark.png)
 
 ## The dashboard widget
 
@@ -54,6 +54,6 @@ It shows:
 
 `limit` is how many pieces it lists (5 by default, up to 20); `title` renames it. People without the Ghostwriter permission don't see it.
 
-![The Ghostwriter widget on Statamic's dashboard](images/widget.png)
+![The Ghostwriter widget on Statamic's dashboard](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/widget.png)
 
 Next: [How Ghostwriter reads your fields](fields.md).

@@ -12,7 +12,7 @@ Tick the collections to read, then **Write the voice guide** the first time, or 
 
 How much it reads is set by `voice.max_entries` and the other `voice.*` keys in [Configuration](configuration.md).
 
-![The voice guide in its editor, with Ask for a change and Read the site again](images/voice-guide.png)
+![The voice guide in its editor, with Ask for a change and Read the site again](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/voice-guide.png)
 
 ### Changing it
 
@@ -31,7 +31,7 @@ The guide is kept in `resources/ghostwriter/voice.md` (see [Where things are kep
 
 Tick the collections to look at, then **Describe the images** the first time, or **Look again and rewrite** under **Look at the images again** after that. Ghostwriter looks at a few images from each image field used by the newest published entries, including those inside page-builder blocks, and writes one `##` section per collection. A collection needs at least three images. The number looked at per collection is `images.guide_samples` (10 by default).
 
-![The image style guide, with Look again and rewrite](images/image-style.png)
+![The image style guide, with Look again and rewrite](https://raw.githubusercontent.com/1994limited/statamic-marketplace/main/ghostwriter/charts/image-style.png)
 
 ### Changing it
 
